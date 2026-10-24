@@ -1,0 +1,22 @@
+.hub-homelink { position: fixed; top: 8px; right: 8px; z-index: 40; display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 22px; background: var(--card); color: var(--fg); border: 1px solid var(--line); text-decoration: none; font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+.hub-homelink:focus-visible, .hub-big:focus-visible, .hub-link:focus-visible, .hub-login:focus-visible { outline: 3px solid #e0a100; outline-offset: 2px; }
+.hub-root { max-width: 720px; margin: 0 auto; padding: 12px 16px 48px; }
+.hub-title { font-size: 24px; margin: 8px 0; }
+.hub-status { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; }
+.hub-badge { display: inline-block; border: 1px solid var(--line); border-radius: 4px; padding: 2px 8px; font-size: 13px; background: var(--card); }
+.hub-badge-fixture { color: var(--warn); border-color: var(--warn); font-weight: 700; }
+.hub-badge-live { color: var(--acc); border-color: var(--acc); font-weight: 700; }
+.hub-big-row { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 12px 0 20px; }
+@media (min-width: 520px) { .hub-big-row { grid-template-columns: 1fr 1fr; } }
+.hub-big { display: flex; align-items: center; justify-content: center; min-height: 72px; font-size: 20px; font-weight: 700; border-radius: 12px; text-decoration: none; background: var(--acc); color: var(--bg); border: 1px solid var(--acc); }
+.hub-big-alt { background: var(--card); color: var(--fg); border-color: var(--line); }
+.hub-sub { font-size: 18px; margin: 16px 0 8px; }
+.hub-trips { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.hub-trip { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.hub-trip h3 { font-size: 17px; margin: 0 0 4px; overflow-wrap: anywhere; }
+.hub-trip p { margin: 2px 0; font-size: 14px; color: var(--mut); }
+.hub-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.hub-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--fg); text-decoration: none; background: var(--bg); }
+.hub-msg { border: 2px dashed var(--line); border-radius: 8px; padding: 16px; text-align: center; background: var(--card); }
+.hub-msg-err { border: 2px solid var(--bad); }
+.hub-login { color: var(--acc); font-weight: 700; }
