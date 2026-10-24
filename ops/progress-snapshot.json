@@ -1,0 +1,547 @@
+{
+  "repository": "jphacks/tkb_2627",
+  "fetchedAt": "2026-10-24T11:08:48.490Z",
+  "warnings": [],
+  "tasks": {
+    "B01": {
+      "status": "done",
+      "issue": {
+        "number": 2,
+        "url": "https://github.com/jphacks/tkb_2627/issues/2",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "B02": {
+      "status": "done",
+      "issue": {
+        "number": 3,
+        "url": "https://github.com/jphacks/tkb_2627/issues/3",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "B03": {
+      "status": "done",
+      "issue": {
+        "number": 4,
+        "url": "https://github.com/jphacks/tkb_2627/issues/4",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "B04": {
+      "status": "done",
+      "issue": {
+        "number": 5,
+        "url": "https://github.com/jphacks/tkb_2627/issues/5",
+        "assignees": [
+          "murataka-csl"
+        ]
+      }
+    },
+    "B05": {
+      "status": "done",
+      "issue": {
+        "number": 6,
+        "url": "https://github.com/jphacks/tkb_2627/issues/6",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "G01": {
+      "status": "done",
+      "issue": {
+        "number": 7,
+        "url": "https://github.com/jphacks/tkb_2627/issues/7",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "G02": {
+      "status": "review",
+      "issue": {
+        "number": 8,
+        "url": "https://github.com/jphacks/tkb_2627/issues/8",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "U01": {
+      "status": "done",
+      "issue": {
+        "number": 9,
+        "url": "https://github.com/jphacks/tkb_2627/issues/9",
+        "assignees": [
+          "murataka-csl"
+        ]
+      }
+    },
+    "U02": {
+      "status": "done",
+      "issue": {
+        "number": 10,
+        "url": "https://github.com/jphacks/tkb_2627/issues/10",
+        "assignees": [
+          "murataka-csl"
+        ]
+      }
+    },
+    "D01": {
+      "status": "done",
+      "issue": {
+        "number": 11,
+        "url": "https://github.com/jphacks/tkb_2627/issues/11",
+        "assignees": [
+          "ryoumatimati"
+        ]
+      }
+    },
+    "D02": {
+      "status": "done",
+      "issue": {
+        "number": 12,
+        "url": "https://github.com/jphacks/tkb_2627/issues/12",
+        "assignees": [
+          "ryoumatimati"
+        ]
+      }
+    },
+    "D03": {
+      "status": "done",
+      "issue": {
+        "number": 13,
+        "url": "https://github.com/jphacks/tkb_2627/issues/13",
+        "assignees": [
+          "ryoumatimati"
+        ]
+      }
+    },
+    "D04": {
+      "status": "done",
+      "issue": {
+        "number": 14,
+        "url": "https://github.com/jphacks/tkb_2627/issues/14",
+        "assignees": [
+          "ryoumatimati"
+        ]
+      }
+    },
+    "D05": {
+      "status": "done",
+      "issue": {
+        "number": 15,
+        "url": "https://github.com/jphacks/tkb_2627/issues/15",
+        "assignees": [
+          "ryoumatimati"
+        ]
+      }
+    },
+    "D06": {
+      "status": "done",
+      "issue": {
+        "number": 16,
+        "url": "https://github.com/jphacks/tkb_2627/issues/16",
+        "assignees": [
+          "ryoumatimati"
+        ]
+      }
+    },
+    "D07": {
+      "status": "todo",
+      "issue": {
+        "number": 17,
+        "url": "https://github.com/jphacks/tkb_2627/issues/17",
+        "assignees": [
+          "ryoumatimati"
+        ]
+      }
+    },
+    "D08": {
+      "status": "todo",
+      "issue": {
+        "number": 18,
+        "url": "https://github.com/jphacks/tkb_2627/issues/18",
+        "assignees": [
+          "ryoumatimati"
+        ]
+      }
+    },
+    "S01": {
+      "status": "done",
+      "issue": {
+        "number": 19,
+        "url": "https://github.com/jphacks/tkb_2627/issues/19",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "S02": {
+      "status": "done",
+      "issue": {
+        "number": 20,
+        "url": "https://github.com/jphacks/tkb_2627/issues/20",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "S03": {
+      "status": "done",
+      "issue": {
+        "number": 21,
+        "url": "https://github.com/jphacks/tkb_2627/issues/21",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "S04": {
+      "status": "done",
+      "issue": {
+        "number": 22,
+        "url": "https://github.com/jphacks/tkb_2627/issues/22",
+        "assignees": [
+          "poyyk"
+        ]
+      }
+    },
+    "S05": {
+      "status": "done",
+      "issue": {
+        "number": 23,
+        "url": "https://github.com/jphacks/tkb_2627/issues/23",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "S06": {
+      "status": "done",
+      "issue": {
+        "number": 24,
+        "url": "https://github.com/jphacks/tkb_2627/issues/24",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "A01": {
+      "status": "done",
+      "issue": {
+        "number": 25,
+        "url": "https://github.com/jphacks/tkb_2627/issues/25",
+        "assignees": [
+          "poyyk"
+        ]
+      }
+    },
+    "A02": {
+      "status": "done",
+      "issue": {
+        "number": 26,
+        "url": "https://github.com/jphacks/tkb_2627/issues/26",
+        "assignees": [
+          "poyyk"
+        ]
+      }
+    },
+    "A03": {
+      "status": "done",
+      "issue": {
+        "number": 27,
+        "url": "https://github.com/jphacks/tkb_2627/issues/27",
+        "assignees": [
+          "poyyk"
+        ]
+      }
+    },
+    "A04": {
+      "status": "doing",
+      "issue": {
+        "number": 28,
+        "url": "https://github.com/jphacks/tkb_2627/issues/28",
+        "assignees": [
+          "poyyk"
+        ]
+      }
+    },
+    "A05": {
+      "status": "todo",
+      "issue": {
+        "number": 29,
+        "url": "https://github.com/jphacks/tkb_2627/issues/29",
+        "assignees": [
+          "poyyk"
+        ]
+      }
+    },
+    "A06": {
+      "status": "todo",
+      "issue": {
+        "number": 30,
+        "url": "https://github.com/jphacks/tkb_2627/issues/30",
+        "assignees": [
+          "poyyk"
+        ]
+      }
+    },
+    "U03": {
+      "status": "todo",
+      "issue": {
+        "number": 31,
+        "url": "https://github.com/jphacks/tkb_2627/issues/31",
+        "assignees": [
+          "murataka-csl"
+        ]
+      }
+    },
+    "U04": {
+      "status": "todo",
+      "issue": {
+        "number": 32,
+        "url": "https://github.com/jphacks/tkb_2627/issues/32",
+        "assignees": [
+          "murataka-csl"
+        ]
+      }
+    },
+    "U05": {
+      "status": "todo",
+      "issue": {
+        "number": 33,
+        "url": "https://github.com/jphacks/tkb_2627/issues/33",
+        "assignees": [
+          "murataka-csl"
+        ]
+      }
+    },
+    "U06": {
+      "status": "todo",
+      "issue": {
+        "number": 34,
+        "url": "https://github.com/jphacks/tkb_2627/issues/34",
+        "assignees": [
+          "murataka-csl"
+        ]
+      }
+    },
+    "U07": {
+      "status": "todo",
+      "issue": {
+        "number": 35,
+        "url": "https://github.com/jphacks/tkb_2627/issues/35",
+        "assignees": [
+          "murataka-csl"
+        ]
+      }
+    },
+    "U08": {
+      "status": "todo",
+      "issue": {
+        "number": 36,
+        "url": "https://github.com/jphacks/tkb_2627/issues/36",
+        "assignees": [
+          "murataka-csl"
+        ]
+      }
+    },
+    "E01": {
+      "status": "todo",
+      "issue": {
+        "number": 37,
+        "url": "https://github.com/jphacks/tkb_2627/issues/37",
+        "assignees": [
+          "murataka-csl"
+        ]
+      }
+    },
+    "E02": {
+      "status": "todo",
+      "issue": {
+        "number": 38,
+        "url": "https://github.com/jphacks/tkb_2627/issues/38",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "E03": {
+      "status": "review",
+      "issue": {
+        "number": 39,
+        "url": "https://github.com/jphacks/tkb_2627/issues/39",
+        "assignees": [
+          "ryoumatimati"
+        ]
+      }
+    },
+    "O01": {
+      "status": "done",
+      "issue": {
+        "number": 40,
+        "url": "https://github.com/jphacks/tkb_2627/issues/40",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "O02": {
+      "status": "done",
+      "issue": {
+        "number": 41,
+        "url": "https://github.com/jphacks/tkb_2627/issues/41",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "T01": {
+      "status": "done",
+      "issue": {
+        "number": 42,
+        "url": "https://github.com/jphacks/tkb_2627/issues/42",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "T02": {
+      "status": "todo",
+      "issue": {
+        "number": 43,
+        "url": "https://github.com/jphacks/tkb_2627/issues/43",
+        "assignees": [
+          "ryoumatimati"
+        ]
+      }
+    },
+    "T03": {
+      "status": "review",
+      "issue": {
+        "number": 44,
+        "url": "https://github.com/jphacks/tkb_2627/issues/44",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "T04": {
+      "status": "done",
+      "issue": {
+        "number": 45,
+        "url": "https://github.com/jphacks/tkb_2627/issues/45",
+        "assignees": [
+          "poyyk"
+        ]
+      }
+    },
+    "I01": {
+      "status": "done",
+      "issue": {
+        "number": 46,
+        "url": "https://github.com/jphacks/tkb_2627/issues/46",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "I02": {
+      "status": "todo",
+      "issue": {
+        "number": 47,
+        "url": "https://github.com/jphacks/tkb_2627/issues/47",
+        "assignees": [
+          "poyyk"
+        ]
+      }
+    },
+    "I03": {
+      "status": "todo",
+      "issue": {
+        "number": 48,
+        "url": "https://github.com/jphacks/tkb_2627/issues/48",
+        "assignees": [
+          "poyyk"
+        ]
+      }
+    },
+    "I04": {
+      "status": "todo",
+      "issue": {
+        "number": 49,
+        "url": "https://github.com/jphacks/tkb_2627/issues/49",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "I05": {
+      "status": "todo",
+      "issue": {
+        "number": 50,
+        "url": "https://github.com/jphacks/tkb_2627/issues/50",
+        "assignees": [
+          "murataka-csl"
+        ]
+      }
+    },
+    "T05": {
+      "status": "review",
+      "issue": {
+        "number": 51,
+        "url": "https://github.com/jphacks/tkb_2627/issues/51",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "T06": {
+      "status": "todo",
+      "issue": {
+        "number": 52,
+        "url": "https://github.com/jphacks/tkb_2627/issues/52",
+        "assignees": [
+          "ryoumatimati"
+        ]
+      }
+    },
+    "T07": {
+      "status": "todo",
+      "issue": {
+        "number": 53,
+        "url": "https://github.com/jphacks/tkb_2627/issues/53",
+        "assignees": [
+          "murataka-csl"
+        ]
+      }
+    },
+    "Z01": {
+      "status": "todo",
+      "issue": {
+        "number": 54,
+        "url": "https://github.com/jphacks/tkb_2627/issues/54",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "Z02": {
+      "status": "todo",
+      "issue": {
+        "number": 55,
+        "url": "https://github.com/jphacks/tkb_2627/issues/55",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    }
+  }
+}

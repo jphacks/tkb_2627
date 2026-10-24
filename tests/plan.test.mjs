@@ -114,11 +114,12 @@ test('--publish embeds the snapshot into tracked HTML on purpose (npm run progre
   const data=f=>JSON.parse(fs.readFileSync(path.join(out,f),'utf8').match(/<script type="application\/json" id="design-data">([\s\S]*?)<\/script>/)[1]);
   try {
     for (const f of ['SYSTEM_DESIGN.html','DEVELOPMENT_GUIDE.html','dashboard/index.html']) assert.equal(data(f).snapshot.fetchedAt,'2026-01-02T00:00:00Z',f);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(out,'ops/progress-snapshot.json'),'utf8')).fetchedAt,'2026-01-02T00:00:00Z');
     const missing=spawnSync(process.execPath,['scripts/render-dashboard.mjs','--out',out,'--snapshot',path.join(out,'none.json'),'--publish'],{cwd:ROOT,encoding:'utf8',timeout:10000});
     assert.notEqual(missing.status,0);
   } finally { fs.rmSync(out,{recursive:true,force:true}); }
 });
-test('local GitHub snapshot goes only into the git-ignored dashboard, never tracked HTML', () => {
+test('local GitHub snapshot goes only into the git-ignored dashboard; tracked HTML keeps the published one', () => {
   const out=fs.mkdtempSync(path.join(os.tmpdir(),'tkb-dash-'));
   const snap=path.join(out,'snap.json');
   fs.writeFileSync(snap,JSON.stringify({repository:'x/y',fetchedAt:'2026-01-01T00:00:00Z',warnings:['$& $$ $\''],tasks:{}}));
@@ -126,8 +127,19 @@ test('local GitHub snapshot goes only into the git-ignored dashboard, never trac
   assert.equal(r.status,0,r.stderr);
   const data=f=>JSON.parse(fs.readFileSync(path.join(out,f),'utf8').match(/<script type="application\/json" id="design-data">([\s\S]*?)<\/script>/)[1]);
   try {
-    assert.equal(data('SYSTEM_DESIGN.html').snapshot,null);
-    assert.equal(data('DEVELOPMENT_GUIDE.html').snapshot,null);
+    const pub=path.join(ROOT,'ops/progress-snapshot.json');
+    const published=fs.existsSync(pub)?JSON.parse(fs.readFileSync(pub,'utf8')):null;
+    assert.deepEqual(data('SYSTEM_DESIGN.html').snapshot,published);
+    assert.deepEqual(data('DEVELOPMENT_GUIDE.html').snapshot,published);
     assert.equal(data('dashboard/index.html').snapshot.fetchedAt,'2026-01-01T00:00:00Z');
   } finally { fs.rmSync(out,{recursive:true,force:true}); }
+});
+test('committed HTML shows the published progress snapshot (npm run guide never wipes it)', () => {
+  const pub=path.join(ROOT,'ops/progress-snapshot.json');
+  if(!fs.existsSync(pub)) return;
+  const published=JSON.parse(fs.readFileSync(pub,'utf8'));
+  for (const f of ['SYSTEM_DESIGN.html','DEVELOPMENT_GUIDE.html']) {
+    const raw=fs.readFileSync(path.join(ROOT,f),'utf8').match(/<script type="application\/json" id="design-data">([\s\S]*?)<\/script>/)[1];
+    assert.deepEqual(JSON.parse(raw).snapshot,published,f);
+  }
 });
