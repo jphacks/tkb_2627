@@ -1,9 +1,11 @@
+import { fileURLToPath } from 'node:url';
 import { buildApp } from './app.ts';
 import { PairingStore } from './auth/pairing.ts';
 import { loadConfig, loadEnvFile } from './config.ts';
 
 loadEnvFile();
 const config = loadConfig();
+config.jobDir ??= fileURLToPath(new URL('../../../.local/ai-local/', import.meta.url));
 const pairing = new PairingStore({ ttlMs: config.pairingTtlMs });
 const app = buildApp({ config, pairing });
 const stop = () => void app.close().then(() => process.exit(0));

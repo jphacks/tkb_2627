@@ -14,6 +14,8 @@ export interface PersonalConfig {
   /** Per CLI invocation timeout; used by the real runner later. */
   cliTimeoutMs: number;
   pairingTtlMs: number;
+  /** Job journal directory (AI_JOB_DIR); null = in-memory only. main.ts defaults it to <repo>/.local/ai-local. */
+  jobDir: string | null;
 }
 
 function posInt(v: string | undefined, def: number, name: string): number {
@@ -53,5 +55,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): PersonalConfig
     aiTimeoutMs: posInt(env.AI_TIMEOUT_SECONDS, 300, 'AI_TIMEOUT_SECONDS') * 1000,
     cliTimeoutMs: posInt(env.CLI_TIMEOUT_SECONDS, 120, 'CLI_TIMEOUT_SECONDS') * 1000,
     pairingTtlMs: 10 * 60_000,
+    jobDir: env.AI_JOB_DIR?.trim() ? resolve(env.AI_JOB_DIR.trim()) : null,
   };
 }
