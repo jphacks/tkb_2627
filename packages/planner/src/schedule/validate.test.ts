@@ -44,7 +44,7 @@ const good = () =>
 describe('validateSchedule', () => {
   it('accepts a consistent day with known data as valid', () => {
     const r = validateSchedule({ days: [good()], places, constraints: { startDate: '2026-07-01', endDate: '2026-07-01', mustVisit: ['a'] } });
-    expect(r).toEqual({ feasible: true, validationState: 'valid', issues: [], dataMode: 'fixture' });
+    expect(r).toMatchObject({ feasible: true, validationState: 'valid', issues: [], dataMode: 'fixture' });
   });
 
   it('detects travel that does not fit between activities (leg times, duration only, or arrival after the next start)', () => {
@@ -61,6 +61,20 @@ describe('validateSchedule', () => {
     const arrivalOnly = good();
     arrivalOnly.items[1] = leg('ab', 'a', 'b', null, '2026-07-01T02:30:00Z', { durationSeconds: 3600 });
     expect(codes(validateSchedule({ days: [arrivalOnly], places }))).toEqual(['travel_time_insufficient']);
+
+    // Arrival only, duration unknown: arriving at b before leaving a is still certain to fail.
+    const arrivesEarly = good();
+    arrivesEarly.items[1] = leg('ab', 'a', 'b', null, '2026-07-01T01:30:00Z');
+    expect(validateSchedule({ days: [arrivesEarly], places }).feasible).toBe(false);
+  });
+
+  it('checks travel from the day start place and time to the first item', () => {
+    const lunch = visit('lunch', 'b', '2026-07-01T02:00:00Z', '2026-07-01T03:00:00Z', { kind: 'meal' });
+    const toLunch = leg('ab', 'a', 'b', null, null, { durationSeconds: 1800 });
+    const start = { placeId: 'a', time: { utc: '2026-07-01T01:45:00Z', timeZone: 'Asia/Tokyo' } };
+    expect(codes(validateSchedule({ days: [makeDay([toLunch, lunch])], places, dayStarts: [start] }))).toEqual(['travel_time_insufficient']);
+    expect(codes(validateSchedule({ days: [makeDay([lunch])], places, dayStarts: [start] }))).toEqual(['leg_missing']);
+    expect(validateSchedule({ days: [makeDay([lunch])], places, dayStarts: [{ placeId: 'b', time: null }] }).issues).toEqual([]);
   });
 
   it('reports overlapping activities and an end before the start', () => {
@@ -69,6 +83,10 @@ describe('validateSchedule', () => {
       visit('va2', 'a', '2026-07-01T02:00:00Z', '2026-07-01T01:30:00Z'),
     ]);
     expect(codes(validateSchedule({ days: [day], places }))).toEqual(['end_before_start', 'overlap']);
+
+    // Only the end is known, but it is before the previous activity ends.
+    const endOnly = makeDay([visit('va', 'a', '2026-07-01T01:00:00Z', '2026-07-01T03:00:00Z'), visit('vb', 'a', null, '2026-07-01T02:00:00Z')]);
+    expect(codes(validateSchedule({ days: [endOnly], places }))).toEqual(['time_unknown', 'overlap']);
   });
 
   it('checks opening hours in the place time zone, including stays past midnight', () => {
@@ -82,10 +100,15 @@ describe('validateSchedule', () => {
     const tooLate = makeDay([visit('vbar', 'bar', '2026-07-01T14:00:00Z', '2026-07-01T17:30:00Z')]); // until 2:30
     expect(codes(validateSchedule({ days: [tooLate], places: bar }))).toEqual(['outside_opening_hours']);
 
-    // Paris place, Tokyo-labelled activity: 10:00-11:00 CEST (08:00Z) is inside 9:00-18:00 Paris time.
+    // Paris place in a Tokyo-labelled day: 14:00-15:00 CEST (12:00Z) is open in Paris; read in Tokyo it would be 21:00.
     const paris = [place('louvre', '9:00-18:00', { timeZone: 'Europe/Paris' })];
-    const visitParis = makeDay([visit('vl', 'louvre', '2026-07-01T08:00:00Z', '2026-07-01T09:00:00Z')]);
+    const visitParis = makeDay([visit('vl', 'louvre', '2026-07-01T12:00:00Z', '2026-07-01T13:00:00Z')]);
     expect(validateSchedule({ days: [visitParis], places: paris }).issues).toEqual([]);
+
+    // 2026-10-25, after DST ends in Paris: 08:00Z is 9:00 CET (open), 07:30Z is 8:30 CET (closed).
+    const dst = (start: string, end: string) => makeDay([visit('vl', 'louvre', start, end)], 'Europe/Paris', '2026-10-25');
+    expect(validateSchedule({ days: [dst('2026-10-25T08:00:00Z', '2026-10-25T09:00:00Z')], places: paris }).issues).toEqual([]);
+    expect(codes(validateSchedule({ days: [dst('2026-10-25T07:30:00Z', '2026-10-25T09:00:00Z')], places: paris }))).toEqual(['outside_opening_hours']);
   });
 
   it('treats unreadable or missing hours as a warning for venues but not for open areas', () => {
@@ -98,6 +121,10 @@ describe('validateSchedule', () => {
     const r = validateSchedule({ days: [day], places: p });
     expect(only(r, 'opening_hours_unknown').map(i => i.refs[0])).toEqual(['vm', 'vk']);
     expect(r).toMatchObject({ feasible: true, validationState: 'needs_review' });
+
+    // A visit without a place cannot have its hours checked either.
+    const nowhere = makeDay([visit('vx', null, '2026-07-01T01:00:00Z', '2026-07-01T02:00:00Z')]);
+    expect(codes(validateSchedule({ days: [nowhere], places }))).toEqual(['opening_hours_unknown']);
   });
 
   it('reports a missing must-visit place, and does not count a skipped visit', () => {
@@ -150,6 +177,10 @@ describe('validateSchedule', () => {
     const moved = makeDay([{ ...fixed, start: { utc: '2026-07-01T03:30:00Z', timeZone: 'Asia/Tokyo' } }]);
     expect(codes(validateSchedule({ days: [moved], places, fixedActivities: [fixed] }))).toEqual(['fixed_activity_changed']);
     expect(codes(validateSchedule({ days: [good()], places, fixedActivities: [fixed] }))).toEqual(['fixed_activity_missing']);
+
+    // The same instant written differently is not a change.
+    const sameInstant = makeDay([{ ...fixed, start: { timeZone: 'Asia/Tokyo', utc: '2026-07-01T03:00:00.000Z' } }]);
+    expect(validateSchedule({ days: [sameInstant], places, fixedActivities: [fixed] }).issues).toEqual([]);
   });
 
   it('checks trip dates in the day time zone', () => {
@@ -170,12 +201,14 @@ describe('validateSchedule', () => {
     day.items[1] = { ...(day.items[1] as TravelLeg), fare: jpy(200) };
     const c = (amount: number) => ({ startDate: '2026-07-01', endDate: '2026-07-01', budget: jpy(amount) });
 
-    expect(validateSchedule({ days: [day], places, constraints: c(5000) }).issues).toEqual([]);
+    const ok = validateSchedule({ days: [day], places, constraints: c(5000) });
+    expect(ok).toMatchObject({ issues: [], totalKnownCost: [jpy(4700)], hasUnknownCost: false });
     expect(codes(validateSchedule({ days: [day], places, constraints: c(4000) }))).toEqual(['over_budget']);
 
     day.items[1] = { ...(day.items[1] as TravelLeg), fare: null };
     const r = validateSchedule({ days: [day], places, constraints: c(5000) });
     expect(only(r, 'budget_unverified')[0]).toMatchObject({ severity: 'warning', refs: ['ab'] });
+    expect(r).toMatchObject({ totalKnownCost: [jpy(4500)], hasUnknownCost: true });
 
     day.items[2] = { ...(day.items[2] as Activity), cost: { amountMinor: 1000, currency: 'EUR' } };
     day.items[1] = { ...(day.items[1] as TravelLeg), fare: jpy(200) };

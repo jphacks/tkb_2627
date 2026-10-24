@@ -3,6 +3,7 @@ import type {
   DataMode,
   ItineraryItem,
   LocalDate,
+  Money,
   PlaceInfo,
   TravelLeg,
   TripConstraints,
@@ -59,6 +60,10 @@ export interface ScheduleValidation {
   issues: ScheduleIssue[];
   /** Whether the places and legs used are fixture data, live data or both. Null when nothing referenced any. */
   dataMode: DataMode | null;
+  /** Known activity costs and leg fares per currency (skipped activities excluded), as in PlanCandidate. */
+  totalKnownCost: Money[];
+  /** True when any of those costs is unknown: the known total is then a lower bound, never the full cost (R11). */
+  hasUnknownCost: boolean;
 }
 
 export interface ScheduleInput {
@@ -67,6 +72,11 @@ export interface ScheduleInput {
   constraints?: Pick<TripConstraints, 'startDate' | 'endDate' | 'mustVisit' | 'budget'>;
   /** Activities that must stay exactly as given (reservations, R12 fixed items), e.g. from the base trip. */
   fixedActivities?: readonly Activity[];
+  /**
+   * Where and when each day starts (hotel, station), by day index. Travel from that place and time to the first item
+   * is then checked too; either part may be null when unknown.
+   */
+  dayStarts?: readonly ({ placeId: string | null; time: ZonedTime | null } | null)[];
 }
 
 const VIOLATIONS: ReadonlySet<ScheduleIssueCode> = new Set([
@@ -122,10 +132,16 @@ export function validateSchedule(input: ScheduleInput): ScheduleValidation {
   };
 
   // Chronology runs across days (an overnight leg ends on the next day); place continuity is checked within a day.
-  let cursor: { ms: number; item: ItineraryItem } | null = null;
+  let cursor: { ms: number; ref: string; leg: boolean } | null = null;
   input.days.forEach((day, dayIndex) => {
     if (outsideTrip(day.date)) add('outside_trip_dates', [day.date], dayIndex, `${day.date} は旅行期間外です。`);
-    let lastActivity: Activity | null = null;
+    const dayStart = input.dayStarts?.[dayIndex] ?? null;
+    const startMs = msOf(dayStart?.time ?? null);
+    if (startMs !== null && (cursor === null || startMs > cursor.ms)) cursor = { ms: startMs, ref: dayStart?.placeId ?? day.date, leg: false };
+    // Last place reached on this day: the start place, then each activity.
+    const startPlaceId = dayStart?.placeId ?? null;
+    let last: { ref: string; placeId: string | null; title: string } | null =
+      startPlaceId === null ? null : { ref: startPlaceId, placeId: startPlaceId, title: places.get(startPlaceId)?.name ?? startPlaceId };
     let legsSince: TravelLeg[] = [];
 
     for (const item of day.items) {
@@ -146,28 +162,31 @@ export function validateSchedule(input: ScheduleInput): ScheduleValidation {
         if (item.durationSeconds === null && (item.departure === null || item.arrival === null)) {
           add('travel_time_unknown', [ref], dayIndex, `区間 ${ref} の所要時間が未取得です。`);
         }
-        if (cursor && item.departure === null && start !== null && start < cursor.ms) {
-          add('travel_time_insufficient', [itemId(cursor.item), ref], dayIndex, `区間 ${ref} の移動時間が前の予定の後に収まりません。`);
+        // Without a departure the leg leaves when it must to arrive on time; it cannot leave before the previous item ends.
+        const leaves = start ?? end;
+        if (cursor && item.departure === null && leaves !== null && leaves < cursor.ms) {
+          add('travel_time_insufficient', [cursor.ref, ref], dayIndex, `区間 ${ref} の移動時間が前の予定の後に収まりません。`);
           reported = true;
         }
       }
       if (start !== null && end !== null && end < start) {
         add('end_before_start', [ref], dayIndex, `${ref} の終了が開始より前です。`);
       }
-      if (cursor && !reported && start !== null && start < cursor.ms) {
-        const travel = cursor.item.type === 'leg' && item.type === 'activity';
-        if (travel) add('travel_time_insufficient', [itemId(cursor.item), ref], dayIndex, `移動を終える前に「${(item as Activity).title}」が始まります。`);
-        else add('overlap', [itemId(cursor.item), ref], dayIndex, `${itemId(cursor.item)} と ${ref} の時間が重なっています。`);
+      // An item with only an end still cannot end before the previous one does.
+      const begins = start ?? end;
+      if (cursor && !reported && begins !== null && begins < cursor.ms) {
+        if (cursor.leg && item.type === 'activity') add('travel_time_insufficient', [cursor.ref, ref], dayIndex, `移動を終える前に「${item.title}」が始まります。`);
+        else add('overlap', [cursor.ref, ref], dayIndex, `${cursor.ref} と ${ref} の時間が重なっています。`);
       }
       const reached = end ?? start;
-      if (reached !== null && (cursor === null || reached >= cursor.ms)) cursor = { ms: reached, item };
+      if (reached !== null && (cursor === null || reached >= cursor.ms)) cursor = { ms: reached, ref, leg: item.type === 'leg' };
 
       if (item.type === 'leg') {
         usePlace(item.fromPlaceId, ref, dayIndex);
         usePlace(item.toPlaceId, ref, dayIndex);
         const prev = legsSince.at(-1);
-        if (prev ? prev.toPlaceId !== item.fromPlaceId : lastActivity?.placeId != null && lastActivity.placeId !== item.fromPlaceId) {
-          add('leg_endpoint_mismatch', [prev?.legId ?? lastActivity!.activityId, ref], dayIndex, `区間 ${ref} の出発地が直前の地点と一致しません。`);
+        if (prev ? prev.toPlaceId !== item.fromPlaceId : last?.placeId != null && last.placeId !== item.fromPlaceId) {
+          add('leg_endpoint_mismatch', [prev?.legId ?? last!.ref, ref], dayIndex, `区間 ${ref} の出発地が直前の地点と一致しません。`);
         }
         legsSince.push(item);
         continue;
@@ -181,10 +200,10 @@ export function validateSchedule(input: ScheduleInput): ScheduleValidation {
       const lastLeg = legsSince.at(-1);
       if (lastLeg && item.placeId !== null && lastLeg.toPlaceId !== item.placeId) {
         add('leg_endpoint_mismatch', [lastLeg.legId, ref], dayIndex, `区間 ${lastLeg.legId} の到着地が「${item.title}」の地点と一致しません。`);
-      } else if (!lastLeg && lastActivity && !(item.placeId !== null && item.placeId === lastActivity.placeId)) {
-        add('leg_missing', [lastActivity.activityId, ref], dayIndex, `「${lastActivity.title}」から「${item.title}」への移動が未確認です。`);
+      } else if (!lastLeg && last && !(item.placeId !== null && item.placeId === last.placeId)) {
+        add('leg_missing', [last.ref, ref], dayIndex, `「${last.title}」から「${item.title}」への移動が未確認です。`);
       }
-      lastActivity = item;
+      last = { ref, placeId: item.placeId, title: item.title };
       legsSince = [];
 
       if (item.start !== null) {
@@ -194,6 +213,9 @@ export function validateSchedule(input: ScheduleInput): ScheduleValidation {
       }
 
       const needsHours = item.kind === 'visit' || item.kind === 'meal' || item.kind === 'free_walk';
+      if (item.kind === 'visit' && item.placeId === null && item.status === 'planned') {
+        add('opening_hours_unknown', [ref], dayIndex, `「${item.title}」は地点が未指定のため営業時間を確認できません。`);
+      }
       if (place && needsHours && item.status === 'planned') {
         const ranges = parseOpeningHours(place.openingHours);
         if (ranges === null) {
@@ -222,17 +244,18 @@ export function validateSchedule(input: ScheduleInput): ScheduleValidation {
   }
 
   const byId = new Map(input.days.flatMap(d => d.items).flatMap(i => (i.type === 'activity' ? [[i.activityId, i] as const] : [])));
-  const pinned = (a: Activity) => JSON.stringify([a.kind, a.placeId, a.areaName, a.start, a.end, a.fixed]);
+  const at = (t: ZonedTime | null) => (t === null ? null : `${parseUtc(t.utc)}@${t.timeZone}`);
+  const pinned = (a: Activity) => [a.kind, a.placeId, a.areaName, at(a.start), at(a.end), a.fixed].join('|');
   for (const fixed of input.fixedActivities ?? []) {
     const now = byId.get(fixed.activityId);
     if (!now) add('fixed_activity_missing', [fixed.activityId], null, `固定予定「${fixed.title}」が旅程から外れています。`);
     else if (pinned(now) !== pinned(fixed)) add('fixed_activity_changed', [fixed.activityId], null, `固定予定「${fixed.title}」の時刻・場所が変更されています。`);
   }
 
+  const kept = input.days.map(d => ({ ...d, items: d.items.filter(i => i.type === 'leg' || i.status !== 'skipped') }));
+  const { totals, unknownItemIds } = summarizeTripCosts(kept);
   const budget = input.constraints?.budget ?? null;
   if (budget) {
-    const kept = input.days.map(d => ({ ...d, items: d.items.filter(i => i.type === 'leg' || i.status !== 'skipped') }));
-    const { totals, unknownItemIds } = summarizeTripCosts(kept);
     const same = totals.find(t => t.currency === budget.currency)?.amountMinor ?? 0;
     const others = totals.filter(t => t.currency !== budget.currency).map(t => t.currency);
     if (same > budget.amountMinor) {
@@ -254,5 +277,7 @@ export function validateSchedule(input: ScheduleInput): ScheduleValidation {
     validationState: !feasible ? 'invalid' : issues.length > 0 ? 'needs_review' : 'valid',
     issues,
     dataMode: fixture && live ? 'mixed' : fixture ? 'fixture' : live ? 'live' : null,
+    totalKnownCost: totals,
+    hasUnknownCost: unknownItemIds.length > 0,
   };
 }

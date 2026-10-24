@@ -116,6 +116,43 @@ describe('sequenceDay', () => {
     expect(r.validation.issues.map(i => i.code)).toEqual(['travel_time_insufficient']);
   });
 
+  it('keeps leg times exactly as the lookup returned them (no invented departure/arrival)', () => {
+    const r = sequenceDay(base({ stops: [{ activity: stop('g', 'garden'), stayMinutes: 60 }] }));
+    expect(r.day.items[0]).toMatchObject({ type: 'leg', departure: null, arrival: null, durationSeconds: 1200 });
+  });
+
+  it('excludes a fixed stop without times and reports it as a missing fixed activity', () => {
+    const noTime = stop('res', 'sushi', { fixed: true, kind: 'meal' });
+    const r = sequenceDay(base({ stops: [{ activity: noTime, stayMinutes: 60 }] }));
+    expect(r.day.items).toEqual([]);
+    expect(r.excluded).toEqual([{ activityId: 'res', reason: 'fixed_time_unknown' }]);
+    expect(r.validation.issues.map(i => i.code)).toEqual(['fixed_activity_missing']);
+  });
+
+  it('flags unknown travel from the start place to the first fixed activity', () => {
+    const lunch = stop('lunch', 'sushi', { kind: 'meal', fixed: true, start: { utc: '2026-07-01T02:30:00Z', timeZone: 'Asia/Tokyo' }, end: { utc: '2026-07-01T03:30:00Z', timeZone: 'Asia/Tokyo' } });
+    const r = sequenceDay(base({ travel: mockTravel({ 'hotel>museum': 10 }), stops: [{ activity: lunch }] }));
+    expect(r.validation).toMatchObject({ feasible: true, validationState: 'needs_review' });
+    expect(r.validation.issues.map(i => [i.code, i.refs])).toEqual([['leg_missing', ['hotel', 'lunch']]]);
+  });
+
+  it('waits for opening by wall clock on a DST change day (Paris 2026-10-25)', () => {
+    const r = sequenceDay(
+      base({
+        date: '2026-10-25',
+        timeZone: 'Europe/Paris',
+        dayStart: '01:30',
+        startPlaceId: 'hotel',
+        places: [place('hotel', null, 'Europe/Paris'), place('mus', '9:00-18:00', 'Europe/Paris')],
+        travel: mockTravel({ 'hotel>mus': 10 }),
+        stops: [{ activity: stop('m', 'mus'), stayMinutes: 60 }],
+      }),
+    );
+    // 9:00 CET is 08:00Z (CEST ended at 01:00Z).
+    expect(r.day.items.at(-1)).toMatchObject({ start: { utc: '2026-10-25T08:00:00Z' }, end: { utc: '2026-10-25T09:00:00Z' } });
+    expect(r.validation.feasible).toBe(true);
+  });
+
   it('works on B04 mock places and is deterministic', () => {
     const fixtureLegs: TravelLeg[] = [
       { ...makeLeg('fx_l1'), fromPlaceId: 'fx_kanazawa_station', toPlaceId: 'fx_kenrokuen', durationSeconds: 1200, dataStatus: 'fixture' },

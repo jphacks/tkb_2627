@@ -30,7 +30,7 @@ describe('validateSchedule on B04 fixtures', () => {
     ]);
   });
 
-  it('Paris across the end of DST: no false time conflicts', () => {
+  it('Paris on the DST-end weekend: no false time conflicts (no item spans the switch itself)', () => {
     const r = check(overseasTrip);
     expect(r).toMatchObject({ feasible: true, validationState: 'needs_review' });
     expect(new Set(r.issues.map(i => i.code))).toEqual(new Set(['opening_hours_unknown']));

@@ -1,6 +1,6 @@
 /**
  * Daily opening range in local minutes after midnight. `close` exceeds 1440 when the range runs past midnight
- * (18:00-2:00 is { open: 1080, close: 1560 }).
+ * (18:00-2:00 is { open: 1080, close: 1560 }); open 24 hours is { open: 0, close: 2880 } so stays can cross midnight.
  */
 export interface OpeningRange {
   open: number;
@@ -20,7 +20,7 @@ const FIXTURE_MARKER = /^\(fixture\)\s*/i;
 export function parseOpeningHours(text: string | null): OpeningRange[] | null {
   if (text === null) return null;
   const rest = text.normalize('NFKC').trim().replace(FIXTURE_MARKER, '');
-  if (/^(24時間(営業)?|24 ?hours|open 24 hours)$/i.test(rest)) return [{ open: 0, close: DAY_MINUTES }];
+  if (/^(24時間(営業)?|24 ?hours|open 24 hours)$/i.test(rest)) return [{ open: 0, close: 2 * DAY_MINUTES }];
   const ranges: OpeningRange[] = [];
   for (const part of rest.split(/\s*[,、/;]\s*/)) {
     const m = RANGE.exec(part);
@@ -33,7 +33,11 @@ export function parseOpeningHours(text: string | null): OpeningRange[] | null {
     if (close < open) close += DAY_MINUTES;
     ranges.push({ open, close });
   }
-  return ranges.length > 0 ? ranges.sort((a, b) => a.open - b.open) : null;
+  ranges.sort((a, b) => a.open - b.open);
+  // Overlapping ranges ("9:00-17:00/9:00-16:30") may be seasonal alternatives: unreadable, not a union.
+  const overlaps = ranges.some((r, i) => i > 0 && r.open < ranges[i - 1]!.close);
+  const wraps = ranges.length > 1 && ranges.at(-1)!.close - DAY_MINUTES > ranges[0]!.open;
+  return ranges.length > 0 && !overlaps && !wraps ? ranges : null;
 }
 
 /**

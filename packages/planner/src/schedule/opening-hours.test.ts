@@ -9,7 +9,7 @@ describe('parseOpeningHours', () => {
       { open: 690, close: 840 },
       { open: 1020, close: 1320 },
     ]);
-    expect(parseOpeningHours('24時間')).toEqual([{ open: 0, close: 1440 }]);
+    expect(parseOpeningHours('24時間')).toEqual([{ open: 0, close: 2880 }]);
     expect(parseOpeningHours('10:00-24:00')).toEqual([{ open: 600, close: 1440 }]);
   });
 
@@ -29,6 +29,8 @@ describe('parseOpeningHours', () => {
       '9:00-9:00',
       '25:00-26:00',
       '9:00-24:30',
+      '9:00-17:00/9:00-16:30', // overlapping: maybe seasonal alternatives
+      '18:00-2:00, 1:00-5:00',
     ]) {
       expect(parseOpeningHours(text), String(text)).toBeNull();
     }
@@ -52,6 +54,7 @@ describe('fitsOpeningHours / earliestOpenStart', () => {
     expect(fitsOpeningHours(bar, 30, 90)).toBe(true); // 0:30-1:30
     expect(fitsOpeningHours(bar, 60, 150)).toBe(false); // ends 2:30
     expect(fitsOpeningHours(bar, 1380, 1500)).toBe(true); // 23:00-1:00
+    expect(fitsOpeningHours(parseOpeningHours('24時間')!, 1380, 1500)).toBe(true);
   });
 
   it('finds the earliest start that fits, or null', () => {
