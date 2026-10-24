@@ -1,0 +1,107 @@
+/* U01 click-through UI. Uses the variables of styles.css (--bg --fg --acc --warnbg ...). Mobile first (375px). */
+.u1-root { max-width: 960px; margin: 0 auto; overflow-x: clip; min-height: 100vh; }
+
+/* Mock banner: dashed, striped, with a MOCK tag, so it never looks like production data. */
+.u1-banner { position: sticky; top: 0; z-index: 30; display: flex; gap: 8px; align-items: center; padding: 6px 12px; font-size: 14px; font-weight: 600;
+  color: var(--warn); border-bottom: 3px dashed var(--warn);
+  background: repeating-linear-gradient(135deg, var(--warnbg), var(--warnbg) 12px, var(--card) 12px, var(--card) 24px); }
+.u1-banner-tag { flex: none; background: var(--warn); color: var(--bg); border-radius: 4px; padding: 0 8px; font-size: 12px; letter-spacing: .08em; }
+
+.u1-scenario { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 12px; font-size: 13px; color: var(--mut); border-bottom: 1px solid var(--line); }
+.u1-scenario select { font: inherit; min-height: 44px; flex: 1 1 160px; min-width: 0; background: var(--card); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 0 8px; }
+
+.u1-main { padding: 12px 12px 96px; outline: none; }
+.u1-main section { min-width: 0; }
+
+/* Bottom tab bar */
+.u1-tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex; background: var(--card); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+.u1-tabbtn { flex: 1 1 0; min-height: 56px; min-width: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; font: inherit; font-size: 13px; color: var(--mut); background: transparent; border: 0; border-top: 3px solid transparent; cursor: pointer; }
+.u1-tabbtn[aria-current="page"] { color: var(--acc); border-top-color: var(--acc); font-weight: 700; background: var(--accbg); }
+.u1-tabicon { font-size: 18px; line-height: 1.2; }
+.u1-tabbtn:focus-visible, .u1-back:focus-visible, .u1-scenario select:focus-visible, .u1-scroller:focus-visible, .u1-cardbtn:focus-visible { outline: 3px solid #e0a100; outline-offset: -3px; }
+@media (min-width: 960px) { .u1-tabbar { left: 50%; right: auto; width: 960px; transform: translateX(-50%); } }
+
+/* Headers and text */
+.u1-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.u1-title { font-size: 20px; margin: 8px 0; flex: 1 1 auto; }
+.u1-back { flex: none; }
+.u1-sub { font-size: 16px; margin: 12px 0 6px; }
+.u1-dayhead { font-size: 14px; margin: 10px 0 4px; }
+.u1-loading { color: var(--mut); padding: 16px 0; }
+.u1-srcline { margin: 12px 0 0; }
+.u1-source { display: inline-block; font-size: 12px; color: var(--mut); border: 1px dashed var(--line); border-radius: 4px; padding: 0 6px; }
+.u1-unknown { color: var(--warn); font-weight: 700; }
+ul, ol { overflow-wrap: anywhere; }
+
+/* Buttons */
+.u1-primary { background: var(--acc); color: var(--bg); border-color: var(--acc); font-weight: 700; }
+.u1-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.u1-danger { color: var(--bad); border-color: var(--bad); }
+.u1-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+
+/* Cards and lists */
+.u1-cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.u1-card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.u1-card p { margin: 2px 0; }
+.u1-cardbtn { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; min-height: 44px; }
+.u1-empty { border: 2px dashed var(--line); border-radius: 8px; padding: 16px; text-align: center; background: var(--card); }
+.u1-ok { background: var(--accbg); border: 1px solid var(--acc); border-radius: 8px; padding: 8px 12px; margin: 12px 0; }
+.u1-error { background: var(--warnbg); color: var(--fg); border: 2px solid var(--bad); border-radius: 8px; padding: 8px 12px; margin: 12px 0; }
+.u1-error > strong { color: var(--bad); }
+.u1-error p { margin: 4px 0; }
+
+/* Validation / job state chips (colour is never the only cue: each has a text label) */
+.u1-state, .u1-job { display: inline-block; border: 1px solid currentColor; border-radius: 4px; padding: 0 8px; font-size: 13px; font-weight: 600; }
+.u1-state-valid, .u1-job-succeeded { color: var(--acc); }
+.u1-state-needs_review, .u1-state-needs_revalidation, .u1-job-queued, .u1-job-running { color: var(--warn); }
+.u1-state-invalid, .u1-job-failed { color: var(--bad); }
+.u1-job-cancelled { color: var(--mut); }
+
+/* Form */
+.u1-form { display: flex; flex-direction: column; gap: 12px; }
+.u1-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.u1-field label, .u1-field legend { font-weight: 600; font-size: 14px; }
+.u1-field input[type="text"], .u1-field input[type="date"], .u1-field select, .u1-field textarea { font: inherit; min-height: 44px; width: 100%; min-width: 0; background: var(--card); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.u1-field input[aria-invalid="true"], .u1-field textarea[aria-invalid="true"] { border-color: var(--bad); border-width: 2px; }
+.u1-field input:focus-visible, .u1-field select:focus-visible, .u1-field textarea:focus-visible { outline: 3px solid #e0a100; outline-offset: 2px; }
+.u1-fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px 10px; margin: 0; min-width: 0; }
+.u1-choice { display: flex; gap: 8px; align-items: flex-start; min-height: 44px; padding: 6px 0; font-weight: 400 !important; }
+.u1-choice input { width: 22px; height: 22px; flex: none; margin-top: 2px; }
+.u1-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.u1-fielderr { color: var(--bad); font-size: 13px; margin: 0; font-weight: 600; }
+.u1-checklist { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; font-size: 14px; }
+.u1-checklist ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; }
+.u1-miss { color: var(--bad); font-weight: 600; }
+.u1-done { color: var(--acc); }
+
+/* Progress */
+.u1-steps { list-style: none; padding: 0; margin: 8px 0 12px; display: flex; flex-direction: column; gap: 4px; }
+.u1-steps li { border: 1px solid var(--line); border-left-width: 6px; border-radius: 6px; padding: 4px 10px; background: var(--card); color: var(--mut); }
+.u1-steps .u1-step-done { border-left-color: var(--acc); color: var(--fg); }
+.u1-steps .u1-step-now { border-left-color: var(--warn); color: var(--fg); font-weight: 700; background: var(--warnbg); }
+
+/* Candidate comparison: horizontal scroll with snap on phones, a grid when wide */
+.u1-scroller { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 8px; max-width: 100%; }
+.u1-cand { flex: 0 0 85%; max-width: 340px; scroll-snap-align: start; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.u1-cand p { margin: 2px 0; }
+.u1-cand-title { font-size: 16px; margin: 2px 0; }
+.u1-cand .note ul { margin: 4px 0 0; padding-left: 18px; }
+.u1-cand button.btn { margin-top: auto; }
+@media (min-width: 720px) { .u1-cand { flex: 1 1 0; max-width: none; } .u1-scroller { overflow-x: visible; } }
+
+/* Detail / edit */
+.u1-diff { background: var(--accbg); border: 1px solid var(--acc); border-radius: 8px; padding: 4px 12px 8px; margin: 12px 0; }
+.u1-diff dt { font-weight: 700; font-size: 14px; margin-top: 6px; }
+.u1-diff dd { margin: 0; }
+.u1-diff ul { margin: 2px 0; padding-left: 20px; }
+.u1-edit { margin-top: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 4px 12px 12px; }
+.u1-editlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.u1-edititem { display: flex; flex-direction: column; gap: 4px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.u1-editlabel { font-weight: 600; }
+.u1-editbtns { display: flex; flex-wrap: wrap; gap: 6px; }
+.u1-editbtns .btn { min-width: 56px; }
+.u1-review { margin-top: 16px; color: var(--mut); font-size: 14px; }
+.u1-location { margin-top: 16px; border: 2px dashed var(--line); border-radius: 8px; padding: 8px 12px; background: var(--card); }
+.u1-location p { margin: 4px 0; }
+.u1-costline { margin: 6px 0; }
