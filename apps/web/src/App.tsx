@@ -1,5 +1,6 @@
 import { FIXTURE_NOTICE, fixtureTrips } from '@tkb/fixtures';
 import { U01App } from './screens/U01App.tsx';
+import { SocialApp } from './screens/social/SocialApp.tsx';
 import { ConnectionChips } from './shell/ConnectionChips.tsx';
 import { TripViewer } from './shell/TripViewer.tsx';
 
@@ -20,5 +21,8 @@ function DevShell() {
 export function App() {
   // The U01 screens are the default (M1, #9). The skeleton stays reachable for development only.
   if (typeof location !== 'undefined' && location.hash === '#dev-shell') return <DevShell />;
+  // U08: SNS and group screens (#social), and the K17 invite link /invite#<token> (shared server).
+  if (typeof location !== 'undefined' && location.pathname === '/invite') return <SocialApp initialMode="server" inviteToken={location.hash.slice(1) || null} />;
+  if (typeof location !== 'undefined' && location.hash === '#social') return <SocialApp />;
   return <U01App />;
 }

@@ -1,0 +1,25 @@
+/* U08 SNS / group screens. Builds on u01.css and the variables of styles.css. */
+.s8-server-banner { position: sticky; top: 0; z-index: 30; display: flex; gap: 8px; align-items: center; padding: 6px 12px; font-size: 14px; font-weight: 600;
+  color: var(--acc); background: var(--accbg); border-bottom: 3px solid var(--acc); }
+.s8-server-tag { flex: none; background: var(--acc); color: var(--bg); border-radius: 4px; padding: 0 8px; font-size: 12px; letter-spacing: .08em; }
+.u1-scenario select:focus-visible { outline: 3px solid #e0a100; outline-offset: -3px; }
+.s8-session { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.s8-login { flex-direction: column; align-items: stretch; }
+.s8-login .u1-field input { font: inherit; min-height: 44px; width: 100%; background: var(--card); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.s8-login .u1-field input:focus-visible { outline: 3px solid #e0a100; outline-offset: 2px; }
+.s8-subnav { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 12px 0; }
+.s8-subnav .tab { flex: 1 1 0; }
+.s8-vis { display: inline-block; border: 1px solid currentColor; border-radius: 4px; padding: 0 6px; font-size: 12px; font-weight: 600; }
+.s8-vis-public { color: var(--acc); }
+.s8-vis-group { color: #4a5fc1; }
+.s8-vis-private { color: var(--mut); }
+.s8-story { display: block; white-space: pre-wrap; margin: 4px 0; }
+.s8-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.s8-items li { display: flex; flex-direction: column; border-left: 4px solid var(--acc); padding: 2px 8px; }
+.s8-items li.s8-leg { border-left: 4px dashed #6b7fd7; color: var(--mut); }
+.s8-redacted { margin: 4px 0; padding-left: 20px; }
+.s8-confirm { margin: 12px 0 0; background: var(--warnbg); border-radius: 8px; padding: 8px 12px; }
+.s8-invite { margin: 12px 0; }
+.s8-invite input[readonly] { font-family: ui-monospace, monospace; font-size: 13px; }
+.s8-note { margin-top: 12px; }
+.u1-field textarea { resize: vertical; }
