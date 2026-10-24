@@ -8,6 +8,8 @@ import { PrintScreen } from './screens/print/PrintScreen.tsx';
 import { parsePrintHash } from './screens/print/route.ts';
 import { EditScreen } from './screens/edit/EditScreen.tsx';
 import { parseTripScreenHash } from './screens/edit/route.ts';
+import { GuideScreen } from './screens/guide/GuideScreen.tsx';
+import { parseGuideHash } from './screens/guide/route.ts';
 import { TravelScreen } from './screens/travel/TravelScreen.tsx';
 import { U01App } from './screens/U01App.tsx';
 import { SocialApp } from './screens/social/SocialApp.tsx';
@@ -46,6 +48,9 @@ export function App() {
   if (edit) return <EditScreen key={`${edit.mode}:${edit.tripId}`} route={edit} />;
   const travel = parseTripScreenHash(hash, 'travel');
   if (travel) return <TravelScreen key={`${travel.mode}:${travel.tripId}`} route={travel} />;
+  // U07: #/trips/<id>/guide (+ #/mock/...): current location and digital guide.
+  const guide = parseGuideHash(hash);
+  if (guide) return <GuideScreen key={`${guide.mode}:${guide.tripId}`} route={guide} />;
   // The U01 screens are the default (M1, #9). The skeleton stays reachable for development only.
   if (hash === '#dev-shell') return <DevShell />;
   // U03 condition input (mock / live switch). Joins the U01 flow once U05 progress is wired (#31).

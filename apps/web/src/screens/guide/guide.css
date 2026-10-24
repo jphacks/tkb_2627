@@ -1,0 +1,11 @@
+.gd-sec { margin: 16px 0; }
+.gd-list { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 8px; }
+.gd-am { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; background: var(--card); }
+.gd-evacuation_shelter { border-left: 4px solid var(--warn); }
+.gd-evacuation_site { border-left: 4px solid var(--mut); }
+.gd-warn { font-weight: 600; color: var(--warn); margin: 4px 0; }
+.gd-layers { border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; display: flex; gap: 12px; flex-wrap: wrap; }
+.gd-layers label { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
+.gd-detail { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-top: 8px; }
+.gd-detail img { max-width: 100%; height: auto; }
+.gd-kind { font-size: 12px; border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; }
