@@ -139,6 +139,23 @@
       "note": "公開許可済みの旅行情報だけ。元tripを直接公開しない。"
     },
     {
+      "id": "post_previews",
+      "label": "投稿前プレビュー",
+      "fields": [
+        "token_hash PK",
+        "owner_id FK",
+        "trip_id FK",
+        "source_revision",
+        "visibility",
+        "group_id? FK",
+        "story",
+        "snapshot_json",
+        "expires_at",
+        "consumed_at?"
+      ],
+      "note": "10分有効・1回限り。tokenはsha256だけ保存。確定時に元旅程の版と所属を再確認。"
+    },
+    {
       "id": "exports",
       "label": "しおり出力物",
       "fields": [
@@ -265,6 +282,20 @@
       "fromCard": "1",
       "toCard": "0..*",
       "field": "operation_keys.owner_id"
+    },
+    {
+      "source": "users",
+      "target": "post_previews",
+      "fromCard": "1",
+      "toCard": "0..*",
+      "field": "post_previews.owner_id"
+    },
+    {
+      "source": "trips",
+      "target": "post_previews",
+      "fromCard": "1",
+      "toCard": "0..*",
+      "field": "post_previews.trip_id"
     }
   ],
   "rules": [
