@@ -3,5 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "dependencies": { "@tkb/contracts": "0.1.0", "@tkb/db": "0.1.0", "@tkb/fixtures": "0.1.0", "fastify": "^5.12.7" }
+  "dependencies": {
+    "@fastify/cookie": "^11.1.3",
+    "@tkb/contracts": "0.1.0",
+    "@tkb/db": "0.1.0",
+    "@tkb/fixtures": "0.1.0",
+    "fastify": "^5.12.7"
+  }
 }

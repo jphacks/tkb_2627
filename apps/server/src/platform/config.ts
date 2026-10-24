@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DataMode } from '@tkb/contracts';
@@ -7,6 +8,15 @@ export interface SharedConfig {
   port: number;
   databasePath: string;
   providerMode: DataMode;
+  /** HMAC key for CSRF tokens. Random per process when SESSION_SECRET is unset (dev only). */
+  sessionSecret: string;
+  /** Exact origin of the shared web app, e.g. https://app.example. Empty in local development. */
+  publicOrigin: string;
+  sessionTtlMs: number;
+  /** Only 'loopback' (a local tunnel/proxy on this machine) is allowed; `true` would trust spoofed headers. */
+  trustProxy: 'loopback' | false;
+  /** Built web app (apps/web/dist) served same-origin. null or a missing directory disables static delivery. */
+  staticDir: string | null;
 }
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -28,11 +38,38 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): SharedConfig {
   }
   const port = Number(env.SHARED_PORT ?? 4310);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('invalid SHARED_PORT');
+  const publicOrigin = (env.PUBLIC_ORIGIN ?? '').trim().replace(/\/+$/, '');
+  if (publicOrigin) {
+    try {
+      const u = new URL(publicOrigin);
+      const loopbackHttp = u.protocol === 'http:' && (u.hostname === '127.0.0.1' || u.hostname === 'localhost');
+      if (u.origin !== publicOrigin || (u.protocol !== 'https:' && !loopbackHttp)) throw new Error('bad origin');
+    } catch {
+      throw new Error('invalid PUBLIC_ORIGIN (expected https://host[:port], or http://127.0.0.1|localhost[:port] for development)');
+    }
+  }
+  let sessionSecret = env.SESSION_SECRET ?? '';
+  if (!sessionSecret) {
+    if (publicOrigin.startsWith('https://')) throw new Error('SESSION_SECRET is required when PUBLIC_ORIGIN is https');
+    sessionSecret = randomBytes(32).toString('hex');
+    console.warn('[auth] SESSION_SECRET is not set: using a random secret; CSRF tokens become invalid on restart (dev only).');
+  } else if (sessionSecret.length < 32) {
+    throw new Error('SESSION_SECRET must be at least 32 characters');
+  }
+  const ttlDays = Number(env.SESSION_TTL_DAYS ?? 7);
+  if (!(ttlDays > 0 && ttlDays <= 90)) throw new Error('invalid SESSION_TTL_DAYS');
+  const tp = env.TRUST_PROXY ?? '';
+  if (tp !== '' && tp !== 'loopback') throw new Error('TRUST_PROXY only accepts "loopback"');
   return {
+    trustProxy: tp === 'loopback' ? 'loopback' : false,
+    sessionSecret,
+    publicOrigin,
+    sessionTtlMs: Math.round(ttlDays * 86_400_000),
     bind: env.SHARED_BIND ?? '127.0.0.1',
     port,
     // Relative to the repo root so the server and `npm run db:migrate` share one file.
     databasePath: (p => (p === ':memory:' ? p : resolve(REPO_ROOT, p)))(env.DATABASE_PATH ?? './data/travel.sqlite'),
     providerMode: mode,
+    staticDir: resolve(REPO_ROOT, 'apps/web/dist'),
   };
 }

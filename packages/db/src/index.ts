@@ -64,3 +64,6 @@ export function checkConnection(db: Db): boolean {
   }
 }
 export * from './repo.ts';
+export * from './auth.ts';
+export * from './groups.ts';
+export * from './posts.ts';

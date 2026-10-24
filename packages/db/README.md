@@ -33,3 +33,4 @@ migrate(db);
 - `DatabaseSync`は同期APIです。lock待ち（最大でbusy_timeoutの5秒）の間はイベントループが止まるので、transactionは短く保ちます。
 - 保存済みJSONが壊れていると、`getTripForOwner`が例外を投げます。API層では500 INTERNALとして返し、内容をログやレスポンスに出しません。
 - `DATABASE_PATH`の相対パスは、サーバーでもCLIでもリポジトリルートを基準に解決されます。
+- S05（SNS投稿）：旅程の削除APIは、同一transactionで`hidePostsForTrip(db, tripId, ownerId)`を呼んで関連投稿を非公開にします（K15の初期方針）。（投稿の閲覧は元旅程のdeleted_atと独立。呼び忘れると公開投稿が残ります。詳細は`apps/server/src/social/posts/README.md`）。

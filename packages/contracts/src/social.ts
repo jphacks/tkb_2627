@@ -117,9 +117,12 @@ export type CopyResult = z.infer<typeof CopyResult>;
 
 /** K17 groups */
 export const GroupRole = z.enum(['owner', 'admin', 'member']);
-export const GroupCreateRequest = z.strictObject({ name: z.string().min(1).max(100) });
+export const GroupCreateRequest = z.strictObject({ name: z.string().trim().min(1).max(100) });
 export const Group = z.object({ groupId: Id, name: z.string(), role: GroupRole, createdAt: UtcInstant });
 export type Group = z.infer<typeof Group>;
+/** K17 POST /api/v1/groups/{id}/invites. inviteeId limits who may accept; omit for an open invite link. */
+export const GroupInviteCreate = z.strictObject({ inviteeId: Id.nullable().optional() });
+export type GroupInviteCreate = z.infer<typeof GroupInviteCreate>;
 export const GroupInviteCreated = z.object({ inviteUrl: z.string(), expiresAt: UtcInstant });
 export const GroupInviteAccept = z.strictObject({ token: z.string().min(16) });
 export const Membership = z.object({ groupId: Id, userId: Id, membership: z.enum(['active', 'revoked']) });
