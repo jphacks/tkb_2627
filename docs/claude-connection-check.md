@@ -70,3 +70,16 @@ node packages/ai/probes/claude-probe.mjs --live   # 本人のProで最小1回だ
 - 時間：K05は11ms、CLIは9634ms、組み立て（D06の検証を含む）は16ms、K07の保存は6ms。合計は約9.7秒（K01から完了まで約10.0秒）。`num_turns=2`。
 - 結果：batchを1件作り、候補は3案。3案とも`needs_review`。どの案も許可された地点ID（must-visitの兼六園を含む）だけを使った。除外された地点は0件・0件・2件。3案とも`hasUnknownCost=true`で、費用を推測で埋めていない。
 - **未確認**：経路をlive Google Routesで取得するmixedモード（M1の承認：placesはfixture、legsはcar、Routesは6回以内）。このPCにはまだ`GOOGLE_MAPS_SERVER_KEY`がないため、キーを受け取ってから実行する。
+
+## A04 実機での生成確認（live Claude＋mixed：地点fixture・経路live Google Routes）
+記録日：2026-10-24。M4のPCで、M4本人のProを使い1回だけ実行した。#28でのM1の承認の範囲内（places=fixture、legs=live Routes（car）、Routesは6回以内）。
+- 構成：共有サーバーは`PROVIDER_MODE=mixed`（`GOOGLE_MAPS_SERVER_KEY`は`.env`にだけ置き、Gitには入れていない）。本人用App Serverは本番と同じfactoryで作った（preflightは`claude.ai`／`pro`／`firstParty`）。コードはmain `94fb385`。
+- 条件：金沢、1日、`transportMode=car`、must-visitは兼六園、出発地は金沢駅。
+- モデル：`--model sonnet`。`modelUsage`には`claude-sonnet-5-5`と`claude-haiku-5-5`があった。`num_turns=2`。
+- 時間：K05は13ms、CLIは8005ms、組み立て（2回目のK05＝live Routesを含む）は1793ms、K07の保存は5ms。合計は約9.8秒（K01から完了まで約10.1秒）。
+- Googleの呼出し：**Routes 6回**（上限の6回ちょうど）。Places 0回。
+- 結果：`succeeded`。候補は3案で、3案とも`needs_review`。
+  - 保存された区間は、すべて`provenance.source=google_routes`で、`durationSeconds`も`fare`も`null`（D-1）。3案とも「表示時に再取得」の警告が付いている。
+  - 予定時刻：上限の6区間に入った区間は、計算した時刻を保存した。上限を超えた区間の後ろにある地点は、時刻未定のままにした（推測で埋めていない）。
+  - 費用：3案とも`hasUnknownCost=true`。
+- 既知の差：本人用App Serverのcapabilitiesは、`dataMode=fixture`を固定で返している（共有サーバーは`mixed`を返す）。後続で修正する。
