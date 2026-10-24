@@ -1,0 +1,58 @@
+[
+  {
+    "operation": "自分の旅程の閲覧・編集",
+    "anonymous": "不可",
+    "owner": "可",
+    "member": "他人の旅程は不可",
+    "other": "不可",
+    "check": "trips.owner_id = actor.id"
+  },
+  {
+    "operation": "public投稿の閲覧",
+    "anonymous": "可",
+    "owner": "可",
+    "member": "可",
+    "other": "可",
+    "check": "posts.visibility = public AND not deleted"
+  },
+  {
+    "operation": "group投稿の閲覧",
+    "anonymous": "不可",
+    "owner": "可",
+    "member": "所属中のみ可",
+    "other": "不可",
+    "check": "owner OR current group_members EXISTS"
+  },
+  {
+    "operation": "private投稿の閲覧",
+    "anonymous": "不可",
+    "owner": "可",
+    "member": "不可",
+    "other": "不可",
+    "check": "posts.owner_id = actor.id"
+  },
+  {
+    "operation": "投稿の編集・公開解除",
+    "anonymous": "不可",
+    "owner": "可",
+    "member": "不可",
+    "other": "不可",
+    "check": "owner + expectedPostRevision"
+  },
+  {
+    "operation": "旅程の複製",
+    "anonymous": "不可",
+    "owner": "可",
+    "member": "閲覧可の投稿のみ",
+    "other": "public投稿のみ",
+    "check": "canReadPost AND signed-in; new owner = actor.id"
+  },
+  {
+    "operation": "Claudeによる新規生成",
+    "anonymous": "不可",
+    "owner": "本人PCの認証済み入口",
+    "member": "共有URLからは不可",
+    "other": "不可",
+    "check": "local gate + A01適用条件確認; 他人要求を中継しない"
+  }
+]

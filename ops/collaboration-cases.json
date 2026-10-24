@@ -1,0 +1,29 @@
+[
+  {
+    "title": "M2が新しいデータ項目を必要としたら",
+    "steps": [
+      "M2が関連Issueに「画面で必要な値・例・必須か」を投稿しM1/M3/M4をmention。",
+      "M1がpackages/contracts変更の小さなPRを作るか担当を指名。互換追加と破壊変更を区別。",
+      "影響するM3/M4がfixtureと変換処理をレビュー。schemaVersionと移行手順を記録。",
+      "M1が契約PRをmergeしSHAを共有。M2/M3/M4がfetch後に契約試験を実行。"
+    ]
+  },
+  {
+    "title": "待ち・利用枠切れ・離席が起きたら",
+    "steps": [
+      "担当Issueをblockedにし、何が足りないか、直近commit、再開方法を記録。",
+      "M1が依存しないreadyタスクへ割当変更。元の担当を黙って奪わない。",
+      "別メンバーは自分の正規認証だけを使う。枠の合算や他人tokenへの切替はしない。",
+      "再開時はGitHubの最新状態から復帰し、過去のAgent会話だけで続行しない。"
+    ]
+  },
+  {
+    "title": "Agentを1アカウント内で分けるとき",
+    "steps": [
+      "メインがtaskId、writePaths、契約版、受入試験をimplementerへ渡す。",
+      "独立したpathなら別Worktreeで追加Agentを実行。共通ファイルの書込みは1人に制限。",
+      "test-authorが正常/異常の試験を準備しreviewerが差分を読取りレビュー。",
+      "メインだけが結果を集約してIssue/PRへ報告。自動で他PCのAgentへ割り込む機能は仮定しない。"
+    ]
+  }
+]

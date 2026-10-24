@@ -1,0 +1,878 @@
+{
+  "version": "4.0",
+  "status": "設計・未実装",
+  "nodes": [
+    {
+      "id": "owner",
+      "label": "利用者本人",
+      "kind": "Person",
+      "tech": "",
+      "role": "PCで条件を指定し、Claude生成・採用・共有を行う",
+      "parent": null,
+      "path": "",
+      "owner": "",
+      "detail": "",
+      "inputs": "",
+      "outputs": "",
+      "children": []
+    },
+    {
+      "id": "other",
+      "label": "SNS利用者",
+      "kind": "Person",
+      "tech": "",
+      "role": "公開・グループ旅程を読み、手動編集・複製を行う",
+      "parent": null,
+      "path": "",
+      "owner": "",
+      "detail": "",
+      "inputs": "",
+      "outputs": "",
+      "children": []
+    },
+    {
+      "id": "travel",
+      "label": "旅行Webシステム",
+      "kind": "Software System",
+      "tech": "Web application",
+      "role": "生成・旅程保存・地図・SNSをまとめる",
+      "parent": null,
+      "path": "",
+      "owner": "",
+      "detail": "",
+      "inputs": "",
+      "outputs": "",
+      "children": [
+        "containers"
+      ]
+    },
+    {
+      "id": "anthropic",
+      "label": "Claudeサービス",
+      "kind": "External Software System",
+      "tech": "Anthropic hosted",
+      "role": "公式Claude Codeの依頼から旅程候補を生成",
+      "parent": null,
+      "path": "",
+      "owner": "",
+      "detail": "モデルはAnthropic側で実行。PC上のローカルLLMではない。",
+      "inputs": "",
+      "outputs": "",
+      "children": []
+    },
+    {
+      "id": "providers",
+      "label": "旅行情報サービス",
+      "kind": "External Software System",
+      "tech": "HTTPS",
+      "role": "地点・時刻・移動・画像等を供給",
+      "parent": null,
+      "path": "",
+      "owner": "",
+      "detail": "地域差、費用、保存・転載・LLM入力可否を確認して使う。",
+      "inputs": "",
+      "outputs": "",
+      "children": []
+    },
+    {
+      "id": "maps",
+      "label": "地図表示サービス",
+      "kind": "External Software System",
+      "tech": "Maps JavaScript SDK",
+      "role": "地図タイル・ベース地図を表示",
+      "parent": null,
+      "path": "",
+      "owner": "",
+      "detail": "ブラウザ用キーはreferrer/API制限。サーバー秘密キーとは分ける。",
+      "inputs": "",
+      "outputs": "",
+      "children": []
+    },
+    {
+      "id": "web-local",
+      "label": "本人用Web画面",
+      "kind": "Container",
+      "tech": "React / TypeScript",
+      "role": "条件入力、生成進捗、候補の比較と採用",
+      "parent": "travel",
+      "path": "apps/web/",
+      "owner": "M2",
+      "detail": "本人PCの127.0.0.1:4311で配信。共有版と同じUIコードをcapabilitiesで切替。",
+      "inputs": "",
+      "outputs": "",
+      "children": [
+        "dynamic"
+      ]
+    },
+    {
+      "id": "web-shared",
+      "label": "共有Web画面",
+      "kind": "Container",
+      "tech": "React / TypeScript",
+      "role": "旅程閲覧、編集、SNS、ガイド",
+      "parent": "travel",
+      "path": "apps/web/",
+      "owner": "M2",
+      "detail": "HTTPS共有URLから利用。第三者のClaude生成をホストのProへ中継しない。",
+      "inputs": "",
+      "outputs": "",
+      "children": []
+    },
+    {
+      "id": "personal",
+      "label": "本人用App Server",
+      "kind": "Container",
+      "tech": "Node.js / Fastify",
+      "role": "本人の生成ジョブ・CLI起動・結果検証",
+      "parent": "travel",
+      "path": "apps/ai-local/",
+      "owner": "M4",
+      "detail": "127.0.0.1:4311のみ。端末本人の操作を受け、取得/保存は共有APIに依頼。DBを直接開かない。",
+      "inputs": "",
+      "outputs": "",
+      "children": [
+        "local-components"
+      ]
+    },
+    {
+      "id": "shared",
+      "label": "共有アプリサーバー",
+      "kind": "Container",
+      "tech": "Node.js / Fastify",
+      "role": "認証、旅程、SNS、外部データ、永続化",
+      "parent": "travel",
+      "path": "apps/server/",
+      "owner": "M1 + M4",
+      "detail": "127.0.0.1:4310。公開ルートはこれだけ。実行キューからClaudeを起動する機能を置かない。",
+      "inputs": "",
+      "outputs": "",
+      "children": [
+        "shared-components"
+      ]
+    },
+    {
+      "id": "db",
+      "label": "共通データベース",
+      "kind": "Container",
+      "tech": "SQLite / WAL",
+      "role": "全利用者の旅程・SNS・認可情報を永続保存",
+      "parent": "travel",
+      "path": "data/travel.sqlite",
+      "owner": "M1",
+      "detail": "ホストPC内のサーバーファイル。Gitに入れず、ネットワーク共有ドライブに置かない。",
+      "inputs": "",
+      "outputs": "",
+      "children": [
+        "data-model"
+      ]
+    },
+    {
+      "id": "cli",
+      "label": "公式Claude Code",
+      "kind": "External Software System",
+      "tech": "Claude Code CLI",
+      "role": "本人の認証でClaudeに依頼しJSONを返す",
+      "parent": null,
+      "path": "OS installation / fixed runtime cwd",
+      "owner": "PC所有者",
+      "detail": "未改変の公式CLI。アプリがOAuth tokenを抽出・保存・移送しない。非対話利用条件と実機動作をA01で確認。",
+      "inputs": "",
+      "outputs": "",
+      "children": []
+    },
+    {
+      "id": "gate",
+      "label": "本人確認と入力受付",
+      "kind": "Component",
+      "tech": "Fastify handlers",
+      "role": "Host・Origin・CSRF・所有権・入力を検証",
+      "parent": "personal",
+      "path": "apps/ai-local/src/routes/",
+      "owner": "M4",
+      "detail": "",
+      "inputs": "GenerateRequest / ReplanRequest",
+      "outputs": "JobAccepted / Error",
+      "children": []
+    },
+    {
+      "id": "job",
+      "label": "生成ジョブ管理",
+      "kind": "Component",
+      "tech": "TypeScript / memory",
+      "role": "順序、重複、取消、進捗、時間制限",
+      "parent": "personal",
+      "path": "apps/ai-local/src/jobs/",
+      "owner": "M4",
+      "detail": "再起動時の未完了ジョブはWORKER_RESTARTED。旅程候補は共有DBに保存後のみ成功とする。",
+      "inputs": "validated request",
+      "outputs": "jobId / state / batchId",
+      "children": []
+    },
+    {
+      "id": "shared-client",
+      "label": "共有APIクライアント",
+      "kind": "Component",
+      "tech": "HTTP client / app session",
+      "role": "本人権限でデータを取得・候補を保存",
+      "parent": "personal",
+      "path": "apps/ai-local/src/shared-client/",
+      "owner": "M4",
+      "detail": "接続先は設定済み共有URLの許可パスのみ。任意URL proxy禁止。",
+      "inputs": "constraints / candidate batch",
+      "outputs": "planning context / batchId",
+      "children": []
+    },
+    {
+      "id": "claude-adapter",
+      "label": "Claude接続アダプター",
+      "kind": "Component",
+      "tech": "Node child_process",
+      "role": "安全にCLIを起動し構造化出力を解析",
+      "parent": "personal",
+      "path": "packages/ai/",
+      "owner": "M4",
+      "detail": "shell:false、固定実行ファイル、stdin、上限、タイムアウト。開発用Agentとは別プロセス・別cwd。",
+      "inputs": "GenerationInput + JSON Schema",
+      "outputs": "PlanBlueprint / typed error",
+      "children": [
+        "claude-code"
+      ]
+    },
+    {
+      "id": "validator",
+      "label": "旅程検証",
+      "kind": "Component",
+      "tech": "TypeScript pure functions",
+      "role": "形式・経路・日時・固定予定・予算を照合",
+      "parent": "personal",
+      "path": "packages/planner/",
+      "owner": "M3 + M4",
+      "detail": "AIが候補順を生成し、プログラムが制約を検証。運賃やホームを生成で穴埋めしない。",
+      "inputs": "blueprint + allowed facts",
+      "outputs": "validated candidates / issues",
+      "children": []
+    },
+    {
+      "id": "auth",
+      "label": "認証・認可",
+      "kind": "Component",
+      "tech": "Fastify / session",
+      "role": "利用者を特定し所有権・所属を検証",
+      "parent": "shared",
+      "path": "apps/server/src/auth/",
+      "owner": "M1",
+      "detail": "",
+      "inputs": "app cookie + resource IDs",
+      "outputs": "ActorContext / denied",
+      "children": []
+    },
+    {
+      "id": "trips",
+      "label": "旅程API",
+      "kind": "Component",
+      "tech": "TypeScript",
+      "role": "下書き・候補・採用・編集・版管理",
+      "parent": "shared",
+      "path": "apps/server/src/trips/",
+      "owner": "M4",
+      "detail": "",
+      "inputs": "Trip / batch / expectedRevision",
+      "outputs": "tripId + revision / conflict",
+      "children": []
+    },
+    {
+      "id": "social",
+      "label": "SNS投稿API",
+      "kind": "Component",
+      "tech": "TypeScript",
+      "role": "プレビュー、安全化snapshot、公開・閲覧・複製",
+      "parent": "shared",
+      "path": "apps/server/src/social/",
+      "owner": "M1",
+      "detail": "",
+      "inputs": "tripRef / previewToken / visibility",
+      "outputs": "Post / filtered feed / new trip",
+      "children": []
+    },
+    {
+      "id": "groups",
+      "label": "グループAPI",
+      "kind": "Component",
+      "tech": "TypeScript",
+      "role": "招待・所属・除外の管理",
+      "parent": "shared",
+      "path": "apps/server/src/groups/",
+      "owner": "M1",
+      "detail": "",
+      "inputs": "groupId + invite / membership command",
+      "outputs": "membership / forbidden",
+      "children": []
+    },
+    {
+      "id": "data-api",
+      "label": "旅行情報API",
+      "kind": "Component",
+      "tech": "Provider adapters",
+      "role": "地点・区間・ガイド・周辺施設を取得",
+      "parent": "shared",
+      "path": "packages/travel-data/",
+      "owner": "M3",
+      "detail": "",
+      "inputs": "area / place IDs / departure",
+      "outputs": "normalized facts + provenance",
+      "children": []
+    },
+    {
+      "id": "exports",
+      "label": "しおり・予定出力",
+      "kind": "Component",
+      "tech": "HTML print / ICS",
+      "role": "認可済み旅程をPDF・ICS・地図リンクへ変換",
+      "parent": "shared",
+      "path": "packages/exports/",
+      "owner": "M2 + M1",
+      "detail": "",
+      "inputs": "tripRef + expectedRevision",
+      "outputs": "exportId / authorized file / URL",
+      "children": []
+    },
+    {
+      "id": "repository",
+      "label": "永続化Repository",
+      "kind": "Component",
+      "tech": "SQLite prepared SQL",
+      "role": "認可済みの読み書きと版transaction",
+      "parent": "shared",
+      "path": "packages/db/",
+      "owner": "M1",
+      "detail": "全テーブルの唯一の書込み窓口。DB schema変更はM1が統合。",
+      "inputs": "query / expectedRevision / records",
+      "outputs": "rows / saved ID / conflict",
+      "children": [
+        "data-model"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "id": "R-L1a",
+      "source": "owner",
+      "target": "travel",
+      "send": "旅行条件・生成・採用・公開指示",
+      "receive": "候補・保存旅程・警告",
+      "protocol": "Web操作",
+      "contract": "K01",
+      "detail": ""
+    },
+    {
+      "id": "R-L1b",
+      "source": "other",
+      "target": "travel",
+      "send": "投稿閲覧・複製・手動編集",
+      "receive": "許可された投稿・自分の旅程",
+      "protocol": "Web操作",
+      "contract": "K14",
+      "detail": ""
+    },
+    {
+      "id": "R-L1c",
+      "source": "travel",
+      "target": "anthropic",
+      "send": "本人の公式CLI経由：生成条件と許諾済み事実",
+      "receive": "旅程候補・理由・警告",
+      "protocol": "公式CLIのHTTPS",
+      "contract": "K04",
+      "detail": ""
+    },
+    {
+      "id": "R-L1d",
+      "source": "travel",
+      "target": "providers",
+      "send": "地点・区間・日時の照会",
+      "receive": "地点・時刻・運賃・出典／未取得",
+      "protocol": "HTTPS",
+      "contract": "K06",
+      "detail": ""
+    },
+    {
+      "id": "R-L1e",
+      "source": "travel",
+      "target": "maps",
+      "send": "表示領域と地図設定",
+      "receive": "ベース地図・帰属表示",
+      "protocol": "SDK / HTTPS",
+      "contract": "K06",
+      "detail": ""
+    },
+    {
+      "id": "R01",
+      "source": "web-local",
+      "target": "personal",
+      "send": "生成・状態照会・認可済み通常API",
+      "receive": "jobId／状態／旅程・投稿・エラー",
+      "protocol": "HTTP / JSON :4311",
+      "contract": "K01",
+      "detail": ""
+    },
+    {
+      "id": "R02",
+      "source": "web-shared",
+      "target": "shared",
+      "send": "ログイン・旅程・SNS操作",
+      "receive": "Trip／Post／権限付き結果",
+      "protocol": "HTTPS / JSON",
+      "contract": "K14",
+      "detail": ""
+    },
+    {
+      "id": "R03",
+      "source": "personal",
+      "target": "shared",
+      "send": "本人セッションで情報取得・候補保存・通常API",
+      "receive": "旅行情報／batchId／Trip／Post",
+      "protocol": "HTTP(S) / JSON",
+      "contract": "K07",
+      "detail": "公開sharedからpersonalへの呼出しは存在しない。往復の戻りはpersonalが始めた要求への応答のみ。"
+    },
+    {
+      "id": "R04",
+      "source": "personal",
+      "target": "cli",
+      "send": "旅行条件＋候補ID＋出力Schema",
+      "receive": "stdout構造化JSON／exit code",
+      "protocol": "stdin / stdout / process",
+      "contract": "K03",
+      "detail": ""
+    },
+    {
+      "id": "R05",
+      "source": "cli",
+      "target": "anthropic",
+      "send": "公式CLI管理の生成依頼",
+      "receive": "Claudeの候補出力・利用上限",
+      "protocol": "HTTPS / managed by CLI",
+      "contract": "K04",
+      "detail": ""
+    },
+    {
+      "id": "R06",
+      "source": "shared",
+      "target": "db",
+      "send": "認可後のSQL・版付き更新",
+      "receive": "行・保存ID・新revision／競合",
+      "protocol": "SQLite / in-process",
+      "contract": "K20",
+      "detail": ""
+    },
+    {
+      "id": "R07",
+      "source": "shared",
+      "target": "providers",
+      "send": "地点・経路・日時の照会",
+      "receive": "正規化前のデータ・出典／未取得",
+      "protocol": "HTTPS",
+      "contract": "K06",
+      "detail": ""
+    },
+    {
+      "id": "R08",
+      "source": "web-local",
+      "target": "maps",
+      "send": "地図表示領域",
+      "receive": "地図・帰属表示",
+      "protocol": "SDK / HTTPS",
+      "contract": "K06",
+      "detail": ""
+    },
+    {
+      "id": "R09",
+      "source": "web-shared",
+      "target": "maps",
+      "send": "地図表示領域",
+      "receive": "地図・帰属表示",
+      "protocol": "SDK / HTTPS",
+      "contract": "K06",
+      "detail": ""
+    },
+    {
+      "id": "L01",
+      "source": "web-local",
+      "target": "gate",
+      "send": "生成要求・CSRF",
+      "receive": "202 JobAccepted／Error",
+      "protocol": "HTTP / JSON",
+      "contract": "K01",
+      "detail": ""
+    },
+    {
+      "id": "L02",
+      "source": "gate",
+      "target": "job",
+      "send": "検証済み本人要求・入力ハッシュ",
+      "receive": "jobId・state／重複応答",
+      "protocol": "function call",
+      "contract": "K01",
+      "detail": ""
+    },
+    {
+      "id": "L03",
+      "source": "job",
+      "target": "shared-client",
+      "send": "planning context照会・結果保存",
+      "receive": "許諾済み事実／batchId",
+      "protocol": "function / Promise",
+      "contract": "K05",
+      "detail": ""
+    },
+    {
+      "id": "L04",
+      "source": "shared-client",
+      "target": "shared",
+      "send": "アプリ本人セッション＋型付き要求",
+      "receive": "旅行情報・保存済み候補",
+      "protocol": "HTTP(S) / JSON",
+      "contract": "K07",
+      "detail": ""
+    },
+    {
+      "id": "L05",
+      "source": "job",
+      "target": "claude-adapter",
+      "send": "GenerationInput・AbortSignal",
+      "receive": "PlanBlueprint／typed error",
+      "protocol": "Promise",
+      "contract": "K03",
+      "detail": ""
+    },
+    {
+      "id": "L06",
+      "source": "claude-adapter",
+      "target": "cli",
+      "send": "固定引数＋stdin prompt",
+      "receive": "stdout envelope／stderr／exit code",
+      "protocol": "child_process",
+      "contract": "K03",
+      "detail": ""
+    },
+    {
+      "id": "L07",
+      "source": "job",
+      "target": "validator",
+      "send": "候補順・固定予定・実データ",
+      "receive": "検証済み候補・warnings",
+      "protocol": "function / Promise",
+      "contract": "K07",
+      "detail": ""
+    },
+    {
+      "id": "C01",
+      "source": "web-shared",
+      "target": "auth",
+      "send": "cookie・CSRF・対象操作",
+      "receive": "ActorContext／401・403",
+      "protocol": "HTTP / middleware",
+      "contract": "K11",
+      "detail": ""
+    },
+    {
+      "id": "C02",
+      "source": "auth",
+      "target": "trips",
+      "send": "本人context＋旅程操作",
+      "receive": "Trip／batch／409",
+      "protocol": "function call",
+      "contract": "K08",
+      "detail": ""
+    },
+    {
+      "id": "C03",
+      "source": "auth",
+      "target": "social",
+      "send": "本人context＋投稿操作",
+      "receive": "Post／Feed／404",
+      "protocol": "function call",
+      "contract": "K13",
+      "detail": ""
+    },
+    {
+      "id": "C04",
+      "source": "auth",
+      "target": "groups",
+      "send": "本人context＋招待操作",
+      "receive": "membership／403",
+      "protocol": "function call",
+      "contract": "K17",
+      "detail": ""
+    },
+    {
+      "id": "C05",
+      "source": "auth",
+      "target": "data-api",
+      "send": "範囲・日時・上限制約",
+      "receive": "facts／unknown／503",
+      "protocol": "function call",
+      "contract": "K05",
+      "detail": ""
+    },
+    {
+      "id": "C06",
+      "source": "auth",
+      "target": "exports",
+      "send": "tripRef＋所有権context",
+      "receive": "exportId／authorized URL",
+      "protocol": "function call",
+      "contract": "K18",
+      "detail": ""
+    },
+    {
+      "id": "C07",
+      "source": "auth",
+      "target": "repository",
+      "send": "セッション・認可照会",
+      "receive": "userId・owner・membership",
+      "protocol": "SQL abstraction",
+      "contract": "K20",
+      "detail": ""
+    },
+    {
+      "id": "C08",
+      "source": "trips",
+      "target": "repository",
+      "send": "候補・旅程・expectedRevision",
+      "receive": "savedId・revision／409",
+      "protocol": "transaction",
+      "contract": "K20",
+      "detail": ""
+    },
+    {
+      "id": "C09",
+      "source": "social",
+      "target": "repository",
+      "send": "ACL付き投稿query・snapshot保存",
+      "receive": "許可された投稿／savedId",
+      "protocol": "transaction",
+      "contract": "K20",
+      "detail": ""
+    },
+    {
+      "id": "C10",
+      "source": "groups",
+      "target": "repository",
+      "send": "招待・所属のqueryと更新",
+      "receive": "membership／constraint error",
+      "protocol": "transaction",
+      "contract": "K20",
+      "detail": ""
+    },
+    {
+      "id": "C11",
+      "source": "exports",
+      "target": "repository",
+      "send": "旅程と出力物の所有権照会・記録",
+      "receive": "Trip／exportRef",
+      "protocol": "SQL abstraction",
+      "contract": "K20",
+      "detail": ""
+    },
+    {
+      "id": "C12",
+      "source": "repository",
+      "target": "db",
+      "send": "prepared SQL＋parameters",
+      "receive": "rows／affected rows",
+      "protocol": "SQLite",
+      "contract": "K20",
+      "detail": ""
+    },
+    {
+      "id": "C13",
+      "source": "data-api",
+      "target": "providers",
+      "send": "サービスごとの検索条件",
+      "receive": "provider response／error",
+      "protocol": "HTTPS",
+      "contract": "K06",
+      "detail": ""
+    },
+    {
+      "id": "C14",
+      "source": "trips",
+      "target": "data-api",
+      "send": "変更区間・出発時刻・交通手段",
+      "receive": "再取得経路とwarnings",
+      "protocol": "function call",
+      "contract": "K06",
+      "detail": ""
+    }
+  ],
+  "views": [
+    {
+      "id": "context",
+      "title": "C1｜旅行Webシステムの外側",
+      "level": "C4 System Context",
+      "scope": "旅行Webシステム",
+      "nodes": [
+        "owner",
+        "other",
+        "travel",
+        "anthropic",
+        "providers",
+        "maps"
+      ],
+      "relations": [
+        "R-L1a",
+        "R-L1b",
+        "R-L1c",
+        "R-L1d",
+        "R-L1e"
+      ],
+      "boundary": [
+        "travel"
+      ],
+      "note": "各線の実線は依頼、破線はその依頼への応答。図の箱・矢印を選ぶと入力と戻り値を確認できます。"
+    },
+    {
+      "id": "containers",
+      "title": "C2｜画面・2つのサーバー・DB・Claude",
+      "level": "C4 Container",
+      "scope": "travel",
+      "nodes": [
+        "web-local",
+        "web-shared",
+        "personal",
+        "shared",
+        "db",
+        "cli",
+        "anthropic",
+        "providers",
+        "maps"
+      ],
+      "relations": [
+        "R01",
+        "R02",
+        "R03",
+        "R04",
+        "R05",
+        "R06",
+        "R07",
+        "R08",
+        "R09"
+      ],
+      "boundary": [
+        "web-local",
+        "web-shared",
+        "personal",
+        "shared",
+        "db"
+      ],
+      "note": "本人用と共有用の入口を分離。共有サーバーから本人用CLIへの起動経路は作りません。ポート番号は今回の設計値。"
+    },
+    {
+      "id": "local-components",
+      "title": "C3｜本人用App Serverの内部",
+      "level": "C4 Component",
+      "scope": "personal",
+      "nodes": [
+        "web-local",
+        "gate",
+        "job",
+        "shared-client",
+        "claude-adapter",
+        "validator",
+        "shared",
+        "cli"
+      ],
+      "relations": [
+        "L01",
+        "L02",
+        "L03",
+        "L04",
+        "L05",
+        "L06",
+        "L07"
+      ],
+      "boundary": [
+        "gate",
+        "job",
+        "shared-client",
+        "claude-adapter",
+        "validator"
+      ],
+      "note": "受付は202で先に返します。処理完了後は候補を共通DBへ保存し、ブラウザの状態照会にbatchIdを返します。"
+    },
+    {
+      "id": "shared-components",
+      "title": "C3｜共有サーバーとSNSの内部",
+      "level": "C4 Component",
+      "scope": "shared",
+      "nodes": [
+        "web-shared",
+        "auth",
+        "trips",
+        "social",
+        "groups",
+        "data-api",
+        "exports",
+        "repository",
+        "db",
+        "providers"
+      ],
+      "relations": [
+        "C01",
+        "C02",
+        "C03",
+        "C04",
+        "C05",
+        "C06",
+        "C07",
+        "C08",
+        "C09",
+        "C10",
+        "C11",
+        "C12",
+        "C13",
+        "C14"
+      ],
+      "boundary": [
+        "auth",
+        "trips",
+        "social",
+        "groups",
+        "data-api",
+        "exports",
+        "repository"
+      ],
+      "note": "SNSは単なる共有リンクではありません。投稿snapshot、現時点のグループ所属、旅程複製、所有権を共有サーバーで管理します。"
+    },
+    {
+      "id": "social-focus",
+      "title": "C3｜SNSの責任分担だけを拡大",
+      "level": "C4 Component",
+      "scope": "shared",
+      "nodes": [
+        "web-shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "relations": [
+        "C01",
+        "C03",
+        "C04",
+        "C07",
+        "C09",
+        "C10",
+        "C12"
+      ],
+      "boundary": [
+        "auth",
+        "social",
+        "groups",
+        "repository"
+      ],
+      "note": "SNS投稿とグループ認可の部分だけを抽出した同じC3モデル。別システムではありません。"
+    }
+  ]
+}

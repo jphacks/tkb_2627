@@ -1,0 +1,121 @@
+{
+  "title": "C4 Code｜Claude接続アダプターの内部",
+  "scope": "claude-adapter",
+  "status": "実装前の型・責任設計。架空の実装済みコードではない。",
+  "types": [
+    {
+      "id": "GenerationInput",
+      "kind": "type",
+      "fields": [
+        "schemaVersion: 1",
+        "constraints: TripConstraints",
+        "allowedPlaceIds: string[]",
+        "facts: PermittedFact[]",
+        "fixedActivities: ActivityRef[]",
+        "instructions: string"
+      ],
+      "note": "ユーザー条件と利用許諾済み事実だけ。コマンド・パス・tokenは含めない。"
+    },
+    {
+      "id": "ClaudeRunner",
+      "kind": "class",
+      "fields": [
+        "run(input, AbortSignal): Promise<RunnerResult>",
+        "spawn(fixedExe, fixedArgs, shell=false)",
+        "stdin.write(prompt)",
+        "limit stdout / timeout / cancel"
+      ],
+      "note": "CLI起動とprocess終了を管理。ログへpromptやcredential全文を出さない。"
+    },
+    {
+      "id": "RunnerResult",
+      "kind": "type",
+      "fields": [
+        "exitCode: number",
+        "envelope: unknown",
+        "durationMs: number",
+        "error?: SafeError"
+      ],
+      "note": "出力を成功と決めつけない。exitCode=0だけでは不十分。"
+    },
+    {
+      "id": "BlueprintParser",
+      "kind": "function",
+      "fields": [
+        "parse(envelope): PlanBlueprint",
+        "verify structured_output",
+        "validate JSON Schema",
+        "reject unknown place IDs"
+      ],
+      "note": "形式検証。交通の事実検証は上位の旅程検証Componentへ委譲。"
+    },
+    {
+      "id": "PlanBlueprint",
+      "kind": "type",
+      "fields": [
+        "schemaVersion: 1",
+        "candidates: CandidateBlueprint[]"
+      ],
+      "note": "保存済みTripとは別の型。未検証の生成候補。"
+    },
+    {
+      "id": "SafeError",
+      "kind": "type",
+      "fields": [
+        "code: CLI_* | INVALID_OUTPUT",
+        "message: string",
+        "retryable: boolean",
+        "requestId: string"
+      ],
+      "note": "利用者表示用。秘密・実行path・生stderrを除外。"
+    },
+    {
+      "id": "CandidateBlueprint",
+      "kind": "type",
+      "fields": [
+        "candidateId: string",
+        "activityOrder: string[]",
+        "reasons: string[]",
+        "warnings: string[]"
+      ],
+      "note": "activityOrderはallowedPlaceIds内のIDだけ。運賃や確定時刻を創作しない。"
+    }
+  ],
+  "links": [
+    {
+      "source": "GenerationInput",
+      "target": "ClaudeRunner",
+      "label": "run(input, signal)"
+    },
+    {
+      "source": "ClaudeRunner",
+      "target": "RunnerResult",
+      "label": "Promise<RunnerResult>"
+    },
+    {
+      "source": "RunnerResult",
+      "target": "BlueprintParser",
+      "label": "envelope: unknown"
+    },
+    {
+      "source": "BlueprintParser",
+      "target": "PlanBlueprint",
+      "label": "検証済みの候補型"
+    },
+    {
+      "source": "ClaudeRunner",
+      "target": "SafeError",
+      "label": "process失敗"
+    },
+    {
+      "source": "BlueprintParser",
+      "target": "SafeError",
+      "label": "Schema不一致"
+    },
+    {
+      "source": "PlanBlueprint",
+      "target": "CandidateBlueprint",
+      "label": "candidates / 候補の配列"
+    }
+  ]
+}

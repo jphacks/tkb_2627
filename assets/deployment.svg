@@ -1,0 +1,187 @@
+<svg width="1264pt" height="632pt"
+ viewBox="0.00 0.00 1264.00 632.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(28.8 603.2)">
+
+<g id="clust1" class="cluster">
+
+<polygon fill="none" stroke="black" points="8,-469.4 8,-566.4 157.05,-566.4 157.05,-469.4 8,-469.4"/>
+<text xml:space="preserve" text-anchor="middle" x="82.53" y="-549.1" font-family="Noto Sans CJK JP, sans-serif" font-size="14.00">別の利用者の端末</text>
+</g>
+<g id="clust2" class="cluster">
+
+<polygon fill="none" stroke="#9eafbc" stroke-dasharray="5,2" points="15.5,-66.4 15.5,-382.4 1198.2,-382.4 1198.2,-66.4 15.5,-66.4"/>
+<text xml:space="preserve" text-anchor="middle" x="606.85" y="-365.1" font-family="Noto Sans CJK JP, sans-serif" font-size="14.00">本人のPC（初期デモ配置）</text>
+</g>
+<!-- remote -->
+<g id="node1" class="node">
+
+<path fill="#edf5f9" stroke="black" d="M137.05,-535.05C137.05,-535.05 28,-535.05 28,-535.05 22,-535.05 16,-529.05 16,-523.05 16,-523.05 16,-489.75 16,-489.75 16,-483.75 22,-477.75 28,-477.75 28,-477.75 137.05,-477.75 137.05,-477.75 143.05,-477.75 149.05,-483.75 149.05,-489.75 149.05,-489.75 149.05,-523.05 149.05,-523.05 149.05,-529.05 143.05,-535.05 137.05,-535.05"/>
+<text xml:space="preserve" text-anchor="middle" x="82.53" y="-508.3" font-family="Noto Sans CJK JP, sans-serif" font-size="13.00">共有Web画面</text>
+<text xml:space="preserve" text-anchor="middle" x="82.53" y="-494.05" font-family="Noto Sans CJK JP, sans-serif" font-size="13.00">閲覧・編集・SNS</text>
+</g>
+<!-- tunnel -->
+<g id="node2" class="node">
+
+<path fill="#edf5f9" stroke="black" d="M505.6,-531.8C505.6,-531.8 383.05,-531.8 383.05,-531.8 377.05,-531.8 371.05,-525.8 371.05,-519.8 371.05,-519.8 371.05,-485 371.05,-485 371.05,-479 377.05,-473 383.05,-473 383.05,-473 505.6,-473 505.6,-473 511.6,-473 517.6,-479 517.6,-485 517.6,-485 517.6,-519.8 517.6,-519.8 517.6,-525.8 511.6,-531.8 505.6,-531.8"/>
+<text xml:space="preserve" text-anchor="middle" x="444.33" y="-505.05" font-family="Noto Sans CJK JP, sans-serif" font-size="13.00">HTTPS公開入口</text>
+<text xml:space="preserve" text-anchor="middle" x="444.33" y="-490.05" font-family="Noto Sans CJK JP, sans-serif" font-size="13.00">Cloudflare Tunnel等</text>
+</g>
+<!-- remote&#45;&gt;tunnel -->
+<g id="edge9" class="edge">
+
+<path fill="none" stroke="black" d="M149.52,-505.67C208.56,-505.01 295.41,-504.04 359.38,-503.33"/>
+<polygon fill="black" stroke="black" points="359.17,-506.84 369.13,-503.22 359.09,-499.84 359.17,-506.84"/>
+<text xml:space="preserve" text-anchor="middle" x="260.05" y="-507.52" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">HTTPS：共有操作</text>
+</g>
+<!-- tunnel&#45;&gt;remote -->
+<g id="edge10" class="edge">
+
+<path fill="none" stroke="#288467" stroke-dasharray="5,2" d="M370.84,-485.4C358.94,-483.22 346.7,-481.33 335.05,-480.15 268.73,-473.41 251.18,-471.74 185.05,-480.15 177.04,-481.17 168.76,-482.62 160.54,-484.33"/>
+<polygon fill="#288467" stroke="#288467" points="159.89,-480.89 150.89,-486.47 161.41,-487.72 159.89,-480.89"/>
+<text xml:space="preserve" text-anchor="middle" x="260.05" y="-480.95" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">画面・許可された結果</text>
+</g>
+<!-- shared -->
+<g id="node6" class="node">
+
+<g id="a_node6"><a xlink:href="#node=shared" xlink:title="共有アプリサーバー&#10;127.0.0.1:4310">
+<path fill="#edf5f9" stroke="black" d="M834.4,-258.68C834.4,-258.68 715.6,-258.68 715.6,-258.68 709.6,-258.68 703.6,-252.68 703.6,-246.68 703.6,-246.68 703.6,-214.12 703.6,-214.12 703.6,-208.12 709.6,-202.12 715.6,-202.12 715.6,-202.12 834.4,-202.12 834.4,-202.12 840.4,-202.12 846.4,-208.12 846.4,-214.12 846.4,-214.12 846.4,-246.68 846.4,-246.68 846.4,-252.68 840.4,-258.68 834.4,-258.68"/>
+<text xml:space="preserve" text-anchor="middle" x="775" y="-231.93" font-family="Noto Sans CJK JP, sans-serif" font-size="13.00">共有アプリサーバー</text>
+<text xml:space="preserve" text-anchor="middle" x="775" y="-217.68" font-family="Noto Sans CJK JP, sans-serif" font-size="13.00">127.0.0.1:4310</text>
+</a>
+</g>
+</g>
+<!-- tunnel&#45;&gt;shared -->
+<g id="edge11" class="edge">
+
+<path fill="none" stroke="black" d="M517.89,-497.64C563.35,-491.36 620.84,-477 661.6,-444.4 717.88,-399.39 749.23,-318.46 763.78,-270.07"/>
+<polygon fill="black" stroke="black" points="767.11,-271.12 766.53,-260.54 760.39,-269.17 767.11,-271.12"/>
+<text xml:space="preserve" text-anchor="middle" x="607.6" y="-492.02" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">4310へのみ転送</text>
+</g>
+<!-- localbrowser -->
+<g id="node3" class="node">
+
+<path fill="#edf5f9" stroke="black" d="M129.55,-186.68C129.55,-186.68 35.5,-186.68 35.5,-186.68 29.5,-186.68 23.5,-180.68 23.5,-174.68 23.5,-174.68 23.5,-142.12 23.5,-142.12 23.5,-136.12 29.5,-130.12 35.5,-130.12 35.5,-130.12 129.55,-130.12 129.55,-130.12 135.55,-130.12 141.55,-136.12 141.55,-142.12 141.55,-142.12 141.55,-174.68 141.55,-174.68 141.55,-180.68 135.55,-186.68 129.55,-186.68"/>
+<text xml:space="preserve" text-anchor="middle" x="82.53" y="-159.93" font-family="Noto Sans CJK JP, sans-serif" font-size="13.00">本人のブラウザ</text>
+<text xml:space="preserve" text-anchor="middle" x="82.53" y="-145.68" font-family="Noto Sans CJK JP, sans-serif" font-size="13.00">127.0.0.1:4311</text>
+</g>
+<!-- local -->
+<g id="node4" class="node">
+
+<g id="a_node4"><a xlink:href="#node=personal" xlink:title="本人用App Server&#10;127.0.0.1:4311">
+<path fill="#f0eaf8" stroke="black" d="M499.6,-186.68C499.6,-186.68 389.05,-186.68 389.05,-186.68 383.05,-186.68 377.05,-180.68 377.05,-174.68 377.05,-174.68 377.05,-142.12 377.05,-142.12 377.05,-136.12 383.05,-130.12 389.05,-130.12 389.05,-130.12 499.6,-130.12 499.6,-130.12 505.6,-130.12 511.6,-136.12 511.6,-142.12 511.6,-142.12 511.6,-174.68 511.6,-174.68 511.6,-180.68 505.6,-186.68 499.6,-186.68"/>
+<text xml:space="preserve" text-anchor="middle" x="444.33" y="-159.93" font-family="Noto Sans CJK JP, sans-serif" font-size="13.00">本人用App Server</text>
+<text xml:space="preserve" text-anchor="middle" x="444.33" y="-145.68" font-family="Noto Sans CJK JP, sans-serif" font-size="13.00">127.0.0.1:4311</text>
+</a>
+</g>
+</g>
+<!-- localbrowser&#45;&gt;local -->
+<g id="edge1" class="edge">
+
+<path fill="none" stroke="black" d="M141.73,-158.4C202.46,-158.4 298.02,-158.4 365.26,-158.4"/>
+<polygon fill="black" stroke="black" points="365.12,-161.9 375.12,-158.4 365.12,-154.9 365.12,-161.9"/>
+<text xml:space="preserve" text-anchor="middle" x="260.05" y="-160.7" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">HTTP：生成条件・本人cookie</text>
+</g>
+<!-- local&#45;&gt;localbrowser -->
+<g id="edge2" class="edge">
+
+<path fill="none" stroke="#288467" stroke-dasharray="5,2" d="M376.74,-176.27C363.05,-179.24 348.66,-181.85 335.05,-183.4 268.81,-190.95 251.23,-191.43 185.05,-183.4 174.55,-182.13 163.57,-180.14 152.88,-177.83"/>
+<polygon fill="#288467" stroke="#288467" points="153.87,-174.46 143.34,-175.65 152.31,-181.29 153.87,-174.46"/>
+<text xml:space="preserve" text-anchor="middle" x="260.05" y="-191.54" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">202 jobId／候補・結果</text>
+</g>
+<!-- cli -->
+<g id="node5" class="node">
+
+<g id="a_node5"><a xlink:href="#node=cli" xlink:title="公式Claude Code&#10;本人の認証・専用cwd">
+<path fill="#f0eaf8" stroke="black" d="M840.4,-142.05C840.4,-142.05 709.6,-142.05 709.6,-142.05 703.6,-142.05 697.6,-136.05 697.6,-130.05 697.6,-130.05 697.6,-96.75 697.6,-96.75 697.6,-90.75 703.6,-84.75 709.6,-84.75 709.6,-84.75 840.4,-84.75 840.4,-84.75 846.4,-84.75 852.4,-90.75 852.4,-96.75 852.4,-96.75 852.4,-130.05 852.4,-130.05 852.4,-136.05 846.4,-142.05 840.4,-142.05"/>
+<text xml:space="preserve" text-anchor="middle" x="775" y="-115.3" font-family="Noto Sans CJK JP, sans-serif" font-size="13.00">公式Claude Code</text>
+<text xml:space="preserve" text-anchor="middle" x="775" y="-101.05" font-family="Noto Sans CJK JP, sans-serif" font-size="13.00">本人の認証・専用cwd</text>
+</a>
+</g>
+</g>
+<!-- local&#45;&gt;cli -->
+<g id="edge3" class="edge">
+
+<path fill="none" stroke="black" d="M512.1,-132.38C525.65,-128.06 539.93,-124.17 553.6,-121.65 596.62,-113.72 645.13,-111.22 685.67,-110.89"/>
+<polygon fill="black" stroke="black" points="685.66,-114.39 695.65,-110.86 685.63,-107.39 685.66,-114.39"/>
+<text xml:space="preserve" text-anchor="middle" x="607.6" y="-123.95" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">stdin：旅行指示</text>
+</g>
+<!-- local&#45;&gt;shared -->
+<g id="edge5" class="edge">
+
+<path fill="none" stroke="black" d="M512.04,-160.5C555.27,-163.12 612.48,-168.95 661.6,-181.9 676.4,-185.8 691.77,-191.35 706.22,-197.3"/>
+<polygon fill="black" stroke="black" points="704.58,-200.41 715.16,-201.1 707.32,-193.97 704.58,-200.41"/>
+<text xml:space="preserve" text-anchor="middle" x="607.6" y="-193.95" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">本人のアプリ認証</text>
+<text xml:space="preserve" text-anchor="middle" x="607.6" y="-182.7" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">情報取得・候補保存</text>
+</g>
+<!-- cli&#45;&gt;local -->
+<g id="edge4" class="edge">
+
+<path fill="none" stroke="#288467" stroke-dasharray="5,2" d="M737.42,-142.43C724.52,-153.09 710.13,-165.46 697.6,-177.4 680.52,-193.67 683.21,-206.94 661.6,-216.4 617.63,-235.65 600.16,-228.08 553.6,-216.4 534.15,-211.52 514.38,-202.4 497.14,-192.81"/>
+<polygon fill="#288467" stroke="#288467" points="499.04,-189.86 488.62,-187.89 495.54,-195.92 499.04,-189.86"/>
+<text xml:space="preserve" text-anchor="middle" x="607.6" y="-230.47" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">stdout：構造化結果</text>
+</g>
+<!-- cloud -->
+<g id="node8" class="node">
+
+<g id="a_node8"><a xlink:href="#node=anthropic" xlink:title="Anthropic側&#10;Claudeモデル">
+<path fill="#edf5f9" stroke="black" d="M1154.95,-58.8C1154.95,-58.8 1069.9,-58.8 1069.9,-58.8 1063.9,-58.8 1057.9,-52.8 1057.9,-46.8 1057.9,-46.8 1057.9,-12 1057.9,-12 1057.9,-6 1063.9,0 1069.9,0 1069.9,0 1154.95,0 1154.95,0 1160.95,0 1166.95,-6 1166.95,-12 1166.95,-12 1166.95,-46.8 1166.95,-46.8 1166.95,-52.8 1160.95,-58.8 1154.95,-58.8"/>
+<text xml:space="preserve" text-anchor="middle" x="1112.42" y="-32.05" font-family="Noto Sans CJK JP, sans-serif" font-size="13.00">Anthropic側</text>
+<text xml:space="preserve" text-anchor="middle" x="1112.42" y="-17.05" font-family="Noto Sans CJK JP, sans-serif" font-size="13.00">Claudeモデル</text>
+</a>
+</g>
+</g>
+<!-- cli&#45;&gt;cloud -->
+<g id="edge13" class="edge">
+
+<path fill="none" stroke="black" d="M852.53,-94.23C911.05,-79.58 990.85,-59.6 1046.32,-45.7"/>
+<polygon fill="black" stroke="black" points="1047.11,-49.12 1055.96,-43.29 1045.41,-42.33 1047.11,-49.12"/>
+<text xml:space="preserve" text-anchor="middle" x="943.53" y="-85.45" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">公式CLIのHTTPS依頼</text>
+</g>
+<!-- shared&#45;&gt;tunnel -->
+<g id="edge12" class="edge">
+
+<path fill="none" stroke="#288467" stroke-dasharray="5,2" d="M739.32,-259.1C679.34,-308.74 556.32,-410.55 490.02,-465.42"/>
+<polygon fill="#288467" stroke="#288467" points="488.08,-462.48 482.61,-471.55 492.54,-467.87 488.08,-462.48"/>
+<text xml:space="preserve" text-anchor="middle" x="607.6" y="-408.96" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">HTTP応答</text>
+</g>
+<!-- shared&#45;&gt;local -->
+<g id="edge6" class="edge">
+
+<path fill="none" stroke="#288467" stroke-dasharray="5,2" d="M703.17,-253.77C658.89,-264.54 601.4,-271.4 553.6,-253.4 522.61,-241.73 494.71,-216.72 474.99,-195.28"/>
+<polygon fill="#288467" stroke="#288467" points="477.86,-193.24 468.59,-188.11 472.64,-197.9 477.86,-193.24"/>
+<text xml:space="preserve" text-anchor="middle" x="607.6" y="-266.79" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">JSON：情報・保存ID</text>
+</g>
+<!-- db -->
+<g id="node7" class="node">
+
+<g id="a_node7"><a xlink:href="#node=db" xlink:title="共通DB&#10;非公開の永続ファイル">
+<path fill="#edf5f9" stroke="black" d="M1190.2,-262.63C1190.2,-266.58 1155.34,-269.79 1112.42,-269.79 1069.51,-269.79 1034.65,-266.58 1034.65,-262.63 1034.65,-262.63 1034.65,-198.17 1034.65,-198.17 1034.65,-194.22 1069.51,-191.01 1112.42,-191.01 1155.34,-191.01 1190.2,-194.22 1190.2,-198.17 1190.2,-198.17 1190.2,-262.63 1190.2,-262.63"/>
+<path fill="none" stroke="black" d="M1190.2,-262.63C1190.2,-258.68 1155.34,-255.47 1112.42,-255.47 1069.51,-255.47 1034.65,-258.68 1034.65,-262.63"/>
+<text xml:space="preserve" text-anchor="middle" x="1112.42" y="-232.3" font-family="Noto Sans CJK JP, sans-serif" font-size="13.00">共通DB</text>
+<text xml:space="preserve" text-anchor="middle" x="1112.42" y="-218.05" font-family="Noto Sans CJK JP, sans-serif" font-size="13.00">非公開の永続ファイル</text>
+</a>
+</g>
+</g>
+<!-- shared&#45;&gt;db -->
+<g id="edge7" class="edge">
+
+<path fill="none" stroke="black" d="M846.73,-230.4C898.05,-230.4 967.83,-230.4 1022.86,-230.4"/>
+<polygon fill="black" stroke="black" points="1022.85,-233.9 1032.85,-230.4 1022.85,-226.9 1022.85,-233.9"/>
+<text xml:space="preserve" text-anchor="middle" x="943.53" y="-232.7" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">SQL・transaction</text>
+</g>
+<!-- db&#45;&gt;shared -->
+<g id="edge8" class="edge">
+
+<path fill="none" stroke="#288467" stroke-dasharray="5,2" d="M1034.45,-249.8C1022.53,-252.12 1010.31,-254.12 998.65,-255.4 949.94,-260.73 937.11,-260.75 888.4,-255.4 878.4,-254.3 868,-252.67 857.72,-250.76"/>
+<polygon fill="#288467" stroke="#288467" points="858.63,-247.37 848.14,-248.87 857.28,-254.24 858.63,-247.37"/>
+<text xml:space="preserve" text-anchor="middle" x="943.53" y="-261.71" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">rows・revision</text>
+</g>
+<!-- cloud&#45;&gt;cli -->
+<g id="edge14" class="edge">
+
+<path fill="none" stroke="#288467" stroke-dasharray="5,2" d="M1057.75,-24.25C1011.68,-21.63 944.09,-22.13 888.4,-40.15 863.53,-48.2 838.86,-63.26 819,-77.65"/>
+<polygon fill="#288467" stroke="#288467" points="817.08,-74.72 811.16,-83.5 821.27,-80.33 817.08,-74.72"/>
+<text xml:space="preserve" text-anchor="middle" x="943.53" y="-40.95" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">モデル応答</text>
+</g>
+</g>
+</svg>

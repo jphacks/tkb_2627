@@ -1,0 +1,36 @@
+digraph G {
+graph [rankdir=LR,bgcolor="transparent",pad=.4,nodesep=.7,ranksep=1.0];node [shape=box,style="rounded,filled",fillcolor="#edf5f9",fontname="Noto Sans CJK JP",fontsize=13,margin=.2];edge [fontname="Noto Sans CJK JP",fontsize=11];
+subgraph cluster_user {label="別の利用者の端末";fontname="Noto Sans CJK JP";remote [label="共有Web画面
+閲覧・編集・SNS"]}
+tunnel [label="HTTPS公開入口
+Cloudflare Tunnel等"];
+subgraph cluster_pc {label="本人のPC（初期デモ配置）";fontname="Noto Sans CJK JP";style=dashed;color="#9eafbc";
+ localbrowser [label="本人のブラウザ
+127.0.0.1:4311"];
+ local [label="本人用App Server
+127.0.0.1:4311",URL="#node=personal",fillcolor="#f0eaf8"];
+ cli [label="公式Claude Code
+本人の認証・専用cwd",URL="#node=cli",fillcolor="#f0eaf8"];
+ shared [label="共有アプリサーバー
+127.0.0.1:4310",URL="#node=shared"];
+ db [label="共通DB
+非公開の永続ファイル",URL="#node=db",shape=cylinder];
+ localbrowser -> local [label="HTTP：生成条件・本人cookie"];
+ local -> localbrowser [label="202 jobId／候補・結果",style=dashed,color="#288467",constraint=false];
+ local -> cli [label="stdin：旅行指示"];
+ cli -> local [label="stdout：構造化結果",style=dashed,color="#288467",constraint=false];
+ local -> shared [label="本人のアプリ認証
+情報取得・候補保存"];
+ shared -> local [label="JSON：情報・保存ID",style=dashed,color="#288467",constraint=false];
+ shared -> db [label="SQL・transaction"];
+ db -> shared [label="rows・revision",style=dashed,color="#288467",constraint=false];
+}
+cloud [label="Anthropic側
+Claudeモデル",URL="#node=anthropic"];
+remote -> tunnel [label="HTTPS：共有操作"];
+tunnel -> remote [label="画面・許可された結果",style=dashed,color="#288467",constraint=false];
+tunnel -> shared [label="4310へのみ転送"];
+shared -> tunnel [label="HTTP応答",style=dashed,color="#288467",constraint=false];
+cli -> cloud [label="公式CLIのHTTPS依頼"];
+cloud -> cli [label="モデル応答",style=dashed,color="#288467",constraint=false];
+}

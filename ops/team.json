@@ -1,0 +1,33 @@
+{
+  "repository": "jphacks/tkb_2627",
+  "defaultBranch": "main",
+  "coordinator": "M1",
+  "demoHost": "M1",
+  "members": {
+    "M1": {
+      "github": "KatTanaka",
+      "role": "基盤・認証・SNS・統合",
+      "claudePlan": "Pro",
+      "device": "macOS arm64 / Node 24 / Claude Code 2.1.258"
+    },
+    "M2": {
+      "github": "murataka-csl",
+      "role": "UI・ガイド画面・PDF",
+      "claudePlan": "Pro",
+      "device": "未確認"
+    },
+    "M3": {
+      "github": "ryoumatimati",
+      "role": "旅行データ・経路・時刻検証",
+      "claudePlan": "Pro",
+      "device": "未確認"
+    },
+    "M4": {
+      "github": "poyyk",
+      "role": "Claude接続・本人用App Server・旅程生成編集",
+      "claudePlan": "Pro",
+      "device": "未確認"
+    }
+  },
+  "note": "GitHub loginはM1の本人確認済み（2026-10-24）。APIキー、パスワード、Claude認証をここに記録しない。"
+}

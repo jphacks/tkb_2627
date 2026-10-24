@@ -1,0 +1,353 @@
+<svg width="1141pt" height="1947pt"
+ viewBox="0.00 0.00 1141.00 1947.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(25.2 1921.58)">
+
+<!-- users&#45;&gt;sessions -->
+<g id="edge1" class="edge">
+
+<path fill="none" stroke="#6e8292" stroke-width="1.3" d="M97.08,-1001.64C155.62,-1013.79 257.26,-1034.88 323.7,-1048.67"/>
+<text xml:space="preserve" text-anchor="middle" x="200.75" y="-1034.59" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">sessions.user_id</text>
+<text xml:space="preserve" text-anchor="middle" x="316.95" y="-1040.12" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">0..*</text>
+<text xml:space="preserve" text-anchor="middle" x="99.71" y="-993.09" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">1</text>
+</g>
+<!-- users&#45;&gt;trips -->
+<g id="edge2" class="edge">
+
+<path fill="none" stroke="#6e8292" stroke-width="1.3" d="M97.08,-1047.17C159.94,-1122.65 272.51,-1257.83 337.81,-1336.25"/>
+<text xml:space="preserve" text-anchor="middle" x="200.75" y="-1232.1" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">trips.owner_id</text>
+<text xml:space="preserve" text-anchor="middle" x="331.06" y="-1327.7" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">0..*</text>
+<text xml:space="preserve" text-anchor="middle" x="99.71" y="-1038.62" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">1</text>
+</g>
+<!-- users&#45;&gt;plan_batches -->
+<g id="edge4" class="edge">
+
+<path fill="none" stroke="#6e8292" stroke-width="1.3" d="M61.3,-1088.09C81.24,-1228.03 138.98,-1486.59 301,-1626.12 400.18,-1711.54 557.41,-1730.32 652.34,-1733.25"/>
+<text xml:space="preserve" text-anchor="middle" x="389.5" y="-1710.54" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">plan_batches.owner_id</text>
+<text xml:space="preserve" text-anchor="middle" x="645.59" y="-1724.7" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">0..*</text>
+<text xml:space="preserve" text-anchor="middle" x="58.68" y="-1089.29" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">1</text>
+</g>
+<!-- users&#45;&gt;group_members -->
+<g id="edge11" class="edge">
+
+<path fill="none" stroke="#6e8292" stroke-width="1.3" d="M97.08,-930.59C112.04,-912.63 129.48,-893.72 147.5,-878.38 196.22,-836.88 258.19,-799.82 307.08,-773.52"/>
+<text xml:space="preserve" text-anchor="middle" x="200.75" y="-879.58" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">group_members.user_id</text>
+<text xml:space="preserve" text-anchor="middle" x="300.33" y="-764.97" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">0..*</text>
+<text xml:space="preserve" text-anchor="middle" x="99.7" y="-922.04" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">1</text>
+</g>
+<!-- users&#45;&gt;posts -->
+<g id="edge6" class="edge">
+
+<path fill="none" stroke="#6e8292" stroke-width="1.3" d="M97.04,-980.77C220.19,-950.25 557.7,-866.58 684.23,-835.21"/>
+<text xml:space="preserve" text-anchor="middle" x="389.5" y="-931.12" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">posts.owner_id</text>
+<text xml:space="preserve" text-anchor="middle" x="677.48" y="-826.66" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">0..*</text>
+<text xml:space="preserve" text-anchor="middle" x="99.67" y="-972.22" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">1</text>
+</g>
+<!-- users&#45;&gt;operation_keys -->
+<g id="edge14" class="edge">
+
+<path fill="none" stroke="#6e8292" stroke-width="1.3" d="M91.22,-896.02C107.19,-860.71 126.72,-820.93 147.5,-786.38 193.04,-710.64 252.7,-631.23 301.28,-570.43"/>
+<text xml:space="preserve" text-anchor="middle" x="200.75" y="-787.58" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">operation_keys.owner_id</text>
+<text xml:space="preserve" text-anchor="middle" x="294.53" y="-561.88" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">0..*</text>
+<text xml:space="preserve" text-anchor="middle" x="88.59" y="-887.47" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">1</text>
+</g>
+<!-- trips&#45;&gt;trip_versions -->
+<g id="edge3" class="edge">
+
+<path fill="none" stroke="#6e8292" stroke-width="1.3" d="M441.04,-1357.73C501.7,-1310.44 603.48,-1231.1 669.42,-1179.69"/>
+<text xml:space="preserve" text-anchor="middle" x="565.12" y="-1288.74" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">trip_versions.trip_id</text>
+<text xml:space="preserve" text-anchor="middle" x="662.67" y="-1171.14" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">1..*</text>
+<text xml:space="preserve" text-anchor="middle" x="443.66" y="-1349.18" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">1</text>
+</g>
+<!-- trips&#45;&gt;plan_batches -->
+<g id="edge5" class="edge">
+
+<path fill="none" stroke="#6e8292" stroke-width="1.3" d="M441.04,-1446.56C496.67,-1500.97 586.9,-1589.22 652.34,-1653.23"/>
+<text xml:space="preserve" text-anchor="middle" x="565.12" y="-1605.68" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">base_trip_id</text>
+<text xml:space="preserve" text-anchor="middle" x="645.59" y="-1644.68" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">0..*</text>
+<text xml:space="preserve" text-anchor="middle" x="448.54" y="-1438.01" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">0..1</text>
+</g>
+<!-- trips&#45;&gt;posts -->
+<g id="edge7" class="edge">
+
+<path fill="none" stroke="#6e8292" stroke-width="1.3" d="M441.22,-1312.12C506.68,-1202.43 619.78,-1012.88 684.26,-904.82"/>
+<text xml:space="preserve" text-anchor="middle" x="565.12" y="-1162.74" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">source_trip_id</text>
+<text xml:space="preserve" text-anchor="middle" x="677.51" y="-896.27" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">0..*</text>
+<text xml:space="preserve" text-anchor="middle" x="448.72" y="-1303.57" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">0..1</text>
+</g>
+<!-- trips&#45;&gt;exports -->
+<g id="edge13" class="edge">
+
+<path fill="none" stroke="#6e8292" stroke-width="1.3" d="M441.04,-1397.12C505.79,-1397.12 617.4,-1397.12 682.26,-1397.12"/>
+<text xml:space="preserve" text-anchor="middle" x="565.12" y="-1398.33" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">exports.trip_id</text>
+<text xml:space="preserve" text-anchor="middle" x="675.51" y="-1388.58" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">0..*</text>
+<text xml:space="preserve" text-anchor="middle" x="443.66" y="-1388.58" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">1</text>
+</g>
+<!-- groups&#45;&gt;group_members -->
+<g id="edge10" class="edge">
+
+<path fill="none" stroke="#6e8292" stroke-width="1.3" d="M100.45,-307.62C153.76,-331.87 233.93,-371.43 254,-398.38 312.37,-476.72 260.92,-524.02 301,-613.12 304.65,-621.24 308.9,-629.34 313.54,-637.3"/>
+<text xml:space="preserve" text-anchor="middle" x="200.75" y="-399.57" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">group_members.group_id</text>
+<text xml:space="preserve" text-anchor="middle" x="306.79" y="-628.75" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">1..*</text>
+<text xml:space="preserve" text-anchor="middle" x="103.07" y="-299.07" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">1</text>
+</g>
+<!-- groups&#45;&gt;group_invites -->
+<g id="edge12" class="edge">
+
+<path fill="none" stroke="#6e8292" stroke-width="1.3" d="M100.29,-258.5C163.22,-223.04 271.95,-161.79 336.35,-125.5"/>
+<text xml:space="preserve" text-anchor="middle" x="200.75" y="-231.18" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">group_invites.group_id</text>
+<text xml:space="preserve" text-anchor="middle" x="329.6" y="-116.95" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">0..*</text>
+<text xml:space="preserve" text-anchor="middle" x="102.91" y="-249.95" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">1</text>
+</g>
+<!-- groups&#45;&gt;posts -->
+<g id="edge9" class="edge">
+
+<path fill="none" stroke="#6e8292" stroke-width="1.3" d="M100.25,-274.08C185.02,-256.21 361.18,-232.46 478,-309.38 597.66,-388.16 663.36,-540.66 697.96,-659.13"/>
+<text xml:space="preserve" text-anchor="middle" x="389.5" y="-310.57" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">posts.group_id</text>
+<text xml:space="preserve" text-anchor="middle" x="691.21" y="-650.58" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">0..*</text>
+<text xml:space="preserve" text-anchor="middle" x="107.75" y="-265.53" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">0..1</text>
+</g>
+<!-- posts&#45;&gt;post_snapshots -->
+<g id="edge8" class="edge">
+
+<path fill="none" stroke="#6e8292" stroke-width="1.3" d="M783.74,-823.12C832.2,-823.12 906.81,-823.12 960.07,-823.12"/>
+<text xml:space="preserve" text-anchor="middle" x="887.88" y="-824.33" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">snapshot_id</text>
+<text xml:space="preserve" text-anchor="middle" x="957.44" y="-814.58" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">1</text>
+<text xml:space="preserve" text-anchor="middle" x="786.37" y="-814.58" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">1</text>
+</g>
+<!-- users -->
+<g id="node1" class="node">
+
+<g id="a_node1"><a xlink:href="#table=users" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="3.38,-896 3.38,-1088.25 97.12,-1088.25 97.12,-896 3.38,-896"/>
+<polygon fill="none" stroke="#5d7790" points="3.38,-896 3.38,-1088.25 97.12,-1088.25 97.12,-896 3.38,-896"/>
+<polygon fill="#e9f0f6" stroke="none" points="4.38,-1033.25 4.38,-1087.25 96.12,-1087.25 96.12,-1033.25 4.38,-1033.25"/>
+<text xml:space="preserve" text-anchor="start" x="34.5" y="-1070.75" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«table»</text>
+<text xml:space="preserve" text-anchor="start" x="32.25" y="-1056.95" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">users</text>
+<text xml:space="preserve" text-anchor="start" x="28.88" y="-1042.95" font-family="Noto Sans CJK JP, sans-serif" font-size="14.00">利用者</text>
+<text xml:space="preserve" text-anchor="start" x="12.38" y="-1017" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">id PK</text>
+<text xml:space="preserve" text-anchor="start" x="12.38" y="-989.75" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">login_id UNIQUE</text>
+<text xml:space="preserve" text-anchor="start" x="12.38" y="-962.5" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">password_hash</text>
+<text xml:space="preserve" text-anchor="start" x="12.38" y="-935.25" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">display_name</text>
+<text xml:space="preserve" text-anchor="start" x="12.38" y="-908" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">created_at</text>
+</a>
+</g>
+</g>
+<!-- sessions -->
+<g id="node2" class="node">
+
+<g id="a_node2"><a xlink:href="#table=sessions" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="323.5,-979.62 323.5,-1144.62 455.5,-1144.62 455.5,-979.62 323.5,-979.62"/>
+<polygon fill="none" stroke="#5d7790" points="323.5,-979.62 323.5,-1144.62 455.5,-1144.62 455.5,-979.62 323.5,-979.62"/>
+<polygon fill="#e9f0f6" stroke="none" points="324.5,-1089.62 324.5,-1143.62 454.5,-1143.62 454.5,-1089.62 324.5,-1089.62"/>
+<text xml:space="preserve" text-anchor="start" x="373.75" y="-1127.12" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«table»</text>
+<text xml:space="preserve" text-anchor="start" x="360.62" y="-1113.33" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">sessions</text>
+<text xml:space="preserve" text-anchor="start" x="332.5" y="-1099.33" font-family="Noto Sans CJK JP, sans-serif" font-size="14.00">アプリセッション</text>
+<text xml:space="preserve" text-anchor="start" x="332.5" y="-1073.38" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">id_hash PK</text>
+<text xml:space="preserve" text-anchor="start" x="332.5" y="-1046.12" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">user_id FK</text>
+<text xml:space="preserve" text-anchor="start" x="332.5" y="-1018.88" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">expires_at</text>
+<text xml:space="preserve" text-anchor="start" x="332.5" y="-991.62" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">revoked_at</text>
+</a>
+</g>
+</g>
+<!-- trips -->
+<g id="node3" class="node">
+
+<g id="a_node3"><a xlink:href="#table=trips" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="337.75,-1192 337.75,-1602.25 441.25,-1602.25 441.25,-1192 337.75,-1192"/>
+<polygon fill="none" stroke="#5d7790" points="337.75,-1192 337.75,-1602.25 441.25,-1602.25 441.25,-1192 337.75,-1192"/>
+<polygon fill="#e9f0f6" stroke="none" points="338.75,-1547.25 338.75,-1601.25 440.25,-1601.25 440.25,-1547.25 338.75,-1547.25"/>
+<text xml:space="preserve" text-anchor="start" x="373.75" y="-1584.75" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«table»</text>
+<text xml:space="preserve" text-anchor="start" x="374.88" y="-1570.95" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">trips</text>
+<text xml:space="preserve" text-anchor="start" x="346.75" y="-1556.95" font-family="Noto Sans CJK JP, sans-serif" font-size="14.00">旅程の現在版</text>
+<text xml:space="preserve" text-anchor="start" x="346.75" y="-1531" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">id PK</text>
+<text xml:space="preserve" text-anchor="start" x="346.75" y="-1503.75" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">owner_id FK</text>
+<text xml:space="preserve" text-anchor="start" x="346.75" y="-1476.5" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">schema_version</text>
+<text xml:space="preserve" text-anchor="start" x="346.75" y="-1449.25" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">title</text>
+<text xml:space="preserve" text-anchor="start" x="346.75" y="-1422" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">revision</text>
+<text xml:space="preserve" text-anchor="start" x="346.75" y="-1394.75" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">constraints_json</text>
+<text xml:space="preserve" text-anchor="start" x="346.75" y="-1367.5" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">days_json</text>
+<text xml:space="preserve" text-anchor="start" x="346.75" y="-1340.25" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">places_json</text>
+<text xml:space="preserve" text-anchor="start" x="346.75" y="-1313" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">warnings_json</text>
+<text xml:space="preserve" text-anchor="start" x="346.75" y="-1285.75" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">validation_state</text>
+<text xml:space="preserve" text-anchor="start" x="346.75" y="-1258.5" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">created_at</text>
+<text xml:space="preserve" text-anchor="start" x="346.75" y="-1231.25" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="346.75" y="-1204" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">deleted_at</text>
+</a>
+</g>
+</g>
+<!-- trip_versions -->
+<g id="node4" class="node">
+
+<g id="a_node4"><a xlink:href="#table=trip_versions" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="669.12,-1034 669.12,-1226.25 798.88,-1226.25 798.88,-1034 669.12,-1034"/>
+<polygon fill="none" stroke="#5d7790" points="669.12,-1034 669.12,-1226.25 798.88,-1226.25 798.88,-1034 669.12,-1034"/>
+<polygon fill="#e9f0f6" stroke="none" points="670.12,-1171.25 670.12,-1225.25 797.88,-1225.25 797.88,-1171.25 670.12,-1171.25"/>
+<text xml:space="preserve" text-anchor="start" x="718.25" y="-1208.75" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«table»</text>
+<text xml:space="preserve" text-anchor="start" x="691.62" y="-1194.95" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">trip_versions</text>
+<text xml:space="preserve" text-anchor="start" x="705.5" y="-1180.95" font-family="Noto Sans CJK JP, sans-serif" font-size="14.00">旅程履歴</text>
+<text xml:space="preserve" text-anchor="start" x="678.12" y="-1155" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">trip_id FK</text>
+<text xml:space="preserve" text-anchor="start" x="678.12" y="-1127.75" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">revision</text>
+<text xml:space="preserve" text-anchor="start" x="678.12" y="-1100.5" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">document_json</text>
+<text xml:space="preserve" text-anchor="start" x="678.12" y="-1073.25" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">created_at</text>
+<text xml:space="preserve" text-anchor="start" x="678.12" y="-1046" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">UNIQUE(trip_id, revision)</text>
+</a>
+</g>
+</g>
+<!-- plan_batches -->
+<g id="node5" class="node">
+
+<g id="a_node5"><a xlink:href="#table=plan_batches" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="652.25,-1567.88 652.25,-1896.38 815.75,-1896.38 815.75,-1567.88 652.25,-1567.88"/>
+<polygon fill="none" stroke="#5d7790" points="652.25,-1567.88 652.25,-1896.38 815.75,-1896.38 815.75,-1567.88 652.25,-1567.88"/>
+<polygon fill="#e9f0f6" stroke="none" points="653.25,-1841.38 653.25,-1895.38 814.75,-1895.38 814.75,-1841.38 653.25,-1841.38"/>
+<text xml:space="preserve" text-anchor="start" x="718.25" y="-1878.88" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«table»</text>
+<text xml:space="preserve" text-anchor="start" x="690.88" y="-1865.08" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">plan_batches</text>
+<text xml:space="preserve" text-anchor="start" x="698.38" y="-1851.08" font-family="Noto Sans CJK JP, sans-serif" font-size="14.00">生成候補群</text>
+<text xml:space="preserve" text-anchor="start" x="661.25" y="-1825.12" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">id PK</text>
+<text xml:space="preserve" text-anchor="start" x="661.25" y="-1797.88" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">owner_id FK</text>
+<text xml:space="preserve" text-anchor="start" x="661.25" y="-1770.62" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">base_trip_id? FK</text>
+<text xml:space="preserve" text-anchor="start" x="661.25" y="-1743.38" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">base_revision?</text>
+<text xml:space="preserve" text-anchor="start" x="661.25" y="-1716.12" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">generation_id</text>
+<text xml:space="preserve" text-anchor="start" x="661.25" y="-1688.88" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">schema_version</text>
+<text xml:space="preserve" text-anchor="start" x="661.25" y="-1661.62" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">candidates_json</text>
+<text xml:space="preserve" text-anchor="start" x="661.25" y="-1634.38" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">places_json</text>
+<text xml:space="preserve" text-anchor="start" x="661.25" y="-1607.12" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">created_at</text>
+<text xml:space="preserve" text-anchor="start" x="661.25" y="-1579.88" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">UNIQUE(owner_id,generation_id)</text>
+</a>
+</g>
+</g>
+<!-- groups -->
+<g id="node6" class="node">
+
+<g id="a_node6"><a xlink:href="#table=groups" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="0,-203.62 0,-368.62 100.5,-368.62 100.5,-203.62 0,-203.62"/>
+<polygon fill="none" stroke="#5d7790" points="0,-203.62 0,-368.62 100.5,-368.62 100.5,-203.62 0,-203.62"/>
+<polygon fill="#e9f0f6" stroke="none" points="1,-313.62 1,-367.62 99.5,-367.62 99.5,-313.62 1,-313.62"/>
+<text xml:space="preserve" text-anchor="start" x="34.5" y="-351.12" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«table»</text>
+<text xml:space="preserve" text-anchor="start" x="27.38" y="-337.32" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">groups</text>
+<text xml:space="preserve" text-anchor="start" x="9" y="-323.32" font-family="Noto Sans CJK JP, sans-serif" font-size="14.00">共有グループ</text>
+<text xml:space="preserve" text-anchor="start" x="9" y="-297.38" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">id PK</text>
+<text xml:space="preserve" text-anchor="start" x="9" y="-270.12" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">owner_id FK</text>
+<text xml:space="preserve" text-anchor="start" x="9" y="-242.88" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">name</text>
+<text xml:space="preserve" text-anchor="start" x="9" y="-215.62" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">created_at</text>
+</a>
+</g>
+</g>
+<!-- group_members -->
+<g id="node7" class="node">
+
+<g id="a_node7"><a xlink:href="#table=group_members" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="307,-637 307,-829.25 472,-829.25 472,-637 307,-637"/>
+<polygon fill="none" stroke="#5d7790" points="307,-637 307,-829.25 472,-829.25 472,-637 307,-637"/>
+<polygon fill="#e9f0f6" stroke="none" points="308,-774.25 308,-828.25 471,-828.25 471,-774.25 308,-774.25"/>
+<text xml:space="preserve" text-anchor="start" x="373.75" y="-811.75" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«table»</text>
+<text xml:space="preserve" text-anchor="start" x="335.88" y="-797.95" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">group_members</text>
+<text xml:space="preserve" text-anchor="start" x="353.88" y="-783.95" font-family="Noto Sans CJK JP, sans-serif" font-size="14.00">現在の所属</text>
+<text xml:space="preserve" text-anchor="start" x="316" y="-758" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">group_id FK</text>
+<text xml:space="preserve" text-anchor="start" x="316" y="-730.75" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">user_id FK</text>
+<text xml:space="preserve" text-anchor="start" x="316" y="-703.5" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">role</text>
+<text xml:space="preserve" text-anchor="start" x="316" y="-676.25" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">joined_at</text>
+<text xml:space="preserve" text-anchor="start" x="316" y="-649" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">PRIMARY KEY(group_id,user_id)</text>
+</a>
+</g>
+</g>
+<!-- group_invites -->
+<g id="node8" class="node">
+
+<g id="a_node8"><a xlink:href="#table=group_invites" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="336.25,0 336.25,-192.25 442.75,-192.25 442.75,0 336.25,0"/>
+<polygon fill="none" stroke="#5d7790" points="336.25,0 336.25,-192.25 442.75,-192.25 442.75,0 336.25,0"/>
+<polygon fill="#e9f0f6" stroke="none" points="337.25,-137.25 337.25,-191.25 441.75,-191.25 441.75,-137.25 337.25,-137.25"/>
+<text xml:space="preserve" text-anchor="start" x="373.75" y="-174.75" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«table»</text>
+<text xml:space="preserve" text-anchor="start" x="345.25" y="-160.95" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">group_invites</text>
+<text xml:space="preserve" text-anchor="start" x="348.25" y="-146.95" font-family="Noto Sans CJK JP, sans-serif" font-size="14.00">グループ招待</text>
+<text xml:space="preserve" text-anchor="start" x="345.25" y="-121" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">token_hash PK</text>
+<text xml:space="preserve" text-anchor="start" x="345.25" y="-93.75" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">group_id FK</text>
+<text xml:space="preserve" text-anchor="start" x="345.25" y="-66.5" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">invitee_id? FK</text>
+<text xml:space="preserve" text-anchor="start" x="345.25" y="-39.25" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">expires_at</text>
+<text xml:space="preserve" text-anchor="start" x="345.25" y="-12" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">consumed_at</text>
+</a>
+</g>
+</g>
+<!-- posts -->
+<g id="node9" class="node">
+
+<g id="a_node9"><a xlink:href="#table=posts" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="684.12,-658.88 684.12,-987.38 783.88,-987.38 783.88,-658.88 684.12,-658.88"/>
+<polygon fill="none" stroke="#5d7790" points="684.12,-658.88 684.12,-987.38 783.88,-987.38 783.88,-658.88 684.12,-658.88"/>
+<polygon fill="#e9f0f6" stroke="none" points="685.12,-932.38 685.12,-986.38 782.88,-986.38 782.88,-932.38 685.12,-932.38"/>
+<text xml:space="preserve" text-anchor="start" x="718.25" y="-969.88" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«table»</text>
+<text xml:space="preserve" text-anchor="start" x="716" y="-956.08" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">posts</text>
+<text xml:space="preserve" text-anchor="start" x="705.88" y="-942.08" font-family="Noto Sans CJK JP, sans-serif" font-size="14.00">SNS投稿</text>
+<text xml:space="preserve" text-anchor="start" x="693.12" y="-916.12" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">id PK</text>
+<text xml:space="preserve" text-anchor="start" x="693.12" y="-888.88" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">owner_id FK</text>
+<text xml:space="preserve" text-anchor="start" x="693.12" y="-861.62" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">source_trip_id? FK</text>
+<text xml:space="preserve" text-anchor="start" x="693.12" y="-834.38" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">source_revision</text>
+<text xml:space="preserve" text-anchor="start" x="693.12" y="-807.12" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">snapshot_id FK</text>
+<text xml:space="preserve" text-anchor="start" x="693.12" y="-779.88" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">visibility</text>
+<text xml:space="preserve" text-anchor="start" x="693.12" y="-752.62" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">group_id? FK</text>
+<text xml:space="preserve" text-anchor="start" x="693.12" y="-725.38" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">revision</text>
+<text xml:space="preserve" text-anchor="start" x="693.12" y="-698.12" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">story</text>
+<text xml:space="preserve" text-anchor="start" x="693.12" y="-670.88" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">deleted_at</text>
+</a>
+</g>
+</g>
+<!-- post_snapshots -->
+<g id="node10" class="node">
+
+<g id="a_node10"><a xlink:href="#table=post_snapshots" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="960,-740.62 960,-905.62 1090.5,-905.62 1090.5,-740.62 960,-740.62"/>
+<polygon fill="none" stroke="#5d7790" points="960,-740.62 960,-905.62 1090.5,-905.62 1090.5,-740.62 960,-740.62"/>
+<polygon fill="#e9f0f6" stroke="none" points="961,-850.62 961,-904.62 1089.5,-904.62 1089.5,-850.62 961,-850.62"/>
+<text xml:space="preserve" text-anchor="start" x="1009.5" y="-888.12" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«table»</text>
+<text xml:space="preserve" text-anchor="start" x="973.5" y="-874.33" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">post_snapshots</text>
+<text xml:space="preserve" text-anchor="start" x="969" y="-860.33" font-family="Noto Sans CJK JP, sans-serif" font-size="14.00">公開用固定コピー</text>
+<text xml:space="preserve" text-anchor="start" x="969" y="-834.38" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">id PK</text>
+<text xml:space="preserve" text-anchor="start" x="969" y="-807.12" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">document_json</text>
+<text xml:space="preserve" text-anchor="start" x="969" y="-779.88" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">redaction_version</text>
+<text xml:space="preserve" text-anchor="start" x="969" y="-752.62" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">created_at</text>
+</a>
+</g>
+</g>
+<!-- exports -->
+<g id="node11" class="node">
+
+<g id="a_node11"><a xlink:href="#table=exports" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="682.25,-1273.75 682.25,-1520.5 785.75,-1520.5 785.75,-1273.75 682.25,-1273.75"/>
+<polygon fill="none" stroke="#5d7790" points="682.25,-1273.75 682.25,-1520.5 785.75,-1520.5 785.75,-1273.75 682.25,-1273.75"/>
+<polygon fill="#e9f0f6" stroke="none" points="683.25,-1465.5 683.25,-1519.5 784.75,-1519.5 784.75,-1465.5 683.25,-1465.5"/>
+<text xml:space="preserve" text-anchor="start" x="718.25" y="-1503" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«table»</text>
+<text xml:space="preserve" text-anchor="start" x="709.62" y="-1489.2" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">exports</text>
+<text xml:space="preserve" text-anchor="start" x="691.25" y="-1475.2" font-family="Noto Sans CJK JP, sans-serif" font-size="14.00">しおり出力物</text>
+<text xml:space="preserve" text-anchor="start" x="691.25" y="-1449.25" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">id PK</text>
+<text xml:space="preserve" text-anchor="start" x="691.25" y="-1422" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">owner_id FK</text>
+<text xml:space="preserve" text-anchor="start" x="691.25" y="-1394.75" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">trip_id FK</text>
+<text xml:space="preserve" text-anchor="start" x="691.25" y="-1367.5" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">source_revision</text>
+<text xml:space="preserve" text-anchor="start" x="691.25" y="-1340.25" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">file_path</text>
+<text xml:space="preserve" text-anchor="start" x="691.25" y="-1313" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">status</text>
+<text xml:space="preserve" text-anchor="start" x="691.25" y="-1285.75" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">expires_at</text>
+</a>
+</g>
+</g>
+<!-- operation_keys -->
+<g id="node12" class="node">
+
+<g id="a_node12"><a xlink:href="#table=operation_keys" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="301,-342.75 301,-589.5 478,-589.5 478,-342.75 301,-342.75"/>
+<polygon fill="none" stroke="#5d7790" points="301,-342.75 301,-589.5 478,-589.5 478,-342.75 301,-342.75"/>
+<polygon fill="#e9f0f6" stroke="none" points="302,-534.5 302,-588.5 477,-588.5 477,-534.5 302,-534.5"/>
+<text xml:space="preserve" text-anchor="start" x="373.75" y="-572" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«table»</text>
+<text xml:space="preserve" text-anchor="start" x="340" y="-558.2" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">operation_keys</text>
+<text xml:space="preserve" text-anchor="start" x="339.62" y="-544.2" font-family="Noto Sans CJK JP, sans-serif" font-size="14.00">重複更新の防止</text>
+<text xml:space="preserve" text-anchor="start" x="310" y="-518.25" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">owner_id FK</text>
+<text xml:space="preserve" text-anchor="start" x="310" y="-491" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">action</text>
+<text xml:space="preserve" text-anchor="start" x="310" y="-463.75" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">key_hash</text>
+<text xml:space="preserve" text-anchor="start" x="310" y="-436.5" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">request_hash</text>
+<text xml:space="preserve" text-anchor="start" x="310" y="-409.25" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">result_id</text>
+<text xml:space="preserve" text-anchor="start" x="310" y="-382" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">expires_at</text>
+<text xml:space="preserve" text-anchor="start" x="310" y="-354.75" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">UNIQUE(owner_id,action,key_hash)</text>
+</a>
+</g>
+</g>
+</g>
+</svg>

@@ -1,0 +1,40 @@
+{
+  "name": "tkb-2627",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "check": "node scripts/check-plan.mjs && node scripts/check-model.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "guide": "node scripts/render-dashboard.mjs",
+    "master": "node scripts/make-master.mjs",
+    "check:repo": "node scripts/check-repo.mjs",
+    "setup": "node scripts/app-setup.mjs",
+    "db:migrate": "tsx packages/db/src/cli.ts migrate",
+    "dev": "concurrently -k -n shared,local,web -c blue,magenta,green \"npm:dev:shared\" \"npm:dev:local\" \"npm:dev:web\"",
+    "dev:shared": "tsx watch apps/server/src/main.ts",
+    "dev:local": "tsx watch apps/ai-local/src/main.ts",
+    "dev:web": "npm run dev -w @tkb/web",
+    "build": "npm run typecheck && npm run build -w @tkb/web",
+    "start:shared": "tsx apps/server/src/main.ts",
+    "start:local": "tsx apps/ai-local/src/main.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:unit": "vitest run",
+    "test:all": "npm run check && npm test && npm run typecheck && npm run test:unit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "concurrently": "^10.0.6",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.5"
+  }
+}

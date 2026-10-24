@@ -1,0 +1,85 @@
+from pathlib import Path
+import json, os
+from playwright.sync_api import sync_playwright
+ROOT=Path(__file__).resolve().parents[1]
+results=[]; errors=[]
+def check(name,condition):
+ results.append({'name':name,'pass':bool(condition)})
+ if not condition: raise AssertionError(name)
+with sync_playwright() as p:
+ browser=p.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM','/usr/bin/chromium'),args=['--no-sandbox'])
+ for mode,filename in [('system','SYSTEM_DESIGN.html'),('development','DEVELOPMENT_GUIDE.html')]:
+  page=browser.new_page(viewport={'width':1440,'height':1000},device_scale_factor=1)
+  page.on('pageerror',lambda e:errors.append(str(e)))
+  page.set_content((ROOT/filename).read_text());page.wait_for_timeout(100)
+  check(mode+' loads without external dependencies',page.locator('#content h1').count()==1)
+  page.screenshot(path=str(ROOT/'validation'/f'{mode}-overview.png'),full_page=True)
+  nav=page.locator('#nav button').evaluate_all('(els)=>els.map(e=>e.dataset.page)')
+  for dest in nav:
+   page.locator(f'#nav button[data-page="{dest}"]').click();page.wait_for_timeout(30)
+   check(mode+' page '+dest, bool(page.locator('#content h1').inner_text()))
+  if mode=='system':
+   for v in ['context','containers','local-components','social-focus','shared-components','data-model','claude-code','deployment']:
+    page.evaluate('(v)=>go(v)',v)
+    check('SVG rendered '+v,page.locator('.viewport svg').count()==1)
+   page.evaluate("go('context')")
+   page.screenshot(path=str(ROOT/'validation/c4-context.png'),full_page=True)
+   page.locator('[data-expand]').click();check('diagram expands',page.locator('.figure.expanded').count()==1)
+   page.locator('[data-expand]').click();check('diagram closes expanded view',page.locator('.figure.expanded').count()==0)
+   page.evaluate("inspect('edge=R04')")
+   check('Claude request response contract dialog',page.locator('#dialog').is_visible() and 'K03' in page.locator('#dialog-body').inner_text())
+   page.keyboard.press('Escape')
+   page.evaluate("inspect('node=travel')")
+   check('C4 node shows drilldown',page.locator('#dialog [data-action^="page:"]').count()>0)
+   page.keyboard.press('Escape')
+   page.evaluate("go('dynamic')")
+   for flow in ['F01','F02','F03','F04','F05','F06','F07','F08','F09','F10']:
+    page.locator('#flow-select').select_option(flow)
+    check('dynamic renders '+flow,page.locator(f'svg a[href^="#step={flow}:"]').count()>0)
+    page.locator(f'svg a[href="#step={flow}:0"]').click()
+    check('dynamic input output dialog '+flow,page.locator('#dialog').is_visible())
+    page.keyboard.press('Escape')
+   page.locator('#flow-select').select_option('F05')
+   page.screenshot(path=str(ROOT/'validation/sns-dynamic.png'),full_page=True)
+   page.evaluate("go('data-model')")
+   page.screenshot(path=str(ROOT/'validation/data-social.png'),full_page=True)
+   page.locator('[data-dataview="data-model"]').click()
+   check('all database tables in SVG',page.locator('svg a').count()>=12)
+  else:
+   page.evaluate("go('management')")
+   page.screenshot(path=str(ROOT/'validation/information-management.png'),full_page=True)
+   page.evaluate("go('start')")
+   check('startup commands exist',page.locator('.cmd').count()>4)
+   page.locator('#role-filter').select_option('M2')
+   check('role filter matches participating member','START06' in page.locator('#content').inner_text())
+   page.screenshot(path=str(ROOT/'validation/start-m2.png'),full_page=True)
+   page.evaluate("go('tasks')")
+   page.locator('[data-taskmode="all"]').click()
+   check('all 54 nodes in task graph',page.locator('svg a[href^="#task="]').count()==54)
+   page.locator('svg a[href="#task=A02"]').click()
+   check('task details include acceptance and handoff',page.locator('#dialog').is_visible() and 'A02' in page.locator('#dialog-title').inner_text())
+   page.locator('#dialog [data-action="task-related:A02"]').click()
+   check('task neighbourhood view',page.locator('svg a[href^="#task="]').count()<54)
+   page.locator('[data-taskmode="board"]').click()
+   check('four member task lanes',page.locator('.lane').count()==4)
+   page.locator('#task-owner').select_option('M4')
+   check('owner filter selects M4',page.locator('.task').count()>0 and page.locator('.task').count()<54)
+   page.locator('#task-search').fill('NO_SUCH_TASK');check('empty search state',page.locator('.empty').count()==1)
+   page.locator('#task-search').fill('');page.locator('#task-owner').select_option('all');page.locator('[data-taskmode="start"]').click()
+   page.screenshot(path=str(ROOT/'validation/tasks-start.png'),full_page=True)
+   bad={'name':'bad.json','mimeType':'application/json','buffer':b'{"fetchedAt":"2026-10-23T00:00:00Z","tasks":{"BAD":{"status":"done"}}}'}
+   page.locator('#snapshot-file').set_input_files(bad);page.wait_for_timeout(100)
+   check('invalid snapshot rejected',bool(page.locator('#snapshot-message').text_content()))
+  page.close()
+ for mode,filename in [('system','SYSTEM_DESIGN.html'),('development','DEVELOPMENT_GUIDE.html')]:
+  page=browser.new_page(viewport={'width':390,'height':844},device_scale_factor=1,is_mobile=True,has_touch=True)
+  page.on('pageerror',lambda e:errors.append(str(e)))
+  page.set_content((ROOT/filename).read_text());page.wait_for_timeout(50)
+  check(mode+' mobile body fits',page.evaluate('document.documentElement.scrollWidth')<=392)
+  page.screenshot(path=str(ROOT/'validation'/f'{mode}-mobile.png'),full_page=True)
+  page.close()
+ check('no browser JavaScript exceptions',not errors)
+ browser.close()
+report={'method':'Chromium page.set_content on the generated standalone HTML; navigation to file/http blocked by host policy, no browser-policy changes made. Local file double-click was not directly exercised.','checks':len(results),'passed':sum(r['pass'] for r in results),'errors':errors,'results':results}
+(ROOT/'validation/browser-tests.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
+print(json.dumps({'checks':report['checks'],'passed':report['passed'],'errors':errors}))

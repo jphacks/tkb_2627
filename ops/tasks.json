@@ -1,0 +1,2513 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-23",
+  "statusNote": "実装未着手。設計キットのテスト成功をアプリ完成に数えない。",
+  "owners": [
+    "M1",
+    "M2",
+    "M3",
+    "M4"
+  ],
+  "tasks": [
+    {
+      "id": "B01",
+      "owner": "M1",
+      "title": "既存tkb_2627リポジトリの接続と環境の事前確認",
+      "dependsOn": [],
+      "uiDependency": "none",
+      "writePaths": [
+        "scripts/doctor.mjs",
+        "docs/10_OPEN_ITEMS.md"
+      ],
+      "requirements": [],
+      "estimateMinutes": {
+        "low": 15,
+        "high": 30
+      },
+      "acceptance": "既存リポジトリと各PCの状況を記録し、外部認証不足を独立した阻害要因として分離する。",
+      "verification": "Node、Git、Claude、gh、ホスト資源を検出。秘密情報を出力しない。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/b01",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "B02",
+      "owner": "M1",
+      "title": "共通データ契約の最小版",
+      "dependsOn": [
+        "B01"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "packages/contracts/",
+        "docs/03_CONTRACTS.md"
+      ],
+      "requirements": [
+        "R01",
+        "R07",
+        "R25",
+        "R28"
+      ],
+      "estimateMinutes": {
+        "low": 30,
+        "high": 60
+      },
+      "acceptance": "旅程、地点、時間、費用、ジョブ、公開範囲のSchema v1を公開する。",
+      "verification": "正常／不正JSONの型と実行時検証。破壊的変更の管理方法を確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K01",
+        "K03",
+        "K07",
+        "K13",
+        "K20",
+        "K23"
+      ],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/b02",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B01のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "B03",
+      "owner": "M1",
+      "title": "WebとAPIの動く骨格",
+      "dependsOn": [
+        "B01"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "package.json",
+        "package-lock.json",
+        "apps/server/src/platform/",
+        "apps/web/src/main.tsx"
+      ],
+      "requirements": [
+        "R25",
+        "R29"
+      ],
+      "estimateMinutes": {
+        "low": 30,
+        "high": 60
+      },
+      "acceptance": "初期画面、API health、開発proxy、ビルド、起動コマンドが動く。",
+      "verification": "別ディレクトリから再セットアップして画面とhealthを確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/b03",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B01のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "B04",
+      "owner": "M2",
+      "title": "共通フィクスチャと画面用APIモック",
+      "dependsOn": [
+        "B02",
+        "B03"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "packages/fixtures/",
+        "apps/web/src/mocks/"
+      ],
+      "requirements": [
+        "R29"
+      ],
+      "estimateMinutes": {
+        "low": 30,
+        "high": 60
+      },
+      "acceptance": "国内／海外のサンプルがSchemaに適合し、モック表示であることを明示する。初期サンプル（金沢・パリ）はM1がB02でpackages/fixturesに作成済み。M2は画面用APIモック（apps/web/src/mocks）と不足ケース（空・失敗・待機・予算不明等）を追加する。",
+      "verification": "実APIキーなしで入力、表示、編集の画面試験が実行できる。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K01",
+        "K02",
+        "K08",
+        "K14"
+      ],
+      "components": [
+        "web-local",
+        "web-shared"
+      ],
+      "branch": "feat/m2/b04",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B02のmerge commitと完了証拠",
+        "B03のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "B05",
+      "owner": "M1",
+      "title": "自動検証と秘密情報検出",
+      "dependsOn": [
+        "B02",
+        "B03"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        ".github/workflows/",
+        "scripts/check.mjs",
+        "tests/contracts/"
+      ],
+      "requirements": [
+        "R30"
+      ],
+      "estimateMinutes": {
+        "low": 30,
+        "high": 60
+      },
+      "acceptance": "lint、型、単体、ビルドのCIを用意し、課金APIを通常CIから呼ばない。",
+      "verification": "意図した失敗と秘密情報候補でCIが検知する。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/b05",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B02のmerge commitと完了証拠",
+        "B03のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "G01",
+      "owner": "M1",
+      "title": "既存GitHubの接続と3人の招待",
+      "dependsOn": [
+        "B01"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        ".local/team.json",
+        "docs/06_SETUP.md"
+      ],
+      "requirements": [],
+      "estimateMinutes": {
+        "low": 10,
+        "high": 30
+      },
+      "acceptance": "所有者が招待し、3人が承認。各自の認証と書込み権限を確認する。",
+      "verification": "既存remote照合。各自の作業ブランチに検証commitをpush。",
+      "initialStatus": "todo",
+      "humanAction": true,
+      "contracts": [],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/g01",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B01のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "人間のUI承認＋M1の統合確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "G02",
+      "owner": "M1",
+      "title": "タスクのIssue化と共有ボード",
+      "dependsOn": [
+        "G01",
+        "B02"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "ops/",
+        "scripts/github-sync.mjs",
+        "dashboard/"
+      ],
+      "requirements": [],
+      "estimateMinutes": {
+        "low": 20,
+        "high": 40
+      },
+      "acceptance": "GitHub Issueをタスクの唯一の進捗正本にし、M1が担当と共有ファイル作業を調整。依存リンク・状態・PR証拠・同期時刻を4人で確認する。",
+      "verification": "2回初期化してIssue数が増えず、状態変更をダッシュボードへ反映。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/g02",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "G01のmerge commitと完了証拠",
+        "B02のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "U01",
+      "owner": "M2",
+      "title": "最初のクリック可能なUI",
+      "dependsOn": [
+        "B04"
+      ],
+      "uiDependency": "prototype",
+      "writePaths": [
+        "apps/web/src/screens/",
+        "apps/web/src/components/"
+      ],
+      "requirements": [
+        "R01",
+        "R08",
+        "R29"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "条件入力、比較、編集、ガイド、共有への導線を実際に操作できる。",
+      "verification": "スマートフォン幅で確認しスクリーンショットを記録。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [],
+      "components": [
+        "web-local",
+        "web-shared"
+      ],
+      "branch": "feat/m2/u01",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B04のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "U02",
+      "owner": "M2",
+      "title": "人間によるUIの初回レビュー",
+      "dependsOn": [
+        "U01"
+      ],
+      "uiDependency": "approval",
+      "writePaths": [
+        "docs/ui-review/"
+      ],
+      "requirements": [
+        "R29"
+      ],
+      "estimateMinutes": {
+        "low": 15,
+        "high": 30
+      },
+      "acceptance": "画面上の指摘と判断を記録し、受渡し型を変える指摘だけM1に通知する。",
+      "verification": "利用者が触って指摘した内容と対応Issueを記録。バックエンド作業は待たせない。",
+      "initialStatus": "todo",
+      "humanAction": true,
+      "contracts": [],
+      "components": [
+        "web-local",
+        "web-shared"
+      ],
+      "branch": "feat/m2/u02",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "U01のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "人間のUI承認＋M1の統合確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "D01",
+      "owner": "M3",
+      "title": "旅行情報の実接続と利用条件検証",
+      "dependsOn": [
+        "B01"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "docs/provider-probe.md",
+        "packages/travel-data/probes/"
+      ],
+      "requirements": [
+        "R02",
+        "R05",
+        "R06",
+        "R30"
+      ],
+      "estimateMinutes": {
+        "low": 30,
+        "high": 60
+      },
+      "acceptance": "対象地域で地点、車、公共交通を少量取得し、欠落と保存／AI利用条件を記録する。",
+      "verification": "取得時刻、地域、日付、SKU、取得不可フィールドを残す。キー未提供はblocked。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K06"
+      ],
+      "components": [
+        "data-api",
+        "validator"
+      ],
+      "branch": "feat/m3/d01",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B01のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "D02",
+      "owner": "M3",
+      "title": "出典と課金回数の制限基盤",
+      "dependsOn": [
+        "B02",
+        "D01"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "packages/travel-data/src/policy/"
+      ],
+      "requirements": [
+        "R11",
+        "R30"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 75
+      },
+      "acceptance": "入力ごとの呼出上限とキャンセルを実装し、保存可能な内容を分類する。",
+      "verification": "連打、無限再試行、矩形の要素数、期限切れをテスト。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K06"
+      ],
+      "components": [
+        "data-api",
+        "validator"
+      ],
+      "branch": "feat/m3/d02",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B02のmerge commitと完了証拠",
+        "D01のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "D03",
+      "owner": "M3",
+      "title": "観光地と飲食店の取得",
+      "dependsOn": [
+        "B02",
+        "D02"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "packages/travel-data/src/places/"
+      ],
+      "requirements": [
+        "R02",
+        "R10",
+        "R13",
+        "R15"
+      ],
+      "estimateMinutes": {
+        "low": 60,
+        "high": 120
+      },
+      "acceptance": "実在地点、写真、近隣候補、営業時間の取得値と不明値を返す。",
+      "verification": "国内外の代表地点、営業時間欠落、失効写真、帰属表示を検証。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K05",
+        "K06"
+      ],
+      "components": [
+        "data-api",
+        "validator"
+      ],
+      "branch": "feat/m3/d03",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B02のmerge commitと完了証拠",
+        "D02のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "D04",
+      "owner": "M3",
+      "title": "公共交通と自動車の経路取得",
+      "dependsOn": [
+        "B02",
+        "D02"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "packages/travel-data/src/routes/"
+      ],
+      "requirements": [
+        "R05",
+        "R06"
+      ],
+      "estimateMinutes": {
+        "low": 60,
+        "high": 120
+      },
+      "acceptance": "区間と出発時刻を指定して経路、時刻、運賃、不明理由を返す。",
+      "verification": "乗換、最終便、運賃なし、対応外地域、日付範囲外を検証。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K06"
+      ],
+      "components": [
+        "data-api",
+        "validator"
+      ],
+      "branch": "feat/m3/d04",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B02のmerge commitと完了証拠",
+        "D02のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "D05",
+      "owner": "M3",
+      "title": "日時と通貨の共通計算",
+      "dependsOn": [
+        "B02"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "packages/planner/src/time/",
+        "packages/planner/src/money/"
+      ],
+      "requirements": [
+        "R07",
+        "R11"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "IANAタイムゾーン、日跨ぎ、夏時間、不明費用、通貨別合計を扱う。",
+      "verification": "日本と海外、夏時間重複／欠落、JPYとEUR、為替未設定を単体テスト。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K10"
+      ],
+      "components": [
+        "data-api",
+        "validator"
+      ],
+      "branch": "feat/m3/d05",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B02のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "D06",
+      "owner": "M3",
+      "title": "旅程の決定的な検証と順序調整",
+      "dependsOn": [
+        "B02",
+        "B04",
+        "D05"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "packages/planner/src/schedule/"
+      ],
+      "requirements": [
+        "R03",
+        "R04",
+        "R11",
+        "R13"
+      ],
+      "estimateMinutes": {
+        "low": 90,
+        "high": 150
+      },
+      "acceptance": "固定条件と自由時間を保持し、成立可否と違反条件を返す。",
+      "verification": "モック経路でも営業時間、移動時間、必須地点の矛盾を検出する。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K05",
+        "K07"
+      ],
+      "components": [
+        "data-api",
+        "validator"
+      ],
+      "branch": "feat/m3/d06",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B02のmerge commitと完了証拠",
+        "B04のmerge commitと完了証拠",
+        "D05のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "D07",
+      "owner": "M3",
+      "title": "観光解説と利用可能な写真",
+      "dependsOn": [
+        "B02",
+        "D02"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "packages/travel-data/src/guides/"
+      ],
+      "requirements": [
+        "R15",
+        "R16"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "許諾済み情報源から出典、説明、写真の権利情報を返す。",
+      "verification": "HTML除去、画像権利欠落、外部URL制限、出典表示を検証。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K19"
+      ],
+      "components": [
+        "data-api",
+        "validator"
+      ],
+      "branch": "feat/m3/d07",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B02のmerge commitと完了証拠",
+        "D02のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "D08",
+      "owner": "M3",
+      "title": "トイレと公的避難情報",
+      "dependsOn": [
+        "B02",
+        "D02"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "packages/travel-data/src/amenities/"
+      ],
+      "requirements": [
+        "R23",
+        "R24"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "情報の種類、取得日、対応地域、不明状態を返す。",
+      "verification": "避難場所と避難所、災害種別、国外未対応、0件と取得失敗を区別。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K19"
+      ],
+      "components": [
+        "data-api",
+        "validator"
+      ],
+      "branch": "feat/m3/d08",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B02のmerge commitと完了証拠",
+        "D02のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "S01",
+      "owner": "M1",
+      "title": "サーバーDBとmigration",
+      "dependsOn": [
+        "B02",
+        "B03"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "packages/db/"
+      ],
+      "requirements": [
+        "R25",
+        "R26"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "SQLiteのWAL、外部キー、版番号、migration、永続ディレクトリを構築する。",
+      "verification": "再起動後保持、rollback、同時書込み待機、DBをGitに含めないことを確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K20"
+      ],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/s01",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B02のmerge commitと完了証拠",
+        "B03のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "S02",
+      "owner": "M1",
+      "title": "認証とセッション管理",
+      "dependsOn": [
+        "S01"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "apps/server/src/platform/auth/"
+      ],
+      "requirements": [
+        "R26",
+        "R30"
+      ],
+      "estimateMinutes": {
+        "low": 75,
+        "high": 120
+      },
+      "acceptance": "招待制の利用者作成、ログイン、ログアウト、認可基盤が動く。",
+      "verification": "cookie、CSRF、ログイン制限、権限外アクセス、秘密情報ログを検証。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K11"
+      ],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/s02",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "S01のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "S03",
+      "owner": "M1",
+      "title": "グループと所属の管理",
+      "dependsOn": [
+        "S02"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "apps/server/src/social/groups/"
+      ],
+      "requirements": [
+        "R21",
+        "R26"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "グループ管理者が招待／除外し、閲覧時点の所属を確認する。",
+      "verification": "除外後の既存URL、招待の再使用、非管理者の操作を拒否。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K17"
+      ],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/s03",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "S02のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "S04",
+      "owner": "M4",
+      "title": "旅程の保存と版管理API",
+      "dependsOn": [
+        "S01",
+        "S02"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "apps/server/src/trips/"
+      ],
+      "requirements": [
+        "R09",
+        "R25"
+      ],
+      "estimateMinutes": {
+        "low": 60,
+        "high": 120
+      },
+      "acceptance": "K07〜K10の候補保存・採用・読出し・編集を実装し、TripとSNSと候補を共通サーバーへ永続化。別ownerと版競合を拒否。",
+      "verification": "2ブラウザの競合、他人のID、削除後参照、再起動後の保存確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K07",
+        "K08",
+        "K09",
+        "K10"
+      ],
+      "components": [
+        "personal",
+        "job",
+        "claude-adapter",
+        "trips"
+      ],
+      "branch": "feat/m4/s04",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "S01のmerge commitと完了証拠",
+        "S02のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "S05",
+      "owner": "M1",
+      "title": "SNS投稿と公開スナップショット",
+      "dependsOn": [
+        "S03",
+        "S04"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "apps/server/src/social/posts/"
+      ],
+      "requirements": [
+        "R20",
+        "R21"
+      ],
+      "estimateMinutes": {
+        "low": 60,
+        "high": 120
+      },
+      "acceptance": "K12〜K15の公開プレビュー、安全化snapshot、元版の再確認、フィードのサーバーACL、公開解除を実装。",
+      "verification": "別ユーザーからのフィード／直接URL／写真／PDFの権限を検証。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K12",
+        "K13",
+        "K14",
+        "K15"
+      ],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/s05",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "S03のmerge commitと完了証拠",
+        "S04のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "S06",
+      "owner": "M1",
+      "title": "旅程のコピーと再利用",
+      "dependsOn": [
+        "S05",
+        "D05"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "apps/server/src/social/copy/"
+      ],
+      "requirements": [
+        "R22"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 75
+      },
+      "acceptance": "閲覧可能な内容だけを自分の旅程へコピーし、新日付は再検証待ちとする。",
+      "verification": "所有者変更、private内容除外、元データ非破壊、時刻再利用禁止を確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K16"
+      ],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/s06",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "S05のmerge commitと完了証拠",
+        "D05のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "A01",
+      "owner": "M4",
+      "title": "本人のClaude Code接続と利用条件の確認",
+      "dependsOn": [
+        "B01"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "docs/claude-connection-check.md",
+        "packages/ai/probes/"
+      ],
+      "requirements": [
+        "R27"
+      ],
+      "estimateMinutes": {
+        "low": 30,
+        "high": 75
+      },
+      "acceptance": "公式CLIと本人のサブスク認証、利用条件、非対話JSON出力を確認し、実行可否と制約を記録する。本人のローカル試験と第三者向けサービスを区別する。",
+      "verification": "claudeの版とhelp、認証方式、最小1回の構造化出力、失敗理由を秘密情報なしで記録。API課金や認証回避への変更は禁止。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K03",
+        "K04"
+      ],
+      "components": [
+        "personal",
+        "job",
+        "claude-adapter",
+        "trips"
+      ],
+      "branch": "feat/m4/a01",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B01のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "A02",
+      "owner": "M4",
+      "title": "Claude Code用ローカルApp Server",
+      "dependsOn": [
+        "B02",
+        "B03"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "apps/ai-local/",
+        "packages/ai/src/"
+      ],
+      "requirements": [
+        "R27",
+        "R28"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "本人用入口のHost/Origin/CSRF/ローカルペアリングと限定proxyを実装。偽CLIで先行試験でき、共有入口から実行できない。",
+      "verification": "シェル注入、Origin/Host偽装、未認証、他人の旅程、API認証、壊れたJSON、timeout、利用枠超過を拒否。公開入口からCLIが起動しないこと。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K01",
+        "K11",
+        "K22"
+      ],
+      "components": [
+        "personal",
+        "job",
+        "claude-adapter",
+        "trips"
+      ],
+      "branch": "feat/m4/a02",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B02のmerge commitと完了証拠",
+        "B03のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "A03",
+      "owner": "M4",
+      "title": "生成ジョブの状態管理と重複防止",
+      "dependsOn": [
+        "B02",
+        "B03"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "apps/ai-local/src/jobs/"
+      ],
+      "requirements": [
+        "R28"
+      ],
+      "estimateMinutes": {
+        "low": 60,
+        "high": 120
+      },
+      "acceptance": "ローカルの生成ジョブ、Idempotency-Key、取消、再起動時の失敗を管理。実旅程候補の正本は共有DBへ保存する。",
+      "verification": "CLIモックで二重送信、取消、再起動、別ユーザーのjobId、旧revisionを試験する。実Claudeの利用条件確認待ちでも単体実装を進める。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K01",
+        "K02",
+        "K21"
+      ],
+      "components": [
+        "personal",
+        "job",
+        "claude-adapter",
+        "trips"
+      ],
+      "branch": "feat/m4/a03",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B02のmerge commitと完了証拠",
+        "B03のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "A04",
+      "owner": "M4",
+      "title": "旅行計画の実生成と複数案",
+      "dependsOn": [
+        "A03",
+        "S04",
+        "D03",
+        "D04",
+        "D06",
+        "A02",
+        "A01"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "apps/server/src/trips/generation/"
+      ],
+      "requirements": [
+        "R01",
+        "R02",
+        "R03",
+        "R04",
+        "R13",
+        "R27"
+      ],
+      "estimateMinutes": {
+        "low": 90,
+        "high": 150
+      },
+      "acceptance": "本人のローカル画面からClaudeが旅程を作成し、実情報の検証を経て複数案を共有DBへ保存する。第三者要求を本人のPro枠へ中継しない。",
+      "verification": "本人操作の実Claude＋実経路で生成を検証。モデル名、認証種別、取得元、待ち時間と結果を記録し、モックとは区別する。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K03",
+        "K05",
+        "K07"
+      ],
+      "components": [
+        "personal",
+        "job",
+        "claude-adapter",
+        "trips"
+      ],
+      "branch": "feat/m4/a04",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "A03のmerge commitと完了証拠",
+        "S04のmerge commitと完了証拠",
+        "D03のmerge commitと完了証拠",
+        "D04のmerge commitと完了証拠",
+        "D06のmerge commitと完了証拠",
+        "A02のmerge commitと完了証拠",
+        "A01のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "A05",
+      "owner": "M4",
+      "title": "代替候補と編集差分の再計算",
+      "dependsOn": [
+        "A04"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "apps/server/src/trips/alternatives/"
+      ],
+      "requirements": [
+        "R09",
+        "R10",
+        "R11"
+      ],
+      "estimateMinutes": {
+        "low": 60,
+        "high": 90
+      },
+      "acceptance": "地点変更や順序変更の影響区間を計算し、候補と費用差と不明点を返す。",
+      "verification": "同一エリア変更でも時間が変化するケースと旧revisionの結果適用拒否。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K10"
+      ],
+      "components": [
+        "personal",
+        "job",
+        "claude-adapter",
+        "trips"
+      ],
+      "branch": "feat/m4/a05",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "A04のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "A06",
+      "owner": "M4",
+      "title": "旅行中の残り旅程再計画",
+      "dependsOn": [
+        "A05"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "apps/server/src/trips/replan/"
+      ],
+      "requirements": [
+        "R12"
+      ],
+      "estimateMinutes": {
+        "low": 60,
+        "high": 120
+      },
+      "acceptance": "現在時刻、現在地、完了済み、固定予約を使って残りだけを再計画する。",
+      "verification": "乗り遅れ、終電後、位置拒否、予約維持、更新競合を検証。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K01",
+        "K10"
+      ],
+      "components": [
+        "personal",
+        "job",
+        "claude-adapter",
+        "trips"
+      ],
+      "branch": "feat/m4/a06",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "A05のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "U03",
+      "owner": "M2",
+      "title": "条件入力の実画面",
+      "dependsOn": [
+        "U02",
+        "B02",
+        "D03"
+      ],
+      "uiDependency": "approval",
+      "writePaths": [
+        "apps/web/src/screens/conditions/"
+      ],
+      "requirements": [
+        "R01",
+        "R02",
+        "R07",
+        "R13"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "入力補助と必須地点選択を実APIへ接続する。",
+      "verification": "入力不足、現地日付、複数通貨、交通切替、必須地点の操作を確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K01"
+      ],
+      "components": [
+        "web-local",
+        "web-shared"
+      ],
+      "branch": "feat/m2/u03",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "U02のmerge commitと完了証拠",
+        "B02のmerge commitと完了証拠",
+        "D03のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "U04",
+      "owner": "M2",
+      "title": "地図と旅程の同期画面",
+      "dependsOn": [
+        "U02",
+        "S04",
+        "D03",
+        "D04"
+      ],
+      "uiDependency": "approval",
+      "writePaths": [
+        "apps/web/src/screens/itinerary/"
+      ],
+      "requirements": [
+        "R05",
+        "R06",
+        "R08"
+      ],
+      "estimateMinutes": {
+        "low": 60,
+        "high": 120
+      },
+      "acceptance": "実データの地図、日別時刻、選択同期、未知運賃を表示する。",
+      "verification": "スマートフォン操作と地図帰属、再読込時の保存内容を確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K09",
+        "K06"
+      ],
+      "components": [
+        "web-local",
+        "web-shared"
+      ],
+      "branch": "feat/m2/u04",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "U02のmerge commitと完了証拠",
+        "S04のmerge commitと完了証拠",
+        "D03のmerge commitと完了証拠",
+        "D04のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "U05",
+      "owner": "M2",
+      "title": "生成進捗と複数案の選択",
+      "dependsOn": [
+        "U03",
+        "U04",
+        "A04"
+      ],
+      "uiDependency": "approval",
+      "writePaths": [
+        "apps/web/src/screens/generate/"
+      ],
+      "requirements": [
+        "R04",
+        "R27",
+        "R28"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "状態照会と取消、複数案比較、採用を実装する。",
+      "verification": "読み込み、失敗、取消、再試行、バックグラウンド時の停止と復帰。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K02",
+        "K08"
+      ],
+      "components": [
+        "web-local",
+        "web-shared"
+      ],
+      "branch": "feat/m2/u05",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "U03のmerge commitと完了証拠",
+        "U04のmerge commitと完了証拠",
+        "A04のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "U06",
+      "owner": "M2",
+      "title": "旅程編集と旅行中画面",
+      "dependsOn": [
+        "U04",
+        "A05",
+        "A06"
+      ],
+      "uiDependency": "approval",
+      "writePaths": [
+        "apps/web/src/screens/edit/",
+        "apps/web/src/screens/travel/"
+      ],
+      "requirements": [
+        "R09",
+        "R10",
+        "R11",
+        "R12"
+      ],
+      "estimateMinutes": {
+        "low": 60,
+        "high": 120
+      },
+      "acceptance": "追加削除、候補変更、差分確認、旅行中の再計画を操作できる。",
+      "verification": "タップ操作、キーボード、取消、版競合、GPS拒否を確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K10",
+        "K21"
+      ],
+      "components": [
+        "web-local",
+        "web-shared"
+      ],
+      "branch": "feat/m2/u06",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "U04のmerge commitと完了証拠",
+        "A05のmerge commitと完了証拠",
+        "A06のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "U07",
+      "owner": "M2",
+      "title": "現在地とデジタルガイド",
+      "dependsOn": [
+        "U02",
+        "D07",
+        "D08"
+      ],
+      "uiDependency": "approval",
+      "writePaths": [
+        "apps/web/src/screens/guide/"
+      ],
+      "requirements": [
+        "R14",
+        "R15",
+        "R16",
+        "R23",
+        "R24"
+      ],
+      "estimateMinutes": {
+        "low": 60,
+        "high": 120
+      },
+      "acceptance": "番号地図、詳細パネル、出典、トイレ／避難情報が一画面でつながる。",
+      "verification": "HTTPSの位置許可、拒否、圏外情報、近隣選択、権利表示を確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K19"
+      ],
+      "components": [
+        "web-local",
+        "web-shared"
+      ],
+      "branch": "feat/m2/u07",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "U02のmerge commitと完了証拠",
+        "D07のmerge commitと完了証拠",
+        "D08のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "U08",
+      "owner": "M2",
+      "title": "SNSとグループの実画面",
+      "dependsOn": [
+        "U02",
+        "S05",
+        "S06"
+      ],
+      "uiDependency": "approval",
+      "writePaths": [
+        "apps/web/src/screens/social/"
+      ],
+      "requirements": [
+        "R20",
+        "R21",
+        "R22"
+      ],
+      "estimateMinutes": {
+        "low": 60,
+        "high": 120
+      },
+      "acceptance": "公開前確認、フィード、グループ、複製、旅程再編集が動く。",
+      "verification": "2アカウントの公開と非公開を実ブラウザで確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K12",
+        "K13",
+        "K14",
+        "K16",
+        "K17"
+      ],
+      "components": [
+        "web-local",
+        "web-shared"
+      ],
+      "branch": "feat/m2/u08",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "U02のmerge commitと完了証拠",
+        "S05のmerge commitと完了証拠",
+        "S06のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "E01",
+      "owner": "M2",
+      "title": "写真付きしおりの印刷画面",
+      "dependsOn": [
+        "U04",
+        "U07",
+        "D07"
+      ],
+      "uiDependency": "approval",
+      "writePaths": [
+        "apps/web/src/screens/print/",
+        "packages/exports/templates/"
+      ],
+      "requirements": [
+        "R17"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "予定表と許諾済み写真を印刷用に整え、地図画像の無断転載を避ける。",
+      "verification": "改ページ、日本語、長い旅程、写真欠落、出典の読みやすさを確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K18"
+      ],
+      "components": [
+        "web-local",
+        "web-shared"
+      ],
+      "branch": "feat/m2/e01",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "U04のmerge commitと完了証拠",
+        "U07のmerge commitと完了証拠",
+        "D07のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "E02",
+      "owner": "M1",
+      "title": "認可付きPDF生成",
+      "dependsOn": [
+        "E01",
+        "S02",
+        "S04"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "apps/server/src/platform/exports/"
+      ],
+      "requirements": [
+        "R17",
+        "R30"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "固定の印刷画面からPDFを生成し、要求者だけへ配信する。",
+      "verification": "任意URL読み込み禁止、他人の旅程、timeout、並列制限、削除後再取得を確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K18"
+      ],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/e02",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "E01のmerge commitと完了証拠",
+        "S02のmerge commitと完了証拠",
+        "S04のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "E03",
+      "owner": "M3",
+      "title": "Maps連携と時差付きICS",
+      "dependsOn": [
+        "D05",
+        "S04"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "packages/exports/maps/",
+        "packages/exports/calendar/"
+      ],
+      "requirements": [
+        "R18",
+        "R19"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "公式Maps URLとICSを生成し、自動アカウント登録との違いを明示する。",
+      "verification": "日本と海外で日時を再読込。長いURLを分割し文字列を正しくエスケープ。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K18"
+      ],
+      "components": [
+        "data-api",
+        "validator"
+      ],
+      "branch": "feat/m3/e03",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "D05のmerge commitと完了証拠",
+        "S04のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "O01",
+      "owner": "M1",
+      "title": "SNSと旅程共有だけをHTTPS公開",
+      "dependsOn": [
+        "B03",
+        "S02"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "scripts/serve-demo.mjs",
+        "docs/deployment.md"
+      ],
+      "requirements": [
+        "R14",
+        "R30"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "共有Web/APIだけをHTTPSで公開する。ローカルAIのポート、生成処理、Claude認証、開発管理画面を公開しない。",
+      "verification": "公開URLでSNSと保存を確認。公開URLに生成要求を送ってもCLI子プロセスが0回であることを確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K22"
+      ],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/o01",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B03のmerge commitと完了証拠",
+        "S02のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "O02",
+      "owner": "M1",
+      "title": "サーバーデータのバックアップ復元",
+      "dependsOn": [
+        "S01",
+        "S04",
+        "S05"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "scripts/backup.mjs",
+        "scripts/restore.mjs"
+      ],
+      "requirements": [
+        "R25"
+      ],
+      "estimateMinutes": {
+        "low": 30,
+        "high": 60
+      },
+      "acceptance": "WALを考慮したバックアップと復元が動き、データを失わない。",
+      "verification": "別の空DBへ復元して旅程、投稿、権限を比較。バックアップをGitから除外。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/o02",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "S01のmerge commitと完了証拠",
+        "S04のmerge commitと完了証拠",
+        "S05のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "T01",
+      "owner": "M1",
+      "title": "契約とモックの自動試験",
+      "dependsOn": [
+        "B02",
+        "B04",
+        "B05"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "tests/contracts/"
+      ],
+      "requirements": [
+        "R01",
+        "R07",
+        "R28"
+      ],
+      "estimateMinutes": {
+        "low": 30,
+        "high": 60
+      },
+      "acceptance": "API、AI、UIサンプルの型と必須値を検証する。",
+      "verification": "不正な日時、未知通貨、欠落データ、Schema破壊を検出。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/t01",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "B02のmerge commitと完了証拠",
+        "B04のmerge commitと完了証拠",
+        "B05のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "T02",
+      "owner": "M3",
+      "title": "経路と旅程制約の試験",
+      "dependsOn": [
+        "D04",
+        "D05",
+        "D06"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "tests/planner/"
+      ],
+      "requirements": [
+        "R03",
+        "R05",
+        "R06",
+        "R07",
+        "R11",
+        "R12",
+        "R13"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "日跨ぎ、時刻依存、固定予定、未知費用を回帰試験へ登録する。",
+      "verification": "公式値と架空フィクスチャを区別し、外部データを無断保存しない。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [],
+      "components": [
+        "data-api",
+        "validator"
+      ],
+      "branch": "feat/m3/t02",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "D04のmerge commitと完了証拠",
+        "D05のmerge commitと完了証拠",
+        "D06のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "T03",
+      "owner": "M1",
+      "title": "認証と共有権限の試験",
+      "dependsOn": [
+        "S03",
+        "S04",
+        "S05",
+        "S06"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "tests/access/"
+      ],
+      "requirements": [
+        "R20",
+        "R21",
+        "R22",
+        "R25",
+        "R26",
+        "R30"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "private／group／publicをAPI直叩きでも保証する。",
+      "verification": "権限なしの参照、編集、複製、PDF、退会後参照を拒否。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/t03",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "S03のmerge commitと完了証拠",
+        "S04のmerge commitと完了証拠",
+        "S05のmerge commitと完了証拠",
+        "S06のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "T04",
+      "owner": "M4",
+      "title": "AIとジョブ異常系の試験",
+      "dependsOn": [
+        "A02",
+        "A03"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "tests/ai/",
+        "tests/jobs/"
+      ],
+      "requirements": [
+        "R27",
+        "R28",
+        "R30"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "誤出力、重複、取消、上限、モデル停止をテストする。",
+      "verification": "偽CLIで不正JSON、構造化出力なし、停止、上限、取消、キー混入、公開入口からの拒否を試験。実Claudeは明示許可した別試験。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K03",
+        "K21"
+      ],
+      "components": [
+        "personal",
+        "job",
+        "claude-adapter",
+        "trips"
+      ],
+      "branch": "feat/m4/t04",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "A02のmerge commitと完了証拠",
+        "A03のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "I01",
+      "owner": "M1",
+      "title": "最初の保存までの縦断統合",
+      "dependsOn": [
+        "U01",
+        "S02",
+        "S04",
+        "T01"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "tests/e2e/smoke/"
+      ],
+      "requirements": [
+        "R25",
+        "R26",
+        "R29"
+      ],
+      "estimateMinutes": {
+        "low": 30,
+        "high": 60
+      },
+      "acceptance": "ログイン→仮旅程表示→サーバー保存→再表示がつながる。",
+      "verification": "この時点はAIと実経路の完成とみなさず、モック表示を残す。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/i01",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "U01のmerge commitと完了証拠",
+        "S02のmerge commitと完了証拠",
+        "S04のmerge commitと完了証拠",
+        "T01のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "I02",
+      "owner": "M4",
+      "title": "本人の実Claudeと旅行データの生成統合",
+      "dependsOn": [
+        "U05",
+        "A04",
+        "D03",
+        "D04",
+        "D02",
+        "T04"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "tests/e2e/generation/"
+      ],
+      "requirements": [
+        "R01",
+        "R02",
+        "R03",
+        "R04",
+        "R05",
+        "R06",
+        "R13",
+        "R27",
+        "R28"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "実モデルと取得済み実情報で旅程を生成し保存する。",
+      "verification": "取得不可地域は成功と偽らず、動作した代表ケースと警告を記録。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K01",
+        "K07",
+        "K08"
+      ],
+      "components": [
+        "personal",
+        "job",
+        "claude-adapter",
+        "trips"
+      ],
+      "branch": "feat/m4/i02",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "U05のmerge commitと完了証拠",
+        "A04のmerge commitと完了証拠",
+        "D03のmerge commitと完了証拠",
+        "D04のmerge commitと完了証拠",
+        "D02のmerge commitと完了証拠",
+        "T04のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "I03",
+      "owner": "M4",
+      "title": "編集と乗り遅れの統合",
+      "dependsOn": [
+        "U06",
+        "A06",
+        "T02"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "tests/e2e/replan/"
+      ],
+      "requirements": [
+        "R09",
+        "R10",
+        "R11",
+        "R12"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "旅行前編集と旅行中の残り再計画が画面と保存に反映される。",
+      "verification": "固定予約保持、完了済み保持、競合保存拒否を実操作。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [],
+      "components": [
+        "personal",
+        "job",
+        "claude-adapter",
+        "trips"
+      ],
+      "branch": "feat/m4/i03",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "U06のmerge commitと完了証拠",
+        "A06のmerge commitと完了証拠",
+        "T02のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "I04",
+      "owner": "M1",
+      "title": "2ユーザー間のSNS統合",
+      "dependsOn": [
+        "U08",
+        "T03",
+        "O02"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "tests/e2e/social/"
+      ],
+      "requirements": [
+        "R20",
+        "R21",
+        "R22",
+        "R25",
+        "R26"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "別アカウントと別ブラウザで共有、コピー、非公開、復元を確認する。",
+      "verification": "同じ端末の別タブだけでなく独立したcookie領域で確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K13",
+        "K14",
+        "K16"
+      ],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/i04",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "U08のmerge commitと完了証拠",
+        "T03のmerge commitと完了証拠",
+        "O02のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "I05",
+      "owner": "M2",
+      "title": "現地ガイドと出力の統合",
+      "dependsOn": [
+        "U07",
+        "E02",
+        "E03"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "tests/e2e/guide-export/"
+      ],
+      "requirements": [
+        "R14",
+        "R15",
+        "R16",
+        "R17",
+        "R18",
+        "R19",
+        "R23",
+        "R24"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "番号地図、解説、施設、PDF、ICS、Maps連携を一通り確認する。",
+      "verification": "未取得データ、拒否GPS、画像権利、タイムゾーンを確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [],
+      "components": [
+        "web-local",
+        "web-shared"
+      ],
+      "branch": "feat/m2/i05",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "U07のmerge commitと完了証拠",
+        "E02のmerge commitと完了証拠",
+        "E03のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "T05",
+      "owner": "M1",
+      "title": "公開境界と費用の安全試験",
+      "dependsOn": [
+        "O01",
+        "T03",
+        "T04",
+        "D02"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "tests/security/"
+      ],
+      "requirements": [
+        "R30"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "SNSの権限、外部APIの利用上限、公開サーバーと本人用AI入口の分離、秘密情報非公開を確認する。",
+      "verification": "外部から生成できないこと、SSRF/CSRF/Origin/Host偽装、他人の非公開データ、ログ漏えい、無断課金を確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/t05",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "O01のmerge commitと完了証拠",
+        "T03のmerge commitと完了証拠",
+        "T04のmerge commitと完了証拠",
+        "D02のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "T06",
+      "owner": "M3",
+      "title": "国内外と交通手段の実接続試験",
+      "dependsOn": [
+        "I02",
+        "I03",
+        "D08"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "tests/live/",
+        "docs/provider-probe.md"
+      ],
+      "requirements": [
+        "R05",
+        "R06",
+        "R07",
+        "R23",
+        "R24"
+      ],
+      "estimateMinutes": {
+        "low": 30,
+        "high": 75
+      },
+      "acceptance": "対応範囲と未取得項目を実接続の証拠として保存する。",
+      "verification": "国内公共交通／国内車／海外公共交通／海外車のケースを区別。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [],
+      "components": [
+        "data-api",
+        "validator"
+      ],
+      "branch": "feat/m3/t06",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "I02のmerge commitと完了証拠",
+        "I03のmerge commitと完了証拠",
+        "D08のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "T07",
+      "owner": "M2",
+      "title": "ユーザー提供ケースの受入確認",
+      "dependsOn": [
+        "I02",
+        "I03",
+        "I04",
+        "I05",
+        "T05",
+        "T06"
+      ],
+      "uiDependency": "approval",
+      "writePaths": [
+        "docs/acceptance/"
+      ],
+      "requirements": [
+        "R01",
+        "R02",
+        "R03",
+        "R04",
+        "R05",
+        "R06",
+        "R07",
+        "R08",
+        "R09",
+        "R10",
+        "R11",
+        "R12",
+        "R13",
+        "R14",
+        "R15",
+        "R16",
+        "R17",
+        "R18",
+        "R19",
+        "R20",
+        "R21",
+        "R22",
+        "R23",
+        "R24",
+        "R25",
+        "R26",
+        "R27",
+        "R28",
+        "R29",
+        "R30"
+      ],
+      "estimateMinutes": {
+        "low": 45,
+        "high": 90
+      },
+      "acceptance": "ユーザーの実旅行シナリオを確認し、全要件に合否と証拠を付ける。",
+      "verification": "過去日付は現在APIの制約を考慮。未実施やモックだけを合格にしない。",
+      "initialStatus": "todo",
+      "humanAction": true,
+      "contracts": [],
+      "components": [
+        "web-local",
+        "web-shared"
+      ],
+      "branch": "feat/m2/t07",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "I02のmerge commitと完了証拠",
+        "I03のmerge commitと完了証拠",
+        "I04のmerge commitと完了証拠",
+        "I05のmerge commitと完了証拠",
+        "T05のmerge commitと完了証拠",
+        "T06のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "人間のUI承認＋M1の統合確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "Z01",
+      "owner": "M1",
+      "title": "設計と実装とタスクの整合確認",
+      "dependsOn": [
+        "T07",
+        "G02",
+        "O02"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "docs/",
+        "ops/tasks.json",
+        "README.md"
+      ],
+      "requirements": [],
+      "estimateMinutes": {
+        "low": 30,
+        "high": 60
+      },
+      "acceptance": "図の全node/edge、HTTP入出力、実装paths、Issue/PR/証拠、HTMLとAI仕様の一致を確認。未実装を隠さない。",
+      "verification": "DAGの循環なし、要件の担当漏れなし、閉じたIssueに証拠あり。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/z01",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "T07のmerge commitと完了証拠",
+        "G02のmerge commitと完了証拠",
+        "O02のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "Z02",
+      "owner": "M1",
+      "title": "クリーンクローンと発表用の最終確認",
+      "dependsOn": [
+        "Z01"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "docs/demo-runbook.md",
+        "docs/release-report.md"
+      ],
+      "requirements": [],
+      "estimateMinutes": {
+        "low": 30,
+        "high": 60
+      },
+      "acceptance": "既存repoを新環境へcloneして起動でき、発表操作と再起動手順を決める。",
+      "verification": "全要件の達成状況を正直に報告。公開URL停止とDBバックアップを確認。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/z02",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "mainの採用済み仕様・共通型",
+        "Z01のmerge commitと完了証拠"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    }
+  ],
+  "version": "4.0"
+}

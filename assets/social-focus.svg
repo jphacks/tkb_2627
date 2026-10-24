@@ -1,0 +1,286 @@
+<svg width="2035pt" height="608pt"
+ viewBox="0.00 0.00 2035.00 608.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(25.2 582.61)">
+
+<!-- web&#45;shared&#45;&gt;auth -->
+<g id="edge1" class="edge">
+
+<g id="a_edge1"><a xlink:href="#edge=C01" xlink:title="cookie・CSRF・対象操作&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;HTTP / middleware · K11&lt;/FONT&gt;">
+<path fill="none" stroke="#315a80" stroke-width="1.3" d="M189.35,-304.29C252.51,-304.29 336.25,-304.29 403.33,-304.29"/>
+<polygon fill="#315a80" stroke="#315a80" stroke-width="1.3" points="403.21,-306.91 410.71,-304.29 403.21,-301.66 403.21,-306.91"/>
+</a>
+</g>
+<g id="a_edge1&#45;label"><a xlink:href="#edge=C01" xlink:title="cookie・CSRF・対象操作&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;HTTP / middleware · K11&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="236.5" y="-314.84" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">cookie・CSRF・対象操作</text>
+<text xml:space="preserve" text-anchor="start" x="251.12" y="-305.74" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">HTTP / middleware · K11</text>
+</a>
+</g>
+</g>
+<!-- auth&#45;&gt;web&#45;shared -->
+<g id="edge2" class="edge">
+
+<g id="a_edge2"><a xlink:href="#edge=C01" xlink:title="ActorContext／401・40&lt;BR/&gt;3&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;HTTP / middleware · K11&lt;/FONT&gt;">
+<path fill="none" stroke="#2b8c71" stroke-width="1.3" stroke-dasharray="5,2" d="M412.78,-271.41C397.08,-267.63 380.96,-264.38 365.5,-262.29 308.69,-254.58 293.23,-254 236.5,-262.29 223.89,-264.13 210.84,-266.85 198.01,-270.04"/>
+<polygon fill="#2b8c71" stroke="#2b8c71" stroke-width="1.3" points="197.67,-267.41 191.07,-271.83 198.98,-272.5 197.67,-267.41"/>
+</a>
+</g>
+<g id="a_edge2&#45;label"><a xlink:href="#edge=C01" xlink:title="ActorContext／401・40&lt;BR/&gt;3&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;HTTP / middleware · K11&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="243.25" y="-283.84" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">ActorContext／401・40</text>
+<text xml:space="preserve" text-anchor="start" x="298" y="-272.84" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">3</text>
+<text xml:space="preserve" text-anchor="start" x="251.12" y="-263.74" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">HTTP / middleware · K11</text>
+</a>
+</g>
+</g>
+<!-- auth&#45;&gt;social -->
+<g id="edge3" class="edge">
+
+<g id="a_edge3"><a xlink:href="#edge=C03" xlink:title="本人context＋投稿操作&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;function call · K13&lt;/FONT&gt;">
+<path fill="none" stroke="#315a80" stroke-width="1.3" d="M624.32,-348.69C684.47,-374.17 760.37,-406.32 823.67,-433.14"/>
+<polygon fill="#315a80" stroke="#315a80" stroke-width="1.3" points="822.37,-435.44 830.3,-435.95 824.42,-430.61 822.37,-435.44"/>
+</a>
+</g>
+<g id="a_edge3&#45;label"><a xlink:href="#edge=C03" xlink:title="本人context＋投稿操作&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;function call · K13&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="671.5" y="-422.14" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">本人context＋投稿操作</text>
+<text xml:space="preserve" text-anchor="start" x="692.12" y="-413.04" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">function call · K13</text>
+</a>
+</g>
+</g>
+<!-- auth&#45;&gt;groups -->
+<g id="edge5" class="edge">
+
+<g id="a_edge5"><a xlink:href="#edge=C04" xlink:title="本人context＋招待操作&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;function call · K17&lt;/FONT&gt;">
+<path fill="none" stroke="#315a80" stroke-width="1.3" d="M624.32,-304.29C698.37,-304.29 796.31,-304.29 865.21,-304.29"/>
+<polygon fill="#315a80" stroke="#315a80" stroke-width="1.3" points="864.84,-306.91 872.34,-304.29 864.84,-301.66 864.84,-306.91"/>
+</a>
+</g>
+<g id="a_edge5&#45;label"><a xlink:href="#edge=C04" xlink:title="本人context＋招待操作&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;function call · K17&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="671.5" y="-314.84" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">本人context＋招待操作</text>
+<text xml:space="preserve" text-anchor="start" x="692.12" y="-305.74" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">function call · K17</text>
+</a>
+</g>
+</g>
+<!-- auth&#45;&gt;repository -->
+<g id="edge7" class="edge">
+
+<g id="a_edge7"><a xlink:href="#edge=C07" xlink:title="セッション・認可照会&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;SQL abstraction · K20&lt;/FONT&gt;">
+<path fill="none" stroke="#315a80" stroke-width="1.3" d="M624.18,-258.71C683.77,-235.26 760.53,-209.15 831.75,-197.29 935.54,-180 964.51,-181.23 1068.5,-197.29 1146.89,-209.39 1229.67,-242.12 1293.66,-272.32"/>
+<polygon fill="#315a80" stroke="#315a80" stroke-width="1.3" points="1292.48,-274.66 1300.38,-275.52 1294.74,-269.92 1292.48,-274.66"/>
+</a>
+</g>
+<g id="a_edge7&#45;label"><a xlink:href="#edge=C07" xlink:title="セッション・認可照会&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;SQL abstraction · K20&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="893.88" y="-207.84" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">セッション・認可照会</text>
+<text xml:space="preserve" text-anchor="start" x="906.25" y="-198.74" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">SQL abstraction · K20</text>
+</a>
+</g>
+</g>
+<!-- social&#45;&gt;auth -->
+<g id="edge4" class="edge">
+
+<g id="a_edge4"><a xlink:href="#edge=C03" xlink:title="Post／Feed／404&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;function call · K13&lt;/FONT&gt;">
+<path fill="none" stroke="#2b8c71" stroke-width="1.3" stroke-dasharray="5,2" d="M852.45,-415.26C844.93,-407.65 837.89,-399.62 831.75,-391.29 798.28,-345.83 831.47,-304.97 784.75,-273.29 740.95,-243.58 683.47,-246.53 633.22,-258.92"/>
+<polygon fill="#2b8c71" stroke="#2b8c71" stroke-width="1.3" points="632.76,-256.33 626.16,-260.75 634.08,-261.41 632.76,-256.33"/>
+</a>
+</g>
+<g id="a_edge4&#45;label"><a xlink:href="#edge=C03" xlink:title="Post／Feed／404&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;function call · K13&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="684.62" y="-283.84" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">Post／Feed／404</text>
+<text xml:space="preserve" text-anchor="start" x="692.12" y="-274.74" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">function call · K13</text>
+</a>
+</g>
+</g>
+<!-- social&#45;&gt;repository -->
+<g id="edge9" class="edge">
+
+<g id="a_edge9"><a xlink:href="#edge=C09" xlink:title="ACL付き投稿query・snapsh&lt;BR/&gt;ot保存&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;transaction · K20&lt;/FONT&gt;">
+<path fill="none" stroke="#315a80" stroke-width="1.3" d="M1068.19,-476.76C1125.96,-469.27 1195.79,-455.94 1255,-432.29 1275.3,-424.18 1295.71,-413.11 1314.68,-401.29"/>
+<polygon fill="#315a80" stroke="#315a80" stroke-width="1.3" points="1315.86,-403.65 1320.78,-397.42 1313.04,-399.22 1315.86,-403.65"/>
+</a>
+</g>
+<g id="a_edge9&#45;label"><a xlink:href="#edge=C09" xlink:title="ACL付き投稿query・snapsh&lt;BR/&gt;ot保存&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;transaction · K20&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="1115.5" y="-490.93" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">ACL付き投稿query・snapsh</text>
+<text xml:space="preserve" text-anchor="start" x="1169.5" y="-479.93" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">ot保存</text>
+<text xml:space="preserve" text-anchor="start" x="1151.12" y="-470.83" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">transaction · K20</text>
+</a>
+</g>
+</g>
+<!-- groups&#45;&gt;auth -->
+<g id="edge6" class="edge">
+
+<g id="a_edge6"><a xlink:href="#edge=C04" xlink:title="membership／403&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;function call · K17&lt;/FONT&gt;">
+<path fill="none" stroke="#2b8c71" stroke-width="1.3" stroke-dasharray="5,2" d="M874.32,-251.86C858.49,-237.9 843.14,-221.78 831.75,-204.29 791.78,-142.89 843.48,-90.09 784.75,-46.29 744.4,-16.19 715.2,-21.31 671.5,-46.29 602.34,-85.81 561.52,-170.44 539.89,-232.02"/>
+<polygon fill="#2b8c71" stroke="#2b8c71" stroke-width="1.3" points="537.42,-231.13 537.47,-239.07 542.39,-232.83 537.42,-231.13"/>
+</a>
+</g>
+<g id="a_edge6&#45;label"><a xlink:href="#edge=C04" xlink:title="membership／403&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;function call · K17&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="683.88" y="-56.84" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">membership／403</text>
+<text xml:space="preserve" text-anchor="start" x="692.12" y="-47.74" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">function call · K17</text>
+</a>
+</g>
+</g>
+<!-- groups&#45;&gt;repository -->
+<g id="edge11" class="edge">
+
+<g id="a_edge11"><a xlink:href="#edge=C10" xlink:title="招待・所属のqueryと更新&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;transaction · K20&lt;/FONT&gt;">
+<path fill="none" stroke="#315a80" stroke-width="1.3" d="M1026.02,-308.89C1098.62,-313.36 1209.7,-320.19 1293.08,-325.32"/>
+<polygon fill="#315a80" stroke="#315a80" stroke-width="1.3" points="1292.72,-327.93 1300.37,-325.77 1293.05,-322.69 1292.72,-327.93"/>
+</a>
+</g>
+<g id="a_edge11&#45;label"><a xlink:href="#edge=C10" xlink:title="招待・所属のqueryと更新&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;transaction · K20&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="1121.12" y="-332.98" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">招待・所属のqueryと更新</text>
+<text xml:space="preserve" text-anchor="start" x="1151.12" y="-323.88" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">transaction · K20</text>
+</a>
+</g>
+</g>
+<!-- repository&#45;&gt;auth -->
+<g id="edge8" class="edge">
+
+<g id="a_edge8"><a xlink:href="#edge=C07" xlink:title="userId・owner・member&lt;BR/&gt;ship&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;SQL abstraction · K20&lt;/FONT&gt;">
+<path fill="none" stroke="#2b8c71" stroke-width="1.3" stroke-dasharray="5,2" d="M1345.27,-268.15C1319.2,-243.32 1287.35,-216.15 1255,-196.29 1064.04,-78.99 1005.05,-55.43 784.75,-14.29 735.27,-5.04 714.57,11.77 671.5,-14.29 593.84,-61.26 553.92,-162.45 534.88,-231.96"/>
+<polygon fill="#2b8c71" stroke="#2b8c71" stroke-width="1.3" points="532.45,-230.87 533.06,-238.79 537.53,-232.22 532.45,-230.87"/>
+</a>
+</g>
+<g id="a_edge8&#45;label"><a xlink:href="#edge=C07" xlink:title="userId・owner・member&lt;BR/&gt;ship&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;SQL abstraction · K20&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="889" y="-112.96" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">userId・owner・member</text>
+<text xml:space="preserve" text-anchor="start" x="940.38" y="-101.96" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">ship</text>
+<text xml:space="preserve" text-anchor="start" x="906.25" y="-92.86" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">SQL abstraction · K20</text>
+</a>
+</g>
+</g>
+<!-- repository&#45;&gt;social -->
+<g id="edge10" class="edge">
+
+<g id="a_edge10"><a xlink:href="#edge=C09" xlink:title="許可された投稿／savedId&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;transaction · K20&lt;/FONT&gt;">
+<path fill="none" stroke="#2b8c71" stroke-width="1.3" stroke-dasharray="5,2" d="M1302.17,-350.56C1245.92,-362.03 1175.82,-378.92 1115.5,-401.29 1102.65,-406.05 1089.52,-411.59 1076.56,-417.51"/>
+<polygon fill="#2b8c71" stroke="#2b8c71" stroke-width="1.3" points="1075.55,-415.08 1069.85,-420.62 1077.76,-419.84 1075.55,-415.08"/>
+</a>
+</g>
+<g id="a_edge10&#45;label"><a xlink:href="#edge=C09" xlink:title="許可された投稿／savedId&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;transaction · K20&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="1121.5" y="-411.84" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">許可された投稿／savedId</text>
+<text xml:space="preserve" text-anchor="start" x="1151.12" y="-402.74" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">transaction · K20</text>
+</a>
+</g>
+</g>
+<!-- repository&#45;&gt;groups -->
+<g id="edge12" class="edge">
+
+<g id="a_edge12"><a xlink:href="#edge=C10" xlink:title="membership／constrai&lt;BR/&gt;nt error&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;transaction · K20&lt;/FONT&gt;">
+<path fill="none" stroke="#2b8c71" stroke-width="1.3" stroke-dasharray="5,2" d="M1302.36,-286C1286.76,-280.75 1270.65,-276.23 1255,-273.29 1181.39,-259.44 1096.5,-270.31 1035.18,-282.84"/>
+<polygon fill="#2b8c71" stroke="#2b8c71" stroke-width="1.3" points="1034.66,-280.26 1027.86,-284.37 1035.74,-285.4 1034.66,-280.26"/>
+</a>
+</g>
+<g id="a_edge12&#45;label"><a xlink:href="#edge=C10" xlink:title="membership／constrai&lt;BR/&gt;nt error&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;transaction · K20&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="1131.25" y="-294.84" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">membership／constrai</text>
+<text xml:space="preserve" text-anchor="start" x="1167.62" y="-283.84" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">nt error</text>
+<text xml:space="preserve" text-anchor="start" x="1151.12" y="-274.74" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">transaction · K20</text>
+</a>
+</g>
+</g>
+<!-- repository&#45;&gt;db -->
+<g id="edge13" class="edge">
+
+<g id="a_edge13"><a xlink:href="#edge=C12" xlink:title="prepared SQL＋parame&lt;BR/&gt;ters&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;SQLite · K20&lt;/FONT&gt;">
+<path fill="none" stroke="#315a80" stroke-width="1.3" d="M1512.41,-332.29C1572.42,-332.29 1648.61,-332.29 1713.66,-332.29"/>
+<polygon fill="#315a80" stroke="#315a80" stroke-width="1.3" points="1713.29,-334.91 1720.79,-332.29 1713.29,-329.66 1713.29,-334.91"/>
+</a>
+</g>
+<g id="a_edge13&#45;label"><a xlink:href="#edge=C12" xlink:title="prepared SQL＋parame&lt;BR/&gt;ters&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;SQLite · K20&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="1559.5" y="-353.84" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">prepared SQL＋parame</text>
+<text xml:space="preserve" text-anchor="start" x="1608.62" y="-342.84" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">ters</text>
+<text xml:space="preserve" text-anchor="start" x="1592.12" y="-333.74" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">SQLite · K20</text>
+</a>
+</g>
+</g>
+<!-- db&#45;&gt;repository -->
+<g id="edge14" class="edge">
+
+<g id="a_edge14"><a xlink:href="#edge=C12" xlink:title="rows／affected rows&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;SQLite · K20&lt;/FONT&gt;">
+<path fill="none" stroke="#2b8c71" stroke-width="1.3" stroke-dasharray="5,2" d="M1723.01,-306.92C1707.14,-304.6 1691.11,-302.62 1675.75,-301.29 1624.28,-296.81 1610.9,-296.07 1559.5,-301.29 1547.16,-302.54 1534.34,-304.35 1521.62,-306.48"/>
+<polygon fill="#2b8c71" stroke="#2b8c71" stroke-width="1.3" points="1521.26,-303.88 1514.32,-307.74 1522.16,-309.05 1521.26,-303.88"/>
+</a>
+</g>
+<g id="a_edge14&#45;label"><a xlink:href="#edge=C12" xlink:title="rows／affected rows&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;SQLite · K20&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="1568.12" y="-311.84" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">rows／affected rows</text>
+<text xml:space="preserve" text-anchor="start" x="1592.12" y="-302.74" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00">SQLite · K20</text>
+</a>
+</g>
+</g>
+<!-- web&#45;shared -->
+<g id="node1" class="node">
+
+<g id="a_node1"><a xlink:href="#node=web-shared" xlink:title="&lt;TABLE&gt;">
+<polygon fill="#edf7f4" stroke="none" points="0,-239.96 0,-368.61 189.5,-368.61 189.5,-239.96 0,-239.96"/>
+<polygon fill="none" stroke="#35857d" points="0,-239.96 0,-368.61 189.5,-368.61 189.5,-239.96 0,-239.96"/>
+<text xml:space="preserve" text-anchor="start" x="65.12" y="-349.61" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#586d80">«Container»</text>
+<text xml:space="preserve" text-anchor="start" x="46.38" y="-314.41" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="16.00">共有Web画面</text>
+<text xml:space="preserve" text-anchor="start" x="50.5" y="-284.47" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">React / TypeScript</text>
+<text xml:space="preserve" text-anchor="start" x="10" y="-252.22" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">旅程閲覧、編集、SNS、ガイド</text>
+</a>
+</g>
+</g>
+<!-- auth -->
+<g id="node2" class="node">
+
+<g id="a_node2"><a xlink:href="#node=auth" xlink:title="&lt;TABLE&gt;">
+<polygon fill="#edf7f4" stroke="none" points="412.5,-240.66 412.5,-367.91 624.5,-367.91 624.5,-240.66 412.5,-240.66"/>
+<polygon fill="none" stroke="#35857d" points="412.5,-240.66 412.5,-367.91 624.5,-367.91 624.5,-240.66 412.5,-240.66"/>
+<text xml:space="preserve" text-anchor="start" x="484.38" y="-348.91" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#586d80">«Component»</text>
+<text xml:space="preserve" text-anchor="start" x="479.12" y="-313.71" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="16.00">認証・認可</text>
+<text xml:space="preserve" text-anchor="start" x="480.25" y="-284.41" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">Fastify / session</text>
+<text xml:space="preserve" text-anchor="start" x="422.5" y="-252.16" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">利用者を特定し所有権・所属を検証</text>
+</a>
+</g>
+</g>
+<!-- social -->
+<g id="node3" class="node">
+
+<g id="a_node3"><a xlink:href="#node=social" xlink:title="&lt;TABLE&gt;">
+<polygon fill="#edf7f4" stroke="none" points="831.75,-415.16 831.75,-557.41 1068.5,-557.41 1068.5,-415.16 831.75,-415.16"/>
+<polygon fill="none" stroke="#35857d" points="831.75,-415.16 831.75,-557.41 1068.5,-557.41 1068.5,-415.16 831.75,-415.16"/>
+<text xml:space="preserve" text-anchor="start" x="916" y="-538.41" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#586d80">«Component»</text>
+<text xml:space="preserve" text-anchor="start" x="905.12" y="-503.21" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="16.00">SNS投稿API</text>
+<text xml:space="preserve" text-anchor="start" x="924.25" y="-472.41" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">TypeScript</text>
+<text xml:space="preserve" text-anchor="start" x="841.75" y="-440.16" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">プレビュー、安全化snapshot、公開・閲</text>
+<text xml:space="preserve" text-anchor="start" x="926.12" y="-427.41" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">覧・複製</text>
+</a>
+</g>
+</g>
+<!-- groups -->
+<g id="node4" class="node">
+
+<g id="a_node4"><a xlink:href="#node=groups" xlink:title="&lt;TABLE&gt;">
+<polygon fill="#edf7f4" stroke="none" points="874.12,-240.34 874.12,-368.23 1026.12,-368.23 1026.12,-240.34 874.12,-240.34"/>
+<polygon fill="none" stroke="#35857d" points="874.12,-240.34 874.12,-368.23 1026.12,-368.23 1026.12,-240.34 874.12,-240.34"/>
+<text xml:space="preserve" text-anchor="start" x="916" y="-349.23" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#586d80">«Component»</text>
+<text xml:space="preserve" text-anchor="start" x="906.62" y="-314.03" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="16.00">グループAPI</text>
+<text xml:space="preserve" text-anchor="start" x="924.25" y="-284.09" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">TypeScript</text>
+<text xml:space="preserve" text-anchor="start" x="884.12" y="-251.84" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">招待・所属・除外の管理</text>
+</a>
+</g>
+</g>
+<!-- repository -->
+<g id="node5" class="node">
+
+<g id="a_node5"><a xlink:href="#node=repository" xlink:title="&lt;TABLE&gt;">
+<polygon fill="#edf7f4" stroke="none" points="1302,-267.96 1302,-396.61 1512.5,-396.61 1512.5,-267.96 1302,-267.96"/>
+<polygon fill="none" stroke="#35857d" points="1302,-267.96 1302,-396.61 1512.5,-396.61 1512.5,-267.96 1302,-267.96"/>
+<text xml:space="preserve" text-anchor="start" x="1373.12" y="-377.61" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#586d80">«Component»</text>
+<text xml:space="preserve" text-anchor="start" x="1342" y="-342.41" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="16.00">永続化Repository</text>
+<text xml:space="preserve" text-anchor="start" x="1355.12" y="-312.47" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">SQLite prepared SQL</text>
+<text xml:space="preserve" text-anchor="start" x="1312" y="-280.22" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">認可済みの読み書きと版transaction</text>
+</a>
+</g>
+</g>
+<!-- db -->
+<g id="node6" class="node">
+
+<g id="a_node6"><a xlink:href="#node=db" xlink:title="&lt;TABLE&gt;">
+<polygon fill="#edf7f4" stroke="none" points="1722.75,-268.28 1722.75,-396.29 1984.25,-396.29 1984.25,-268.28 1722.75,-268.28"/>
+<polygon fill="none" stroke="#35857d" points="1722.75,-268.28 1722.75,-396.29 1984.25,-396.29 1984.25,-268.28 1722.75,-268.28"/>
+<text xml:space="preserve" text-anchor="start" x="1823.88" y="-377.29" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#586d80">«Container»</text>
+<text xml:space="preserve" text-anchor="start" x="1791.25" y="-342.09" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="16.00">共通データベース</text>
+<text xml:space="preserve" text-anchor="start" x="1820.5" y="-312.79" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">SQLite / WAL</text>
+<text xml:space="preserve" text-anchor="start" x="1732.75" y="-280.54" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">全利用者の旅程・SNS・認可情報を永続保存</text>
+</a>
+</g>
+</g>
+</g>
+</svg>

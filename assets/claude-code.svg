@@ -1,0 +1,168 @@
+<svg width="2005pt" height="395pt"
+ viewBox="0.00 0.00 2005.00 395.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(25.2 370.2)">
+
+<!-- GenerationInput&#45;&gt;ClaudeRunner -->
+<g id="edge1" class="edge">
+
+<path fill="none" stroke="#705888" stroke-width="1.3" d="M150.83,-120C198.54,-120 261.61,-120 316.39,-120"/>
+<polygon fill="#705888" stroke="#705888" stroke-width="1.3" points="316.34,-122.63 323.84,-120 316.34,-117.38 316.34,-122.63"/>
+<text xml:space="preserve" text-anchor="middle" x="238.38" y="-121.55" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">run(input, signal)</text>
+</g>
+<!-- ClaudeRunner&#45;&gt;RunnerResult -->
+<g id="edge2" class="edge">
+
+<path fill="none" stroke="#705888" stroke-width="1.3" d="M550.24,-153.49C616.9,-173.54 699.33,-198.33 755.66,-215.27"/>
+<polygon fill="#705888" stroke="#705888" stroke-width="1.3" points="754.65,-217.71 762.59,-217.36 756.16,-212.68 754.65,-217.71"/>
+<text xml:space="preserve" text-anchor="middle" x="657.25" y="-202.57" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">Promise&lt;RunnerResult&gt;</text>
+</g>
+<!-- ClaudeRunner&#45;&gt;SafeError -->
+<g id="edge5" class="edge">
+
+<path fill="none" stroke="#705888" stroke-width="1.3" d="M550.08,-116.05C760,-108.59 1211.43,-92.56 1410.68,-85.48"/>
+<polygon fill="#705888" stroke="#705888" stroke-width="1.3" points="1410.61,-88.11 1418.01,-85.22 1410.43,-82.86 1410.61,-88.11"/>
+<text xml:space="preserve" text-anchor="middle" x="973.75" y="-104.61" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">process失敗</text>
+</g>
+<!-- RunnerResult&#45;&gt;BlueprintParser -->
+<g id="edge3" class="edge">
+
+<path fill="none" stroke="#705888" stroke-width="1.3" d="M879.88,-235C928.83,-235 1000.54,-235 1057.85,-235"/>
+<polygon fill="#705888" stroke="#705888" stroke-width="1.3" points="1057.81,-237.63 1065.31,-235 1057.81,-232.38 1057.81,-237.63"/>
+<text xml:space="preserve" text-anchor="middle" x="973.75" y="-236.55" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">envelope: unknown</text>
+</g>
+<!-- BlueprintParser&#45;&gt;PlanBlueprint -->
+<g id="edge4" class="edge">
+
+<path fill="none" stroke="#705888" stroke-width="1.3" d="M1235.55,-241.53C1288.5,-245.69 1357.32,-251.1 1412.62,-255.45"/>
+<polygon fill="#705888" stroke="#705888" stroke-width="1.3" points="1412.08,-258.04 1419.76,-256.01 1412.49,-252.81 1412.08,-258.04"/>
+<text xml:space="preserve" text-anchor="middle" x="1327.75" y="-252.31" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">検証済みの候補型</text>
+</g>
+<!-- BlueprintParser&#45;&gt;SafeError -->
+<g id="edge6" class="edge">
+
+<path fill="none" stroke="#705888" stroke-width="1.3" d="M1235.55,-199.32C1288.13,-176.73 1356.36,-147.42 1411.46,-123.74"/>
+<polygon fill="#705888" stroke="#705888" stroke-width="1.3" points="1412.18,-126.29 1418.03,-120.92 1410.1,-121.47 1412.18,-126.29"/>
+<text xml:space="preserve" text-anchor="middle" x="1327.75" y="-179" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">Schema不一致</text>
+</g>
+<!-- PlanBlueprint&#45;&gt;CandidateBlueprint -->
+<g id="edge7" class="edge">
+
+<path fill="none" stroke="#705888" stroke-width="1.3" d="M1597.17,-263C1658.9,-263 1741.3,-263 1801.55,-263"/>
+<polygon fill="#705888" stroke="#705888" stroke-width="1.3" points="1801.18,-265.63 1808.68,-263 1801.18,-260.38 1801.18,-265.63"/>
+<text xml:space="preserve" text-anchor="middle" x="1705" y="-265.3" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">candidates / 候補の配列</text>
+</g>
+<!-- GenerationInput -->
+<g id="node1" class="node">
+
+<g id="a_node1"><a xlink:href="#type=GenerationInput" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="0,-8 0,-232 151.25,-232 151.25,-8 0,-8"/>
+<polygon fill="none" stroke="#75618f" points="0,-8 0,-232 151.25,-232 151.25,-8 0,-8"/>
+<polygon fill="#f0eaf8" stroke="none" points="1,-189 1,-231 150.25,-231 150.25,-189 1,-189"/>
+<text xml:space="preserve" text-anchor="start" x="61" y="-213.5" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«type»</text>
+<text xml:space="preserve" text-anchor="start" x="23.12" y="-199.7" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">GenerationInput</text>
+<text xml:space="preserve" text-anchor="start" x="10" y="-171" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">schemaVersion: 1</text>
+<text xml:space="preserve" text-anchor="start" x="10" y="-141" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">constraints: TripConstraints</text>
+<text xml:space="preserve" text-anchor="start" x="10" y="-111" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">allowedPlaceIds: string[]</text>
+<text xml:space="preserve" text-anchor="start" x="10" y="-81" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">facts: PermittedFact[]</text>
+<text xml:space="preserve" text-anchor="start" x="10" y="-51" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">fixedActivities: ActivityRef[]</text>
+<text xml:space="preserve" text-anchor="start" x="10" y="-21" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">instructions: string</text>
+</a>
+</g>
+</g>
+<!-- ClaudeRunner -->
+<g id="node2" class="node">
+
+<g id="a_node2"><a xlink:href="#type=ClaudeRunner" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="325.5,-32 325.5,-208 550.25,-208 550.25,-32 325.5,-32"/>
+<polygon fill="none" stroke="#75618f" points="325.5,-32 325.5,-208 550.25,-208 550.25,-32 325.5,-32"/>
+<polygon fill="#f0eaf8" stroke="none" points="326.5,-165 326.5,-207 549.25,-207 549.25,-165 326.5,-165"/>
+<text xml:space="preserve" text-anchor="start" x="421" y="-189.5" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«class»</text>
+<text xml:space="preserve" text-anchor="start" x="391.75" y="-175.7" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">ClaudeRunner</text>
+<text xml:space="preserve" text-anchor="start" x="335.5" y="-147" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">run(input, AbortSignal): Promise&lt;RunnerR</text>
+<text xml:space="preserve" text-anchor="start" x="423.25" y="-135" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">esult&gt;</text>
+<text xml:space="preserve" text-anchor="start" x="335.5" y="-105" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">spawn(fixedExe, fixedArgs, shell=false)</text>
+<text xml:space="preserve" text-anchor="start" x="335.5" y="-75" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">stdin.write(prompt)</text>
+<text xml:space="preserve" text-anchor="start" x="335.5" y="-45" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">limit stdout / timeout / cancel</text>
+</a>
+</g>
+</g>
+<!-- RunnerResult -->
+<g id="node3" class="node">
+
+<g id="a_node3"><a xlink:href="#type=RunnerResult" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="764.25,-153 764.25,-317 880.25,-317 880.25,-153 764.25,-153"/>
+<polygon fill="none" stroke="#75618f" points="764.25,-153 764.25,-317 880.25,-317 880.25,-153 764.25,-153"/>
+<polygon fill="#f0eaf8" stroke="none" points="765.25,-274 765.25,-316 879.25,-316 879.25,-274 765.25,-274"/>
+<text xml:space="preserve" text-anchor="start" x="807.62" y="-298.5" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«type»</text>
+<text xml:space="preserve" text-anchor="start" x="778" y="-284.7" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">RunnerResult</text>
+<text xml:space="preserve" text-anchor="start" x="774.25" y="-256" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">exitCode: number</text>
+<text xml:space="preserve" text-anchor="start" x="774.25" y="-226" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">envelope: unknown</text>
+<text xml:space="preserve" text-anchor="start" x="774.25" y="-196" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">durationMs: number</text>
+<text xml:space="preserve" text-anchor="start" x="774.25" y="-166" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">error?: SafeError</text>
+</a>
+</g>
+</g>
+<!-- BlueprintParser -->
+<g id="node4" class="node">
+
+<g id="a_node4"><a xlink:href="#type=BlueprintParser" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="1067.25,-153 1067.25,-317 1235.75,-317 1235.75,-153 1067.25,-153"/>
+<polygon fill="none" stroke="#75618f" points="1067.25,-153 1067.25,-317 1235.75,-317 1235.75,-153 1067.25,-153"/>
+<polygon fill="#f0eaf8" stroke="none" points="1068.25,-274 1068.25,-316 1234.75,-316 1234.75,-274 1068.25,-274"/>
+<text xml:space="preserve" text-anchor="start" x="1129" y="-298.5" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«function»</text>
+<text xml:space="preserve" text-anchor="start" x="1100.88" y="-284.7" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">BlueprintParser</text>
+<text xml:space="preserve" text-anchor="start" x="1077.25" y="-256" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">parse(envelope): PlanBlueprint</text>
+<text xml:space="preserve" text-anchor="start" x="1077.25" y="-226" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">verify structured_output</text>
+<text xml:space="preserve" text-anchor="start" x="1077.25" y="-196" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">validate JSON Schema</text>
+<text xml:space="preserve" text-anchor="start" x="1077.25" y="-166" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">reject unknown place IDs</text>
+</a>
+</g>
+</g>
+<!-- PlanBlueprint -->
+<g id="node5" class="node">
+
+<g id="a_node5"><a xlink:href="#type=PlanBlueprint" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="1421.62,-211 1421.62,-315 1597.62,-315 1597.62,-211 1421.62,-211"/>
+<polygon fill="none" stroke="#75618f" points="1421.62,-211 1421.62,-315 1597.62,-315 1597.62,-211 1421.62,-211"/>
+<polygon fill="#f0eaf8" stroke="none" points="1422.62,-272 1422.62,-314 1596.62,-314 1596.62,-272 1422.62,-272"/>
+<text xml:space="preserve" text-anchor="start" x="1495" y="-296.5" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«type»</text>
+<text xml:space="preserve" text-anchor="start" x="1465.75" y="-282.7" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">PlanBlueprint</text>
+<text xml:space="preserve" text-anchor="start" x="1431.62" y="-254" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">schemaVersion: 1</text>
+<text xml:space="preserve" text-anchor="start" x="1431.62" y="-224" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">candidates: CandidateBlueprint[]</text>
+</a>
+</g>
+</g>
+<!-- SafeError -->
+<g id="node6" class="node">
+
+<g id="a_node6"><a xlink:href="#type=SafeError" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="1419.75,0 1419.75,-164 1599.5,-164 1599.5,0 1419.75,0"/>
+<polygon fill="none" stroke="#75618f" points="1419.75,0 1419.75,-164 1599.5,-164 1599.5,0 1419.75,0"/>
+<polygon fill="#f0eaf8" stroke="none" points="1420.75,-121 1420.75,-163 1598.5,-163 1598.5,-121 1420.75,-121"/>
+<text xml:space="preserve" text-anchor="start" x="1495" y="-145.5" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«type»</text>
+<text xml:space="preserve" text-anchor="start" x="1478.88" y="-131.7" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">SafeError</text>
+<text xml:space="preserve" text-anchor="start" x="1429.75" y="-103" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">code: CLI_* | INVALID_OUTPUT</text>
+<text xml:space="preserve" text-anchor="start" x="1429.75" y="-73" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">message: string</text>
+<text xml:space="preserve" text-anchor="start" x="1429.75" y="-43" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">retryable: boolean</text>
+<text xml:space="preserve" text-anchor="start" x="1429.75" y="-13" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">requestId: string</text>
+</a>
+</g>
+</g>
+<!-- CandidateBlueprint -->
+<g id="node7" class="node">
+
+<g id="a_node7"><a xlink:href="#type=CandidateBlueprint" xlink:title="&lt;TABLE&gt;">
+<polygon fill="white" stroke="none" points="1810.5,-181 1810.5,-345 1955,-345 1955,-181 1810.5,-181"/>
+<polygon fill="none" stroke="#75618f" points="1810.5,-181 1810.5,-345 1955,-345 1955,-181 1810.5,-181"/>
+<polygon fill="#f0eaf8" stroke="none" points="1811.5,-302 1811.5,-344 1954,-344 1954,-302 1811.5,-302"/>
+<text xml:space="preserve" text-anchor="start" x="1868.12" y="-326.5" font-family="Noto Sans CJK JP, sans-serif" font-size="10.00">«type»</text>
+<text xml:space="preserve" text-anchor="start" x="1820.5" y="-312.7" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="14.00">CandidateBlueprint</text>
+<text xml:space="preserve" text-anchor="start" x="1820.5" y="-284" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">candidateId: string</text>
+<text xml:space="preserve" text-anchor="start" x="1820.5" y="-254" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">activityOrder: string[]</text>
+<text xml:space="preserve" text-anchor="start" x="1820.5" y="-224" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">reasons: string[]</text>
+<text xml:space="preserve" text-anchor="start" x="1820.5" y="-194" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">warnings: string[]</text>
+</a>
+</g>
+</g>
+</g>
+</svg>

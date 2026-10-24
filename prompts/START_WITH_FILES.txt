@@ -1,0 +1,1 @@
+AI_MASTER_PROMPT.txtを読み、M1としてB01から実装を開始してください。既存repo・既存ファイルは保持してください。人間への説明はSYSTEM_DESIGN.htmlとDEVELOPMENT_GUIDE.htmlを使い、長い仕様を再掲しないでください。最初のUIを先に動かし、その間に独立機能を並列開発できる初期基点を共有してください。
