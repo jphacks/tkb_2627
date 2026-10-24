@@ -12,11 +12,11 @@ const BILLING = /ANTHROPIC_|CLAUDE_CODE_OAUTH|CLAUDE_CODE_USE_|api\.anthropic\.c
 const PROD_DIRS = ['apps', 'packages', 'scripts'];
 
 describe('T05-3 no unauthorised billing', () => {
-  it('only the A01 probe mentions billing env/API names, and only to strip them from the child env', () => {
+  it('only the A01 probe and the A04 runner mention billing env/API names, and only to strip them from the child env', () => {
     const files = sourceFiles(PROD_DIRS, { exts: /\.(ts|tsx|mjs|js|cjs|json)$/, skipTests: true }).filter(f => !/package-lock/.test(f));
     expect(files.length).toBeGreaterThan(40);
     const offenders = files.filter(f => BILLING.test(read(f))).map(rel);
-    expect(offenders).toEqual(['packages/ai/probes/claude-probe.mjs']);
+    expect(offenders).toEqual(['packages/ai/probes/claude-probe.mjs', 'packages/ai/src/claude-runner.ts']);
   });
 
   it('the probe never reads a billing value, never sets one, and spawns with the filtered env only', () => {
@@ -36,10 +36,21 @@ describe('T05-3 no unauthorised billing', () => {
     expect(t).not.toMatch(/--dangerously-skip-permissions/);
   });
 
-  it('no production module outside the probe can start a process with the inherited environment', () => {
+  it('the A04 runner never reads or sets a billing value and spawns with the filtered env only', () => {
+    const t = read(join(ROOT, 'packages/ai/src/claude-runner.ts'));
+    expect(t).not.toMatch(/process\.env\.(ANTHROPIC|CLAUDE_CODE)/);
+    expect(t).not.toMatch(/process\.env\[\s*['"`](ANTHROPIC|CLAUDE_CODE)/);
+    expect(t).not.toMatch(/\.\.\.process\.env|env:\s*process\.env/);
+    expect(t).not.toMatch(/--dangerously-skip-permissions|'--bare'/);
+    expect(t).toMatch(/shell:\s*false/);
+    expect(t).toMatch(/env:\s*buildChildEnv\(/);
+    expect(t).not.toMatch(/shell:\s*true|\bexecSync?\(|\bexecFile/);
+  });
+
+  it('no production module outside the probe and the A04 runner can start a process with the inherited environment', () => {
     for (const f of sourceFiles(['apps', 'packages'], { skipTests: true })) {
       const t = read(f);
-      if (rel(f) === 'packages/ai/probes/claude-probe.mjs') continue;
+      if (rel(f) === 'packages/ai/probes/claude-probe.mjs' || rel(f) === 'packages/ai/src/claude-runner.ts') continue;
       expect(t, rel(f)).not.toMatch(/child_process/);
       expect(t, rel(f)).not.toMatch(/\.\.\.process\.env|env:\s*process\.env/);
     }
