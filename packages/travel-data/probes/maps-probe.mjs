@@ -22,7 +22,7 @@ const APPROVED_TOTAL = 20;
  * Calls already made by committed runs (see probes/results/). When committing a new run, add its calls here and
  * delete the local ledger, which counted the same calls until then.
  */
-const ALREADY_USED = 8;
+const ALREADY_USED = 10;
 const TIMEOUT_MS = 15_000;
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const LEDGER = join(ROOT, '.local', 'provider-probe', 'calls.json');

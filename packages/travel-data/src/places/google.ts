@@ -93,10 +93,16 @@ const KIND_BY_TYPE: [string, PlaceInfo['kind']][] = [
   ['shopping_mall', 'area'],
 ];
 
-/** Our PlaceKind from the provider's types (primary type first); anything unmapped is 'other'. */
+/**
+ * Our PlaceKind from the provider's types (primary type first); anything unmapped is 'other'. Specific food types
+ * such as japanese_restaurant count as restaurants: a live Nearby Search for 'restaurant' (D03) otherwise mapped
+ * some results to 'spot' through a later generic type.
+ */
 export function kindFromTypes(primaryType: string | undefined, types: readonly string[] = []): PlaceInfo['kind'] {
   for (const t of [primaryType, ...types]) {
-    const hit = t === undefined ? undefined : KIND_BY_TYPE.find(([type]) => type === t);
+    if (t === undefined) continue;
+    if (t.endsWith('_restaurant')) return 'restaurant';
+    const hit = KIND_BY_TYPE.find(([type]) => type === t);
     if (hit) return hit[1];
   }
   return 'other';

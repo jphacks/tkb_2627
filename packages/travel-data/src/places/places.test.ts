@@ -192,6 +192,9 @@ describe('GooglePlacesProvider', () => {
     expect(kindFromTypes('train_station')).toBe('station');
     expect(kindFromTypes('market')).toBe('area');
     expect(kindFromTypes('dentist')).toBe('other');
+    // Specific food types are restaurants even when a generic type follows.
+    expect(kindFromTypes('japanese_restaurant', ['tourist_attraction', 'restaurant'])).toBe('restaurant');
+    expect(kindFromTypes(undefined, ['sushi_restaurant', 'point_of_interest'])).toBe('restaurant');
   });
 });
 
