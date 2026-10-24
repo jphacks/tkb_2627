@@ -1,5 +1,5 @@
 import type { PlaceInfo } from '@tkb/contracts';
-import { kanazawaPlaces, parisPlaces } from '@tkb/fixtures';
+import { kanazawaPlaces, kanazawaTripPlaces, parisPlaces } from '@tkb/fixtures';
 import { describe, expect, it, vi } from 'vitest';
 import { CallBudget, DailyQuota, Gate } from '../policy/budget.ts';
 import { SKU } from '../policy/limits.ts';
@@ -13,7 +13,7 @@ const louvre = place('fx_louvre', parisPlaces);
 const orsay = place('fx_orsay', parisPlaces);
 const station = place('fx_kanazawa_station', kanazawaPlaces);
 const kenrokuen = place('fx_kenrokuen', kanazawaPlaces);
-const nagamachi = place('fx_nagamachi', kanazawaPlaces);
+const nagamachi = place('fx_nagamachi', kanazawaTripPlaces);
 
 const quota = () => new DailyQuota({ [SKU.routesTransit]: 20, [SKU.routesDrive]: 20 }, () => NOW);
 const budget = (over: Partial<ConstructorParameters<typeof CallBudget>[0]> = {}) =>

@@ -1,5 +1,5 @@
 import type { DataMode, PlaceInfo } from '@tkb/contracts';
-import { fixtureTrips } from '@tkb/fixtures';
+import { domesticTrip, fixtureTrips, kanazawaPlaces } from '@tkb/fixtures';
 import {
   CallBudget,
   FixtureRouteProvider,
@@ -39,7 +39,8 @@ const KIND_RANK: Record<string, number> = { spot: 0, restaurant: 1, area: 2 };
 function fixtureAreaTable(): { keys: string[]; places: readonly PlaceInfo[] }[] {
   return fixtureTrips.map(t => {
     const base = norm(t.constraints.area);
-    return { keys: [base, ...(AREA_ALIASES[base] ?? []).map(norm)], places: t.places };
+    // The dense sample trip visits more places than the area pool; the K05 pool stays the six area places.
+    return { keys: [base, ...(AREA_ALIASES[base] ?? []).map(norm)], places: t === domesticTrip ? kanazawaPlaces : t.places };
   });
 }
 

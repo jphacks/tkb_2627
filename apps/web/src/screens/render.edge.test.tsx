@@ -264,13 +264,13 @@ describe('diff view (R11)', () => {
   });
 
   it('an empty known delta with unknown items says only known amounts were compared, and lists every unknown item by its name', () => {
-    const unknown = ids.filter(id => id.includes('museum') || id.includes('leg_3'));
+    const unknown = ids.filter(id => id.includes('museum') || id === 'fx_leg_k4');
     expect(unknown.length).toBe(2);
     const html = renderToString(<DiffView trip={trip} diff={{ durationDeltaSeconds: null, knownCostDelta: [], unknownCostItems: unknown }} />);
     expect(html).toContain('変化なし（金額が分かっている項目のみ）');
     expect(html).toContain('2件（0円として扱っていません）');
     expect(html).toContain('金沢21世紀美術館');
-    expect(html).toContain('移動: 金沢21世紀美術館 → （fixture）寿司店A');
+    expect(html).toContain('移動: 兼六園 → 金沢21世紀美術館');
     expect(withoutDisclaimers(html)).not.toMatch(SHOWN_AS_ZERO);
   });
 
@@ -282,13 +282,13 @@ describe('diff view (R11)', () => {
     expect(html).toContain(`${removed.title}（削除済み）`);
     expect(html).not.toContain('fx_act_museum');
     // an item that still exists is named normally, without the deleted mark
-    expect(html).toContain('近江町市場で食べ歩き</li>');
+    expect(html).toContain('近江町市場エリア</li>');
   });
 
   it('a removed leg is named with both place names from the pre-patch trip', () => {
-    const after: Trip = { ...domesticTrip, days: domesticTrip.days.map(d => ({ ...d, items: d.items.filter(i => !(i.type === 'leg' && i.legId === 'fx_leg_3')) })) };
-    const html = renderToString(<DiffView trip={after} before={domesticTrip} diff={{ durationDeltaSeconds: null, knownCostDelta: [], unknownCostItems: ['fx_leg_3'] }} />);
-    expect(html).toContain('移動: 金沢21世紀美術館 → （fixture）寿司店A（削除済み）');
+    const after: Trip = { ...domesticTrip, days: domesticTrip.days.map(d => ({ ...d, items: d.items.filter(i => !(i.type === 'leg' && i.legId === 'fx_leg_k4')) })) };
+    const html = renderToString(<DiffView trip={after} before={domesticTrip} diff={{ durationDeltaSeconds: null, knownCostDelta: [], unknownCostItems: ['fx_leg_k4'] }} />);
+    expect(html).toContain('移動: 兼六園 → 金沢21世紀美術館（削除済み）');
   });
 
   it('without the pre-patch trip, or for an id that was never in it, the id is shown with the deleted mark', () => {

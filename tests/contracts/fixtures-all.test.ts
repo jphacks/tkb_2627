@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import {
   ApiError, CancelResult, ERROR_HTTP_STATUS, ErrorCode, Feed, JobAccepted, JobStatus, PlanBatch, PlanBlueprint, PlanCandidate,
-  PostSummary, Trip, TripList, TripPatchResult, TripWriteResult,
+  PostSummary, TravelLeg, Trip, TripList, TripPatchResult, TripWriteResult,
 } from '@tkb/contracts';
 import * as fx from '@tkb/fixtures';
 import { createMockApi, type MockResult, type MockScenario } from '../../apps/web/src/mocks/index.ts';
@@ -20,6 +20,11 @@ const registry: Record<string, { schema: z.ZodType; list?: boolean; record?: boo
   FIXTURE_NOTICE: 'skip',
   kanazawaPlaces: 'skip', // covered through the trips that embed them
   parisPlaces: 'skip',
+  kanazawaTripPlaces: 'skip', // covered through domesticTrip
+  kanazawaRouteSamples: { schema: TravelLeg, list: true },
+  fxActivity: 'skip', // builders with arguments, covered through the trips
+  fxLeg: 'skip',
+  jst: 'skip',
   domesticTrip: { schema: Trip },
   overseasTrip: { schema: Trip },
   fixtureTrips: { schema: Trip, list: true },

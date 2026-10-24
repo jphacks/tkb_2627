@@ -6,7 +6,13 @@ import { MOCK_NOTICE, MOCK_REPLAN_BATCH_ID, createMockApi, toProbe } from './ind
 import type { MockApi, MockResult } from './index.ts';
 
 // Items of the Kanazawa fixture whose cost is unknown. K10 diff lists them on every edit (union of before and after, as main does).
-const KANAZAWA_UNKNOWN = ['fx_act_museum', 'fx_leg_3', 'fx_act_omicho', 'fx_act_higashi'];
+// Plan order of the dense fixture: every activity without a known cost (lunch, kenrokuen and the legs with a fare are known).
+const KANAZAWA_UNKNOWN = [
+  'fx_act_station', 'fx_act_omicho', 'fx_act_omicho_walk', 'fx_act_castle', 'fx_act_museum', 'fx_act_dinner', 'fx_act_hotel',
+  'fx_act_higashi', 'fx_act_higashi_tea', 'fx_act_higashi_sweets', 'fx_act_kazue', 'fx_act_oyama', 'fx_act_nagamachi', 'fx_act_station_end',
+];
+/** KANAZAWA_UNKNOWN with `id` inserted right before 'fx_act_higashi' (the first item of day 2). */
+const unknownWithAddedBeforeHigashi = (id: string) => KANAZAWA_UNKNOWN.flatMap(x => (x === 'fx_act_higashi' ? [id, x] : [x]));
 
 const GENERATE = {
   constraints: { area: '金沢', startDate: '2026-11-01', endDate: '2026-11-02', timeZone: 'Asia/Tokyo', transportMode: 'transit' as const },
@@ -416,15 +422,15 @@ describe('mock api: K10 patchTrip', () => {
     expect(res.revision).toBe(2);
     expect(res.trip.title).toBe('新しい名前');
     expect(res.trip.validationState).toBe(domesticTrip.validationState);
-    // fx_leg_3 has no arrival, so the elapsed span of the Kanazawa trip is unknown and so is its delta (main does the same).
+    // fx_leg_k1 has no arrival, so the elapsed span of the Kanazawa trip is unknown and so is its delta (main does the same).
     expect(res.diff).toEqual({ durationDeltaSeconds: null, knownCostDelta: [], unknownCostItems: KANAZAWA_UNKNOWN });
   });
 
   it('remove: known cost goes down, unknown cost is not counted as 0', async () => {
     const api = createMockApi();
     const lunch = data(await api.patchTrip(id, { expectedRevision: 1, operations: [{ op: 'remove', itemId: 'fx_act_lunch' }] }));
-    expect(lunch.diff.knownCostDelta).toEqual([{ currency: 'JPY', amountMinor: -4000 }]);
-    expect(lunch.diff.durationDeltaSeconds).toBeNull(); // the untimed fx_leg_3 makes the span unknown
+    expect(lunch.diff.knownCostDelta).toEqual([{ currency: 'JPY', amountMinor: -2200 }]);
+    expect(lunch.diff.durationDeltaSeconds).toBeNull(); // the untimed fx_leg_k1 makes the span unknown
     expect(lunch.trip.validationState).toBe('needs_revalidation');
     expect(lunch.trip.days.flatMap(d => d.items).some(i => i.type === 'activity' && i.activityId === 'fx_act_lunch')).toBe(false);
 
@@ -432,12 +438,12 @@ describe('mock api: K10 patchTrip', () => {
     // so the change is not shown as "cost 0". Order as main: after's plan order, then ids only in before.
     const museum = data(await api.patchTrip(id, { expectedRevision: 2, operations: [{ op: 'remove', itemId: 'fx_act_museum' }] }));
     expect(museum.diff.knownCostDelta).toEqual([]);
-    expect(museum.diff.unknownCostItems).toEqual(['fx_leg_3', 'fx_act_omicho', 'fx_act_higashi', 'fx_act_museum']);
+    expect(museum.diff.unknownCostItems).toEqual([...KANAZAWA_UNKNOWN.filter(x => x !== 'fx_act_museum'), 'fx_act_museum']);
   });
 
   it('remove of a leg with unknown duration makes the duration delta unknown (null)', async () => {
     const api = createMockApi();
-    const res = data(await api.patchTrip(id, { expectedRevision: 1, operations: [{ op: 'remove', itemId: 'fx_leg_3' }] }));
+    const res = data(await api.patchTrip(id, { expectedRevision: 1, operations: [{ op: 'remove', itemId: 'fx_leg_k1' }] }));
     expect(res.diff.durationDeltaSeconds).toBeNull();
   });
 
@@ -447,19 +453,22 @@ describe('mock api: K10 patchTrip', () => {
       await api.patchTrip(id, {
         expectedRevision: 1,
         operations: [
-          { op: 'move', itemId: 'fx_act_omicho', toDayIndex: 0, toPosition: 0 },
-          { op: 'move', itemId: 'fx_act_higashi', toDayIndex: 0, toPosition: 1 },
+          { op: 'move', itemId: 'fx_act_kazue', toDayIndex: 0, toPosition: 0 },
+          { op: 'move', itemId: 'fx_act_oyama', toDayIndex: 0, toPosition: 1 },
         ],
       }),
     );
     const day0 = res.trip.days[0]?.items.map(i => (i.type === 'activity' ? i.activityId : i.legId));
-    expect(day0?.slice(0, 2)).toEqual(['fx_act_omicho', 'fx_act_higashi']);
-    expect(res.trip.days[1]?.items).toEqual([]);
+    expect(day0?.slice(0, 2)).toEqual(['fx_act_kazue', 'fx_act_oyama']);
+    const day1 = res.trip.days[1]?.items.map(i => (i.type === 'activity' ? i.activityId : i.legId));
+    expect(day1).not.toContain('fx_act_kazue');
+    expect(day1).not.toContain('fx_act_oyama');
+    expect(day1?.length).toBe(domesticTrip.days[1]!.items.length - 2);
     expect(res.diff.durationDeltaSeconds).toBeNull();
     expect(res.diff.knownCostDelta).toEqual([]);
     // Same unknown-cost items, listed in the new plan order (as main).
     expect([...res.diff.unknownCostItems].sort()).toEqual([...KANAZAWA_UNKNOWN].sort());
-    expect(res.diff.unknownCostItems.slice(0, 2)).toEqual(['fx_act_omicho', 'fx_act_higashi']);
+    expect(res.diff.unknownCostItems.slice(0, 2)).toEqual(['fx_act_kazue', 'fx_act_oyama']);
     expect(res.trip.validationState).toBe('needs_revalidation');
   });
 
@@ -469,12 +478,12 @@ describe('mock api: K10 patchTrip', () => {
       await api.patchTrip(id, {
         expectedRevision: 1,
         operations: [
-          { op: 'add', dayIndex: 1, position: 1, item: activityItem('mock_add_a', null) },
-          { op: 'add', dayIndex: 1, position: 2, item: activityItem('mock_add_b', 1500) },
+          { op: 'add', dayIndex: 1, position: 0, item: activityItem('mock_add_a', null) },
+          { op: 'add', dayIndex: 1, position: 1, item: activityItem('mock_add_b', 1500) },
         ],
       }),
     );
-    expect(added.diff.unknownCostItems).toEqual([...KANAZAWA_UNKNOWN, 'mock_add_a']);
+    expect(added.diff.unknownCostItems).toEqual(unknownWithAddedBeforeHigashi('mock_add_a'));
     expect(added.diff.knownCostDelta).toEqual([{ currency: 'JPY', amountMinor: 1500 }]);
     expect(added.diff.durationDeltaSeconds).toBeNull(); // the Kanazawa trip has an untimed leg
 
@@ -487,7 +496,7 @@ describe('mock api: K10 patchTrip', () => {
     // It was unknown before the update, so +800 would be a delta from 0 (R11): it is left out of the known
     // delta and only listed as unknown, as main does.
     expect(updated.diff.knownCostDelta).toEqual([]);
-    expect(updated.diff.unknownCostItems).toEqual([...KANAZAWA_UNKNOWN, 'mock_add_a']);
+    expect(updated.diff.unknownCostItems).toEqual(unknownWithAddedBeforeHigashi('mock_add_a'));
     expect(updated.trip.days[1]?.items.some(i => i.type === 'activity' && i.title === '更新後（fixture）')).toBe(true);
   });
 
@@ -520,10 +529,10 @@ describe('mock api: K10 patchTrip', () => {
     const api = createMockApi();
     const patch = (operations: never[]) => api.patchTrip(id, { expectedRevision: 1, operations });
     expect(errorCode(await patch([{ op: 'add', dayIndex: 9, position: 0, item: activityItem('x1', null) }] as never))).toBe('CONSTRAINT_UNSATISFIED');
-    expect(errorCode(await patch([{ op: 'add', dayIndex: 1, position: 9, item: activityItem('x2', null) }] as never))).toBe('CONSTRAINT_UNSATISFIED');
+    expect(errorCode(await patch([{ op: 'add', dayIndex: 1, position: 99, item: activityItem('x2', null) }] as never))).toBe('CONSTRAINT_UNSATISFIED');
     expect(errorCode(await patch([{ op: 'add', dayIndex: 1, position: 0, item: activityItem('fx_act_higashi', null) }] as never))).toBe('CONSTRAINT_UNSATISFIED');
     expect(errorCode(await patch([{ op: 'move', itemId: 'fx_act_higashi', toDayIndex: 5, toPosition: 0 }] as never))).toBe('CONSTRAINT_UNSATISFIED');
-    expect(errorCode(await patch([{ op: 'move', itemId: 'fx_act_higashi', toDayIndex: 1, toPosition: 9 }] as never))).toBe('CONSTRAINT_UNSATISFIED');
+    expect(errorCode(await patch([{ op: 'move', itemId: 'fx_act_higashi', toDayIndex: 1, toPosition: 99 }] as never))).toBe('CONSTRAINT_UNSATISFIED');
     expect(errorCode(await patch([{ op: 'update', itemId: 'fx_act_higashi', item: activityItem('other', null) }] as never))).toBe('CONSTRAINT_UNSATISFIED');
     expect(errorCode(await api.patchTrip('nope', { expectedRevision: 1, operations: [{ op: 'set_title', title: 'x' }] }))).toBe('NOT_FOUND');
     expect(errorCode(await patch([] as never))).toBe('VALIDATION_FAILED');

@@ -71,7 +71,7 @@ describe('shared server: success responses match the contract', () => {
     expect(patched.trip.title).toBe('renamed');
     expect(patched.diff.knownCostDelta).toEqual([]);
     // an itinerary change makes the trip needs_revalidation and adds a warning
-    const removed = expectOk('patch remove', await call(w.app, owner(), 'PATCH', `/api/v1/trips/${first.tripId}`, { expectedRevision: 2, operations: [{ op: 'remove', itemId: 'fx_act_omicho' }] }), 200, TripPatchResult);
+    const removed = expectOk('patch remove', await call(w.app, owner(), 'PATCH', `/api/v1/trips/${first.tripId}`, { expectedRevision: 2, operations: [{ op: 'remove', itemId: 'fx_act_lunch' }] }), 200, TripPatchResult);
     expect(removed.trip.validationState).toBe('needs_revalidation');
     expect(removed.warnings.length).toBeGreaterThan(first.warnings.length);
 

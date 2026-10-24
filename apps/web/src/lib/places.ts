@@ -14,12 +14,18 @@ export function itemPlaceIds(item: ItineraryItem): string[] {
   return [item.fromPlaceId, item.toPlaceId];
 }
 
-/** Places referenced by the day, numbered in order of first appearance. */
+/** A nested activity (parentActivityId): shown inside its parent, never as its own map point. */
+export function isChildItem(item: ItineraryItem): boolean {
+  return item.type === 'activity' && !!item.parentActivityId;
+}
+
+/** Places referenced by the day's top-level items, numbered in order of first appearance (children are not numbered). */
 export function numberPlaces(day: TripDay, places: PlaceInfo[]): NumberedPlace[] {
   const byId = new Map(places.map(p => [p.placeId, p]));
   const seen = new Set<string>();
   const out: NumberedPlace[] = [];
   for (const item of day.items) {
+    if (isChildItem(item)) continue;
     for (const id of itemPlaceIds(item)) {
       const place = byId.get(id);
       if (!place || seen.has(id)) continue;

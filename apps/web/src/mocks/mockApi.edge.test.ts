@@ -771,12 +771,12 @@ describe('mock api edge: unknown cost is never 0 (budgetUnknown)', () => {
 
   it('patch: updating an item whose old duration was unknown makes durationDeltaSeconds null, not a delta from 0', async () => {
     const a = createMockApi();
-    const leg3 = itemsOf(domesticTrip).find(i => idOf(i) === 'fx_leg_3');
-    if (leg3?.type !== 'leg') throw new Error('fx_leg_3 fixture missing');
-    expect(leg3.durationSeconds).toBeNull();
-    const timed = { ...leg3, arrival: { utc: '2026-11-01T04:30:00Z', timeZone: 'Asia/Tokyo' }, durationSeconds: 600 };
+    const leg1 = itemsOf(domesticTrip).find(i => idOf(i) === 'fx_leg_k1');
+    if (leg1?.type !== 'leg') throw new Error('fx_leg_k1 fixture missing');
+    expect(leg1.durationSeconds).toBeNull();
+    const timed = { ...leg1, arrival: { utc: '2026-11-01T00:25:00Z', timeZone: 'Asia/Tokyo' }, durationSeconds: 600 };
     const res = data(
-      await a.patchTrip(KANAZAWA, { expectedRevision: 1, operations: [{ op: 'update', itemId: 'fx_leg_3', item: timed }] }),
+      await a.patchTrip(KANAZAWA, { expectedRevision: 1, operations: [{ op: 'update', itemId: 'fx_leg_k1', item: timed }] }),
     );
     expect(res.diff.durationDeltaSeconds).toBeNull();
   });

@@ -116,10 +116,10 @@ describe('currency and money', () => {
   });
   it('a negative activity cost or leg fare is rejected inside a Trip', () => {
     const t = clone(domesticTrip);
-    (t.days[0]!.items[1] as Activity).cost = { amountMinor: -1, currency: 'JPY' };
+    (t.days[0]!.items[0] as Activity).cost = { amountMinor: -1, currency: 'JPY' };
     expect(ok(Trip, t)).toBe(false);
     const t2 = clone(domesticTrip);
-    const legItem = t2.days[0]!.items[0]!;
+    const legItem = t2.days[0]!.items[1]!;
     if (legItem.type !== 'leg') throw new Error('fixture changed');
     legItem.fare = { amountMinor: -200, currency: 'JPY' };
     expect(ok(Trip, t2)).toBe(false);
