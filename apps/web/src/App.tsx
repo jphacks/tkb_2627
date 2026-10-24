@@ -4,6 +4,8 @@ import { ConditionsApp } from './screens/conditions/ConditionsApp.tsx';
 import { GenerateApp } from './screens/generate/GenerateApp.tsx';
 import { ItineraryScreen } from './screens/itinerary/ItineraryScreen.tsx';
 import { parseItineraryHash } from './screens/itinerary/route.ts';
+import { PrintScreen } from './screens/print/PrintScreen.tsx';
+import { parsePrintHash } from './screens/print/route.ts';
 import { EditScreen } from './screens/edit/EditScreen.tsx';
 import { parseTripScreenHash } from './screens/edit/route.ts';
 import { GuideScreen } from './screens/guide/GuideScreen.tsx';
@@ -38,6 +40,9 @@ export function App() {
   // U04: #/trips/<id>/map (server) or #/mock/trips/<id>/map (mock). Reload refetches the trip by id.
   const itinerary = parseItineraryHash(hash);
   if (itinerary) return <ItineraryScreen key={`${itinerary.mode}:${itinerary.tripId}`} route={itinerary} onBack={() => { location.hash = ''; }} />;
+  // E01: #/trips/<id>/print (+ #/mock/... variant).
+  const print = parsePrintHash(hash);
+  if (print) return <PrintScreen key={`${print.mode}:${print.tripId}`} route={print} />;
   // U06: #/trips/<id>/edit and #/trips/<id>/travel (+ #/mock/... variants).
   const edit = parseTripScreenHash(hash, 'edit');
   if (edit) return <EditScreen key={`${edit.mode}:${edit.tripId}`} route={edit} />;

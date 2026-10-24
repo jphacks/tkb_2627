@@ -8,12 +8,32 @@ import { formatDuration } from '../../lib/format.ts';
 import type { ApiResult } from '../conditions/api.ts';
 import type { GenerateFlowApi } from './api.ts';
 import {
-  applyErrorMessage, buildApplyRequest, canRetry, freshIdempotencyKey, initialPoll, jobErrorMessage, nextDelayMs, pollReducer, shouldPoll,
+  aiReasonMessage, applyErrorMessage, buildApplyRequest, canRetry, createRetryKeys, DATA_MODE_LABEL, initialPoll, modeChipLabel, type ModeCapState, jobErrorMessage, nextDelayMs, pollReducer, shouldPoll,
   summarizeCandidate, type CandidateSummary, type PollState,
 } from './model.ts';
 import './generate.css';
 
 const errInfo = (e: ApiError, message: string) => ({ message, code: e.code, retryable: e.retryable, requestId: e.requestId });
+
+/** LIVE banner: real data mode + AI availability from /local/v1/capabilities (never claims live data while loading or on error). */
+export function LiveBanner({ state }: { state: ModeCapState }) {
+  const tag = state.status === 'done' ? (state.dataMode === 'live' ? 'LIVE' : state.dataMode === 'mixed' ? 'MIXED' : 'FIXTURE') : '確認中';
+  return (
+    <div role="status" className="u1-banner" style={{ background: 'var(--accbg)' }}>
+      <span className="u1-banner-tag" style={{ background: 'var(--acc)' }}>{tag}</span>
+      <span>
+        {state.status === 'done' ? `データ: ${DATA_MODE_LABEL[state.dataMode]}。` : `${modeChipLabel(state)}。`}
+        {state.status === 'done' && !state.ai.available && ` ${aiReasonMessage(state.ai.reason)}（生成は実行できません）`}
+        {state.status === 'done' && state.ai.available && '生成すると本人の生成ジョブが作られ、採用すると共有サーバーに旅程が保存されます。'}
+      </span>
+    </div>
+  );
+}
+
+/** Small data-mode chip shown on the progress and compare screens (live source only). */
+export function ModeChip({ state }: { state: ModeCapState }) {
+  return <p className="meta u5-mode">データ: {modeChipLabel(state)}</p>;
+}
 
 export interface ProgressViewProps {
   poll: PollState;
@@ -97,6 +117,7 @@ export function ProgressScreen({ api, accepted, request, onSucceeded, onRetried,
   const pollRef = useRef(poll);
   pollRef.current = poll;
   const jobId = accepted.jobId;
+  const retryKeys = useRef(createRetryKeys()).current;
 
   useEffect(() => {
     if (!shouldPoll(poll)) return undefined;
@@ -139,9 +160,10 @@ export function ProgressScreen({ api, accepted, request, onSucceeded, onRetried,
   const retry = async () => {
     setRetrying(true);
     setActionError(null);
-    const r = await api.generate(request, freshIdempotencyKey());
+    // Same key until a job id is obtained: a lost response + another press must not create a second job.
+    const r = await api.generate(request, retryKeys.acquire());
     setRetrying(false);
-    if (r.ok) onRetried(r.data);
+    if (r.ok) { retryKeys.done(); onRetried(r.data); }
     else setActionError(r.error);
   };
 

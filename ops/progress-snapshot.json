@@ -1,6 +1,6 @@
 {
   "repository": "jphacks/tkb_2627",
-  "fetchedAt": "2026-10-24T16:41:03.622Z",
+  "fetchedAt": "2026-10-24T17:13:34.148Z",
   "warnings": [],
   "tasks": {
     "B01": {
@@ -164,11 +164,12 @@
       }
     },
     "D08": {
-      "status": "todo",
+      "status": "review",
       "issue": {
         "number": 18,
         "url": "https://github.com/jphacks/tkb_2627/issues/18",
         "assignees": [
+          "KatTanaka",
           "ryoumatimati"
         ]
       }
@@ -284,7 +285,7 @@
       }
     },
     "A06": {
-      "status": "review",
+      "status": "done",
       "issue": {
         "number": 30,
         "url": "https://github.com/jphacks/tkb_2627/issues/30",
@@ -317,7 +318,7 @@
       }
     },
     "U05": {
-      "status": "doing",
+      "status": "review",
       "issue": {
         "number": 33,
         "url": "https://github.com/jphacks/tkb_2627/issues/33",
@@ -329,7 +330,7 @@
       }
     },
     "U06": {
-      "status": "doing",
+      "status": "review",
       "issue": {
         "number": 34,
         "url": "https://github.com/jphacks/tkb_2627/issues/34",
@@ -340,11 +341,12 @@
       }
     },
     "U07": {
-      "status": "todo",
+      "status": "doing",
       "issue": {
         "number": 35,
         "url": "https://github.com/jphacks/tkb_2627/issues/35",
         "assignees": [
+          "KatTanaka",
           "murataka-csl"
         ]
       }
@@ -361,11 +363,12 @@
       }
     },
     "E01": {
-      "status": "todo",
+      "status": "doing",
       "issue": {
         "number": 37,
         "url": "https://github.com/jphacks/tkb_2627/issues/37",
         "assignees": [
+          "KatTanaka",
           "murataka-csl"
         ]
       }
@@ -421,17 +424,18 @@
       }
     },
     "T02": {
-      "status": "todo",
+      "status": "done",
       "issue": {
         "number": 43,
         "url": "https://github.com/jphacks/tkb_2627/issues/43",
         "assignees": [
+          "KatTanaka",
           "ryoumatimati"
         ]
       }
     },
     "T03": {
-      "status": "review",
+      "status": "done",
       "issue": {
         "number": 44,
         "url": "https://github.com/jphacks/tkb_2627/issues/44",
@@ -461,7 +465,7 @@
       }
     },
     "I02": {
-      "status": "todo",
+      "status": "review",
       "issue": {
         "number": 47,
         "url": "https://github.com/jphacks/tkb_2627/issues/47",
@@ -471,17 +475,18 @@
       }
     },
     "I03": {
-      "status": "todo",
+      "status": "done",
       "issue": {
         "number": 48,
         "url": "https://github.com/jphacks/tkb_2627/issues/48",
         "assignees": [
+          "KatTanaka",
           "poyyk"
         ]
       }
     },
     "I04": {
-      "status": "todo",
+      "status": "done",
       "issue": {
         "number": 49,
         "url": "https://github.com/jphacks/tkb_2627/issues/49",
@@ -501,7 +506,7 @@
       }
     },
     "T05": {
-      "status": "review",
+      "status": "done",
       "issue": {
         "number": 51,
         "url": "https://github.com/jphacks/tkb_2627/issues/51",
