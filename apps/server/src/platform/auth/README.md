@@ -20,3 +20,14 @@ app.get('/api/v1/trips', { preHandler: app.authenticate }, async (req) => {
 - SameSite=Lax のため GET では状態変更しない（変更は POST/PUT/PATCH/DELETE のみ。CSRF検査の対象外になる）。
 - `/api/v1/` 配下のルートは `app.authenticate` が無いと起動時にエラー（公開は health / capabilities / auth/login のみ）。
 - 同一loginIdは15分5回、同一IPは15分50回の失敗で429（試行は検証前に計上し、成功時に取り消す＝並列試行で回避できない）。メモリ内（loginId単位とIP単位、15分で5回失敗→429）。Tunnel等でこの端末のプロキシ経由にする場合は `TRUST_PROXY=loopback` を設定する。`true` は X-Forwarded-For を偽装されIP制限を回避されるため禁止（設定は loopback のみ受理）。
+
+## 匿名閲覧を許すGETルート (S05)
+
+```ts
+// 有効なセッションがあれば req.actor が入り、無ければ匿名。401は返さない。
+app.get('/api/v1/posts', { preHandler: app.optionalAuthenticate }, async (req) => {
+  const actor = optionalActor(req); // ActorContext | null
+});
+```
+
+- `optionalAuthenticate` は `GET /api/v1/posts` と `GET /api/v1/posts/:id` だけに使える（他のメソッド・URLに付けると起動時にエラー。増やすときは auth/index.ts の `OPTIONAL_AUTH_ROUTES` をレビューして更新）。匿名に見せてよい範囲はルート側のSQLで必ず絞り、ログイン状態で応答が変わるため `Cache-Control: no-store` を付ける。

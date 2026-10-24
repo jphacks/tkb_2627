@@ -11,6 +11,7 @@ import {
 import { checkConnection, migrate, openDatabase, type Db } from '@tkb/db';
 import { registerAuth } from './auth/index.ts';
 import { registerGroups } from '../social/groups/index.ts';
+import { registerPosts } from '../social/posts/index.ts';
 import type { SharedConfig } from './config.ts';
 import { createStaticHandler, SECURITY_HEADERS } from './static.ts';
 
@@ -87,6 +88,7 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
 
   registerAuth(app, handle, config);
   registerGroups(app, handle, config);
+  registerPosts(app, handle);
 
   app.get('/api/v1/health', async (req, reply) => {
     if (!checkConnection(handle)) {

@@ -28,6 +28,8 @@ declare module 'fastify' {
   }
   interface FastifyInstance {
     authenticate: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    /** GET-only routes that anonymous users may call: sets req.actor when a valid session exists, never 401s. */
+    optionalAuthenticate: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
 }
 
@@ -35,6 +37,11 @@ declare module 'fastify' {
 export function requireActor(req: FastifyRequest): ActorContext {
   if (!req.actor) throw new Error('requireActor called on a route without the authenticate preHandler');
   return req.actor;
+}
+
+/** The signed-in user on a route using `optionalAuthenticate`, or null for anonymous. */
+export function optionalActor(req: FastifyRequest): ActorContext | null {
+  return req.actor ?? null;
 }
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -71,13 +78,22 @@ export function registerAuth(app: FastifyInstance, db: Db, config: SharedConfig)
 
   // Default deny: every /api/v1 route except these must run `authenticate`.
   const PUBLIC_ROUTES = new Set(['GET /api/v1/health', 'GET /api/v1/capabilities', 'POST /api/v1/auth/login']);
+  const OPTIONAL_AUTH_ROUTES = new Set(['/api/v1/posts', '/api/v1/posts/:id']);
   app.addHook('onRoute', (route) => {
     if (!route.url.startsWith('/api/v1/')) return;
     const methods = Array.isArray(route.method) ? route.method : [route.method];
     const hooks = [route.preHandler, route.onRequest].flat().filter(Boolean);
     const guarded = hooks.includes(app.authenticate);
+    const optional = hooks.includes(app.optionalAuthenticate);
     for (const m of methods) {
       if (m === 'HEAD' || m === 'OPTIONS') continue;
+      if (optional) {
+        // Anonymous access is read-only and limited to an explicit allow-list of URLs.
+        if (m !== 'GET' || !OPTIONAL_AUTH_ROUTES.has(route.url)) {
+          throw new Error(`route ${m} ${route.url} must not use optionalAuthenticate`);
+        }
+        continue;
+      }
       if (!guarded && !PUBLIC_ROUTES.has(`${m} ${route.url}`)) {
         throw new Error(`route ${m} ${route.url} must use app.authenticate (or be added to the public allowlist)`);
       }
@@ -125,6 +141,15 @@ export function registerAuth(app: FastifyInstance, db: Db, config: SharedConfig)
     }
     req.actor = { userId: user.id, displayName: user.displayName };
     req.sessionToken = token;
+  });
+
+  app.decorate('optionalAuthenticate', async (req: FastifyRequest) => {
+    const token = readToken(req);
+    const user = token ? findActiveSessionUser(db, sha256(token), nowIso()) : null;
+    if (token && user) {
+      req.actor = { userId: user.id, displayName: user.displayName };
+      req.sessionToken = token;
+    }
   });
 
   const GENERIC = 'Invalid loginId or password.';
