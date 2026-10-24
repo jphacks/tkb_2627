@@ -145,7 +145,7 @@ async function prefetch(ctx: PlanContext, plan: DayPlan, all: boolean): Promise<
   }
 }
 
-function warnFor(a: Activity, why: ExclusionReason | 'cascade'): { text: string; unknown: string } | null {
+export function warnFor(a: Activity, why: ExclusionReason | 'cascade'): { text: string; unknown: string } | null {
   const t = `「${a.title}」`;
   switch (why) {
     case 'travel_unknown': return { text: `${t}は移動時間が不明なため、時刻を決めていません。`, unknown: 'legs' };
@@ -210,7 +210,7 @@ function sequence(ctx: PlanContext, plan: DayPlan): DayBuild {
   return { items, warnings, unknown, excluded, travelSeconds, feasible: result.validation.feasible };
 }
 
-function uniqueLegIds(days: TripDay[], touched: Set<number>): TripDay[] {
+export function uniqueLegIds(days: TripDay[], touched: Set<number>): TripDay[] {
   const used = new Set<string>();
   for (const [i, d] of days.entries()) if (!touched.has(i)) for (const it of d.items) used.add(itemIdOf(it));
   return days.map((d, i) => {
@@ -236,7 +236,7 @@ const storableProv = (p: { mayStore: boolean; retainUntil: string | null } | nul
   p === null || (p.mayStore && (p.retainUntil === null || Date.parse(p.retainUntil) > nowMs));
 
 /** What may be written back: a leg whose provenance forbids storing keeps only its endpoints (D-1/D-2). */
-function storableTrip(trip: Trip, nowMs: number): { trip: Trip; stripped: boolean } {
+export function storableTrip(trip: Trip, nowMs: number): { trip: Trip; stripped: boolean } {
   let stripped = false;
   const days = trip.days.map(d => ({
     ...d,
@@ -284,7 +284,7 @@ const hasService = (l: TravelLeg) => l.lineName !== null || l.platform !== null 
  * B4: a leg that names a timetable service (line, platform, stops) is only valid at the time it was fetched for.
  * When its time would change, it keeps only the duration estimate: no departure/arrival, line, platform, stops or fare.
  */
-function reconcileServiceLegs(days: TripDay[], touched: Set<number>, baseLegs: Map<string, TravelLeg>): string[] {
+export function reconcileServiceLegs(days: TripDay[], touched: Set<number>, baseLegs: Map<string, TravelLeg>): string[] {
   const warnings: string[] = [];
   for (const di of touched) {
     days[di] = {
