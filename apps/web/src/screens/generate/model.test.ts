@@ -136,7 +136,7 @@ describe('candidate summary and apply body', () => {
     const withEmpty = summarizeCandidate({ ...batch.data.candidates[0]!, totalKnownCost: [], hasUnknownCost: true }, batch.data.places);
     expect(withEmpty.totals).toEqual([]);
     const ex = summarizeCandidate({ ...batch.data.candidates[0]!, excludedPlaceIds: [kanazawaPlaces[0]!.placeId, 'zz_unknown'] }, [kanazawaPlaces[0]!]);
-    expect(ex.excluded).toEqual([{ placeId: kanazawaPlaces[0]!.placeId, name: kanazawaPlaces[0]!.name }, { placeId: 'zz_unknown', name: null }]);
+    expect(ex.excluded).toEqual([{ placeId: kanazawaPlaces[0]!.placeId, name: kanazawaPlaces[0]!.name, reason: null }, { placeId: 'zz_unknown', name: null, reason: null }]);
   });
 
   it('invalid / needs_revalidation candidates are not adoptable', () => {

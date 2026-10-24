@@ -203,7 +203,7 @@ export function SummaryCard({ summary, index, busy, onAdopt }: {
       )}
       {s.excluded.length > 0 && (
         <details className="u1-details"><summary>除外された場所（{s.excluded.length}件）</summary>
-          <ul>{s.excluded.map(x => <li key={x.placeId}>{x.name ?? `${UNKNOWN_LABEL}の場所（${x.placeId}）`}</li>)}</ul>
+          <ul>{s.excluded.map(x => <li key={x.placeId}>{x.name ?? `${UNKNOWN_LABEL}の場所（${x.placeId}）`}<br /><span className="meta">理由: {x.reason ?? `${UNKNOWN_LABEL}（記録なし）`}</span></li>)}</ul>
         </details>
       )}
       <button type="button" className="btn u1-primary" disabled={busy || !s.adoptable} onClick={() => onAdopt(s.candidateId)}>

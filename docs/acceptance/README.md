@@ -18,9 +18,9 @@
 |---|---|---|
 | 合格 | 4 | R06, R07, R21, R26 |
 | 一部合格 | 11 | R02, R03, R05, R18, R19, R20, R22, R25, R27, R29, R30 |
-| fixtureのみ | 7 | R10, R12, R13, R15, R17, R23, R24 |
+| fixtureのみ | 8 | R04, R10, R12, R13, R15, R17, R23, R24 |
 | 人間のUI承認待ち | 7 | R01, R08, R09, R11, R14, R16, R28 |
-| 未実施 | 1 | R04 |
+| 未実施 | 0 | — |
 | 対象外 | 0 | — |
 | 計 | 30 | |
 
@@ -35,7 +35,7 @@
 | R01 旅行条件の入力（地域・日程・交通・予算・必須地点、不足の明示） | 人間のUI承認待ち | 画面 U03（#127、モック／live 両モード）。契約 K01 の検証は `tests/contracts/values.test.ts`、`apps/web/src/screens/conditions/` の試験。生成入力は e2e/generation（#136） | 人間の画面承認なし。画面から live 生成までの通し操作の記録なし |
 | R02 観光地と寄り道の推薦（実在候補・写真/出典付き・選択） | 一部合格 | live: Places Text/Nearby の名前・住所・座標・件数を確認（`docs/provider-probe.md` D01 の7回、D03 adapter 2回、T06 #143）。adapter は #98 | 営業時間・写真・説明は K05 の live 検索で返らない（T06 で4件とも null）。写真は D07（#144）の試験は fixture。選択操作の画面は承認待ち。Places の内容は保存・AI入力・転載不可が既定（`mayStore=false` 等） |
 | R03 訪問順序と経路の調整（検証・不成立を隠さない） | 一部合格 | 決定的な検証ロジック D06（#77）と試験 `tests/planner/schedule.test.ts`・`routes.test.ts`（#135）。近い予定の親子まとめと食事直後の食べ物の警告 `meal_after_meal`（D06 #161、`packages/planner/src/schedule/grouping.test.ts`）、生成での同じまとめ（A04 #164、`apps/ai-local/test/a04-grouping.test.ts`）、親子の入れ子の検証（K07、`apps/server/test/trips-nesting.test.ts`）。生成 e2e で取得不可地域は成功を装わず failed（#136、稚内の live 実行も同じ） | 営業時間の live 取得が入った状態の検証なし。親子まとめ・`meal_after_meal` は fixture の旅程での確認で、live の生成結果では未確認。国内公共交通は所要時間不明のまま時刻未定 |
-| R04 複数旅程の比較（両立しない希望で残す地点・除外理由が異なる案） | 未実施 | A04 の live 実行で候補3件（すべて needs_review、場所は fixture）を確認（`tests/e2e/generation/README.md`） | 「両立しない希望」を入れた比較、案ごとの除外理由の違いを確かめた記録がない。比較画面の記録もない |
+| R04 複数旅程の比較（両立しない希望で残す地点・除外理由が異なる案） | fixtureのみ | `apps/ai-local/test/a04-compare-r04.test.ts`（実 assemble・planner・D06。手書き blueprint 3案で、残す地点が3案とも異なり、案ごとに除外理由が別: 日程に収まらない／営業時間外、必須地点を落とした案は invalid、移動不明は時刻なしで不明のまま）。比較画面は除外地点ごとにその案の理由を表示（`render.test.tsx`）。A04 の live 実行で候補3件（場所は fixture）も確認（`tests/e2e/generation/README.md`） | blueprint は手書きで、実 Claude が両立しない希望から案を作った記録はない。比較画面の人間UI承認なし。理由は warnings の文として保存され、型付き理由コードは契約にない（`excludedPlaceIds` は ID のみ）。実データの営業時間は未確認 |
 | R05 公共交通の詳細（路線・乗降・時刻・乗換・運賃/ホーム、不明は未取得） | 一部合格 | live: パリは路線名・運賃・乗換回数・乗降駅が返る（D01、D04 adapter、T06 #143）。ホームは返らず null。国内は金沢駅→兼六園・金沢駅→東京駅とも経路0件（D01、#89）で `unsupported_region` として返す（#92、#113） | **国内の公共交通は取得不可**。国内は別 provider の判断が未決。確認した海外は1都市（パリ）、1区間ずつ。運賃は常に返るとは限らない |
 | R06 自動車の経路（別モード・区間経路と所要時間・旅程へ反映） | 合格 | live: 金沢・パリとも所要時間と距離を取得（D01、T06 #143 の国内車・海外車）。旅程への反映は A04 の mixed 実行で live Routes 6回（`docs/claude-connection-check.md`、#108） | 車の運賃・駅名は対象外。Routes の詳細区間は保存せず表示時に再取得（D-1）。画面表示は承認待ち |
 | R07 国内外の日時と通貨（IANA、日跨ぎ、夏時間、複数通貨、不明費用） | 合格 | 日時・通貨の計算 D05（#74）、`tests/planner/time.test.ts`・`money.test.ts`。ICS で夏時間終了日のパリの重複時刻を UTC で出力（e2e/guide-export、#148） | 外部データには依存しない検証。実際の運賃データを使った通貨換算は未確認（不明費用は 0 にせず null） |
