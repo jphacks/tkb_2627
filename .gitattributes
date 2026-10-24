@@ -1,0 +1,6 @@
+# Keep LF everywhere so Windows checkouts produce the same bytes (model hash, tests, scripts).
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.sqlite binary
+*.zip binary
