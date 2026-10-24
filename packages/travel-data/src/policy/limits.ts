@@ -24,7 +24,9 @@ export interface UsageLimits {
 }
 
 /**
- * Safe defaults, kept in code (M1 on #12): under the GCP quota of 100 per API per day (Places: 4 SKUs x 20 = 80; Routes: 2 x 20 = 40). The environment can only
+ * Safe defaults, kept in code (M1 on #12; Routes raised on 2026-10-25 by M1 with the user's approval). The GCP quota is NOT a
+ * hard stop (Routes is unlimited there), so these are the only cap: Places 4 SKUs x 20 = 80/day (assumed budget 100),
+ * Routes 2 x 60 = 120/day (assumed budget 200; Essentials free tier 10,000/month). The environment can only
  * lower them; a larger value is refused so a typo cannot raise spending.
  */
 export const SAFE_DEFAULT_LIMITS: UsageLimits = {
@@ -33,8 +35,8 @@ export const SAFE_DEFAULT_LIMITS: UsageLimits = {
     [SKU.placesTextSearchEnterprise]: 20,
     [SKU.placesNearbyPro]: 20,
     [SKU.placesNearbyEnterprise]: 20,
-    [SKU.routesDrive]: 20,
-    [SKU.routesTransit]: 20,
+    [SKU.routesDrive]: 60,
+    [SKU.routesTransit]: 60,
   },
   maxCallsPerInput: 8,
   maxConcurrent: 2,
@@ -63,10 +65,11 @@ function lowered(env: Readonly<Record<string, string | undefined>>, name: string
  */
 export function usageLimitsFromEnv(env: Readonly<Record<string, string | undefined>> = process.env): UsageLimits {
   const d = SAFE_DEFAULT_LIMITS;
-  // One daily value for every SKU, capped at the smallest default so no SKU is raised.
-  const dailyMax = Math.min(...Object.values(d.dailyPerSku));
-  const daily = lowered(env, LIMIT_ENV.daily, dailyMax, 0);
-  const dailyPerSku = Object.fromEntries(Object.entries(d.dailyPerSku).map(([sku, max]) => [sku, Math.min(max, daily)])) as Record<Sku, number>;
+  // One optional daily value for every SKU. Each SKU takes the smaller of it and its own default, so no SKU is raised;
+  // a value above the largest default is refused. Unset keeps every SKU at its own default.
+  const dailyMax = Math.max(...Object.values(d.dailyPerSku));
+  const daily = env[LIMIT_ENV.daily]?.trim() ? lowered(env, LIMIT_ENV.daily, dailyMax, 0) : null;
+  const dailyPerSku = Object.fromEntries(Object.entries(d.dailyPerSku).map(([sku, max]) => [sku, daily === null ? max : Math.min(max, daily)])) as Record<Sku, number>;
   return {
     dailyPerSku,
     maxCallsPerInput: lowered(env, LIMIT_ENV.perInput, d.maxCallsPerInput, 0),
