@@ -84,7 +84,7 @@
 
 権限：PC所有者の未改変公式Claude Code認証
 
-入力：GenerationInput：旅行条件、利用許諾済みの事実、候補ID、固定予定、出力Schema。任意shellコマンドは含めない。
+入力：GenerationInput：旅行条件、利用許諾済みの事実、候補ID、固定予定、出力Schema。任意shellコマンドは含めない。CLI引数は固定配列：-p、--output-format json、--json-schema <PlanBlueprint>、--tools ""、--strict-mcp-config、--no-session-persistence、--model <CLAUDE_MODEL>。promptはstdin。
 
 戻り値：CLI envelope内のstructured_outputをSchema検証したPlanBlueprint。自然文をそのままTripとして保存しない。
 
@@ -167,20 +167,29 @@
 
 権限：本人のアプリ利用者セッション
 
-入力：旅行条件、候補範囲、対象地点ID、移動モード。上限付き。
+入力：PlanningContextRequest：area、transportMode、maxPlaces（1〜30、既定8）、placeIds?（30件まで）、timeZone?（IANA。地点検索に必要）、legs?（RouteQuery：fromPlaceId・toPlaceId・departureUtc・mode=transit|car|walk、8件まで）。timeZoneとlegsはschemaVersion 1のままの互換追加。
 
-戻り値：PlanningContext：候補、移動情報、出典、取得時刻、利用許諾、unknown値。
+戻り値：200 PlanningContext：places（PlaceInfo）、legs（TravelLeg）、unknown（取得できなかった項目名）、dataMode。DBへ保存せず、cache-control: no-store。
 
-失敗：401／422／429外部利用上限／503データ取得不可
+失敗：401／422 VALIDATION_FAILED（不正な要求）／422 PROVIDER_UNSUPPORTED_REGION／429 RATE_LIMITED（利用者ごとの上限：同時1件、1日PLANNING_CONTEXT_DAILY_PER_USER件。同時実行中だけretryable）／429 PROVIDER_RATE_LIMIT（外部APIのTRAVEL_*上限）／503 PROVIDER_UNAVAILABLE／接続切断時は処理を中止して応答しない
 
-実際の外部データをAIへ渡せるかは情報源別に判定。禁止・不明ならその値を除外し、生成後のプログラム照合だけに使う。
+実際の外部データをAIへ渡せるかは情報源別に判定。禁止・不明ならその値を除外し、生成後のプログラム照合だけに使う。要求内容はログに残さない。Googleの地点内容は保存もモデル入力もしない（place_idだけ。#11/#28 D-2）。
 
 入力例：
 ```json
 {
   "area": "金沢",
-  "transportMode": "transit",
-  "maxPlaces": 8
+  "transportMode": "car",
+  "maxPlaces": 8,
+  "timeZone": "Asia/Tokyo",
+  "legs": [
+    {
+      "fromPlaceId": "fx_kanazawa_station",
+      "toPlaceId": "fx_kenrokuen",
+      "departureUtc": "2026-11-01T00:00:00Z",
+      "mode": "car"
+    }
+  ]
 }
 ```
 戻り例：
@@ -188,9 +197,27 @@
 {
   "places": [
     {
-      "ref": "user-place-a",
-      "source": "fixture",
-      "maySendToModel": true
+      "placeId": "fx_kanazawa_station",
+      "name": "金沢駅",
+      "kind": "station",
+      "location": {
+        "lat": 36.578,
+        "lng": 136.648
+      },
+      "timeZone": "Asia/Tokyo",
+      "openingHours": null,
+      "description": null,
+      "photo": null,
+      "dataStatus": "fixture",
+      "provenance": {
+        "source": "fixture",
+        "fetchedAt": null,
+        "attribution": "tkb_2627 fixture",
+        "maySendToModel": true,
+        "mayStore": true,
+        "mayExport": true,
+        "retainUntil": null
+      }
     }
   ],
   "legs": [],
@@ -244,9 +271,9 @@
 
 戻り値：201 PlanBatchCreated（batchId、candidateIds、validationState）。同じgenerationIdで同じ内容の再送は200で同じ応答。GET /{id}は200 PlanBatch。保持期限切れのbatchは410。全候補の保存先は共通DB。
 
-失敗：401／404 NOT_FOUND（他人・不存在は同じ。GET ?generationId=も同様）／409 IDEMPOTENCY_CONFLICT（同じgenerationIdで内容違い）または409 REVISION_CONFLICT（元旅程の版が違う）／410 EXPIRED（期限切れbatchのGET）／422 VALIDATION_FAILED（不正候補）・422 RESTRICTED_ASSET（保存してはならないデータ）
+失敗：401／404 NOT_FOUND（他人・不存在は同じ。GET ?generationId=も同様）／409 IDEMPOTENCY_CONFLICT（同じgenerationIdで内容違い）または409 REVISION_CONFLICT（元旅程の版が違う）／410 EXPIRED（期限切れbatchのGET）／422 VALIDATION_FAILED（不正候補、またはcandidatesが参照する地点IDがplacesにない）・422 RESTRICTED_ASSET（保存してはならないデータ）
 
-サーバーでも型・所有権・データ保持条件を検証。クライアントが付けた「Claude生成」等のラベルを権限の証拠にしない。保存時の候補のvalidationStateはneeds_review以上に補正する（クライアントのvalidは信用しない）。再送の判定は、期限・元旅程の検査より先に行う。GET ?generationId=は再起動後の二重保存防止に使い、cache-control: no-storeで返す。
+サーバーでも型・所有権・データ保持条件を検証。クライアントが付けた「Claude生成」等のラベルを権限の証拠にしない。保存時の候補のvalidationStateはneeds_review以上に補正する（クライアントのvalidは信用しない）。再送の判定は、期限・元旅程の検査より先に行う。GET ?generationId=は再起動後の二重保存防止に使い、cache-control: no-storeで返す。Routes由来の区間はdurationSeconds・fare・lineName・platform・transfersをnullで保存し（K07はGoogle由来の区間・地点にこれらの値があれば422 RESTRICTED_ASSET）、「表示時に再取得」の警告を付ける（#28 D-1）。予定の開始・終了時刻は保存してよい。
 
 入力例：
 ```json
@@ -1070,7 +1097,7 @@ AbortSignalとプロセス終了を伝達。保存直前にも取消確認。保
 
 入力：認証状態と実行場所。
 
-戻り値：aiGeneration.availableとreason、storage、dataMode、schemaVersion。
+戻り値：aiGeneration.available・runner（none|fake|claude-code）・reason（SHARED_ENTRY_NO_PERSONAL_CLAUDE／CLAUDE_EXECUTION_DISABLED／CLI_NOT_FOUND／CLI_NOT_AUTHENTICATED／TERMS_NOT_CONFIRMED、利用可能ならnull）、storage、dataMode（実際のPROVIDER_MODE）、schemaVersion。
 
 失敗：503依存停止
 
@@ -1137,7 +1164,7 @@ AbortSignalとプロセス終了を伝達。保存直前にも取消確認。保
 
 ## 動作状態
 job: queued→running→succeeded/failed/cancelled。succeededは候補の共通DB保存が完了してbatchIdを取得した状態。採用済みTripの意味ではない。候補採用は別操作。
-初期負荷制限は同時1・待機8・全体300秒・CLI120秒・修復1回。初期設計値で性能保証ではない。ローカルApp Server再起動で途中jobは失敗。共有DBに候補保存済みならoperation keyから結果を確認し、重複保存を防ぐ。
+初期負荷制限は同時1・待機8・全体300秒・CLI120秒。形式修復（INVALID_OUTPUT時の再実行1回）は未実装：Pro利用量が倍になるため、A04では実装せずINVALID_OUTPUTで失敗させる（#106）。初期設計値で性能保証ではない。ローカルApp Server再起動で途中jobは失敗。共有DBに候補保存済みならoperation keyから結果を確認し、重複保存を防ぐ。
 
 ## 実装で確定した事項（2026-10-24、M1）
 契約の本文は上の各Kのとおりです。この節では、実装で細かく決めた点と、Kに無い補助ルートを記録します。
@@ -1177,3 +1204,10 @@ job: queued→running→succeeded/failed/cancelled。succeededは候補の共通
   - 応答はすべて`no-store`です。
 - **K17**：招待tokenはURLのフラグメント（`/invite#<token>`）に入れます。除外された利用者宛ての未使用の招待は、除外と同時に無効にします。
 - **共有入口の公開（O01）**：`/local/*`は、共有入口では大文字小文字やエンコードの違いを含めて常に404です。共有サーバーは子プロセスを起動しません。
+- **A04の生成（#106、#108）**：
+  - K05はDBへ保存せず、要求内容をログに残しません。利用者ごとの上限（同時1件、1日`PLANNING_CONTEXT_DAILY_PER_USER`件）は429 RATE_LIMITED、外部APIの上限は429 PROVIDER_RATE_LIMITで、両者を区別します。
+  - K07は、候補が参照する地点IDが`places`にないbatchを422 VALIDATION_FAILEDで拒否します。K07へPOSTするのは本人用App Serverだけで、Webはbatchを読むだけ（GET）なので、Webの画面とmockには影響しません。
+  - 形式修復（INVALID_OUTPUT時の再実行1回）は実装していません。Pro利用量が倍になるためです（「動作状態」参照）。
+  - 既知の制約（reviewer O3）：liveモードでは2回目のK05で地点検索をもう一度行うため、呼出し回数に余裕がありません。デモはmixedで行います。
+  - 既知の制約（reviewer O7）：時刻のない立ち寄り先は、1日にまとめて配置されます。
+  - 既知の差：本人用App Serverのcapabilitiesは`dataMode=fixture`を固定で返します（A05で修正予定）。

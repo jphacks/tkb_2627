@@ -134,7 +134,7 @@ HTTPS共有URLから利用。第三者のClaude生成をホストのProへ中継
 入力：validated request
 出力：jobId / state / batchId
 担当：M4。予定path：apps/ai-local/src/jobs/
-再起動時の未完了ジョブはWORKER_RESTARTED。旅程候補は共有DBに保存後のみ成功とする。
+再起動時の未完了ジョブはWORKER_RESTARTED。旅程候補は共有DBに保存後のみ成功とする。生成パイプライン（K05取得→Claude→planner検証→K07保存）はapps/ai-local/src/generation/。runner（fake／claude-code）の選択と実行可否のgateはapp.ts。
 
 ### shared-client / 共有APIクライアント
 種類：Component。技術：HTTP client / app session。親：personal
@@ -174,6 +174,7 @@ AIが候補順を生成し、プログラムが制約を検証。運賃やホー
 入力：Trip / batch / expectedRevision
 出力：tripId + revision / conflict
 担当：M4。予定path：apps/server/src/trips/
+生成用の旅行情報取得（K05）はapps/server/src/trips/generation/。
 
 
 ### social / SNS投稿API

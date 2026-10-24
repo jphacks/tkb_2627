@@ -129,6 +129,12 @@ M1 が #14 で承認した「D03・D04 で4回まで」のうち2回を使いま
 | PDF・ICS・SNS に転載してよいか | 同上＋Places API Policies | **未確認**。既定は `mayExport=false`。E03（ICS・Maps URL）は `mayExport=false` を除外済み。PDF と SNS は別のタスク |
 | Routes の結果を Google 以外の地図に描いてよいか | Routes API Policies | 未確認 |
 
+## A04 での適用（#28 の D-1・D-2、2026-10-24、M1）
+
+- **D-1（Routes の結果）**：live Routes の所要時間から計算した予定の開始・終了時刻は、利用者の旅程として batch に保存してよい。Routes から取得した区間の詳細（`durationSeconds`・`fare`・`lineName`・`platform`・`transit`）は保存せず `null` にし、その区間に「移動情報は表示時に再取得」の警告を付ける。K07 は、Google 由来の区間に `durationSeconds`・`fare`・`lineName`・`platform`・`transfers` のどれか、または Google 由来の地点に `location`・`openingHours`・`description`・`photo` のどれかが入っていれば、422 RESTRICTED_ASSET で拒否する（`apps/server/src/trips/generation/verify-batch.ts`）。規約（Service Specific Terms）を確認できたら見直す。
+- **D-2（Google の地点内容）**：名前・座標・営業時間は、保存もモデル入力もしない（上の既定のまま）。保存してよいのは `place_id` だけ。モデルには利用者の入力、`place_id`、プログラムが計算した事実だけを渡す。純粋な live モードで地点の情報が足りない場合は、成功を装わず警告付きの `needs_review` にする。
+- **デモ**：`PROVIDER_MODE=mixed`（地点は fixture、経路は live Routes）。1ジョブの live Routes 呼出しは `AI_MAX_LIVE_LEGS`（最大6）まで。実機確認（2026-10-24、M4）では Routes 6回・Places 0回だった（docs/claude-connection-check.md）。
+
 ## 次の担当への引継ぎ
 
 - D02（呼出し上限と保存可否の分類）：上の既定値（`place_id` だけ保存してよい、それ以外は false）で着手できます。M1 の判断で変わる部分は、設定で切り替えられるようにします。
