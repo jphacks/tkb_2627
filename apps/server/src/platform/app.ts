@@ -13,6 +13,7 @@ import { registerAuth } from './auth/index.ts';
 import { registerGroups } from '../social/groups/index.ts';
 import { registerCopy } from '../social/copy/index.ts';
 import { registerPosts } from '../social/posts/index.ts';
+import { registerTrips } from '../trips/index.ts';
 import type { SharedConfig } from './config.ts';
 import { createStaticHandler, SECURITY_HEADERS } from './static.ts';
 
@@ -90,6 +91,7 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
   registerAuth(app, handle, config);
   registerGroups(app, handle, config);
   registerPosts(app, handle);
+  registerTrips(app, handle, config);
   registerCopy(app, handle);
 
   app.get('/api/v1/health', async (req, reply) => {
