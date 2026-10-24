@@ -6,6 +6,7 @@ import {
   JobStatus,
   Money,
   NonNegativeMoney,
+  PlanBatchCreate,
   PlanBlueprint,
   PostPatchRequest,
   PostPreviewRequest,
@@ -122,5 +123,14 @@ describe('reviewer findings (bootstrap PR)', () => {
   });
   it('null cost is marked unknown in fixtures', () => {
     for (const d of trip.days) for (const i of d.items) if (i.type === 'activity' && i.cost === null) expect(i.costStatus).toBe('unknown');
+  });
+});
+
+describe('PlanBatchCreate constraints (K07)', () => {
+  const base = { schemaVersion: 1, baseTripId: null, baseRevision: null, generationId: 'g1', candidates: [{ candidateId: 'c1', title: 't', days: [], reasons: [], warnings: [], excludedPlaceIds: [], totalKnownCost: [], hasUnknownCost: false, validationState: 'needs_review' }], places: [] };
+  it('constraints is optional and validated when present', () => {
+    expect(PlanBatchCreate.safeParse(base).success).toBe(true);
+    expect(PlanBatchCreate.safeParse({ ...base, constraints }).success).toBe(true);
+    expect(PlanBatchCreate.safeParse({ ...base, constraints: { area: 'x' } }).success).toBe(false);
   });
 });

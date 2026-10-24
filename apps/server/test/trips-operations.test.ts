@@ -46,6 +46,8 @@ describe('applyOperations', () => {
     expect(run([{ op: 'add', dayIndex: 0, position: 0, item: act('a1', 5, 1) as never }]).ok).toBe(false);
     expect(run([{ op: 'update', itemId: 'a1', item: act('zz', 5, 1) as never }]).ok).toBe(false);
     expect(run([{ op: 'move', itemId: 'a1', toDayIndex: 0, toPosition: 9 }]).ok).toBe(false);
+    const ghost = { ...act('a7', 5, 1), placeId: 'ghost' };
+    expect(run([{ op: 'add', dayIndex: 0, position: 0, item: ghost as never }])).toMatchObject({ ok: false, reason: 'unknown placeId' });
   });
 });
 
@@ -62,6 +64,8 @@ describe('computeDiff', () => {
     const d = computeDiff(trip, trip);
     expect(d.knownCostDelta).toEqual([]);
     expect(d.durationDeltaSeconds).toBe(0);
+    const noTimes = { ...trip, days: [{ ...trip.days[0]!, items: [{ ...act('z', 1, 1), start: null, end: null } as never] }] };
+    expect(computeDiff(trip, noTimes).durationDeltaSeconds).toBeNull();
     const bare = { ...trip, days: [{ ...trip.days[0]!, items: [] }] };
     expect(computeDiff(bare, bare).durationDeltaSeconds).toBeNull();
   });

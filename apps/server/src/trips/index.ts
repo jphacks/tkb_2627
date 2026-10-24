@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   ApiError,
@@ -16,7 +16,8 @@ import {
   TripSummary,
   TripWriteResult,
   type ErrorCode,
-  type TripConstraints,
+  TripConstraints,
+  type ItineraryItem,
   type ValidationState,
 } from '@tkb/contracts';
 import { getTripForOwner, insertTrip, transaction, updateTripWithRevision, type Db } from '@tkb/db';
@@ -54,55 +55,56 @@ interface BatchRow {
   created_at: string;
 }
 
+interface Prov {
+  mayStore: boolean;
+  retainUntil: string | null;
+}
+/** Retention rule shared by K07 save, K08 apply, K10 edit and batch reads. */
+export function storable(prov: Prov, nowMs: number): boolean {
+  if (!prov.mayStore) return false;
+  return prov.retainUntil === null || Date.parse(prov.retainUntil) > nowMs;
+}
+
+function legProvenances(days: { items: ItineraryItem[] }[]): Prov[] {
+  const out: Prov[] = [];
+  for (const d of days) for (const it of d.items) if (it.type === 'leg' && it.provenance) out.push(it.provenance);
+  return out;
+}
+
+function batchStorable(places: { provenance: Prov }[], candidates: PlanCandidate[], nowMs: number): boolean {
+  return (
+    places.every((p) => storable(p.provenance, nowMs)) &&
+    candidates.every((c) => legProvenances(c.days).every((p) => storable(p, nowMs)))
+  );
+}
+
 function loadBatch(db: Db, batchId: string, ownerId: string) {
   const row = db
     .prepare('SELECT * FROM plan_batches WHERE id = ? AND owner_id = ?')
     .get(batchId, ownerId) as BatchRow | undefined;
   if (!row) return null;
+  const stored = JSON.parse(row.places_json) as unknown;
+  // places_json holds {places, constraints?}; a bare array (older rows) is accepted too.
+  const wrapped = Array.isArray(stored) ? { places: stored } : (stored as { places: unknown; constraints?: unknown });
+  const constraints = wrapped.constraints === undefined ? null : TripConstraints.parse(wrapped.constraints);
   return {
     row,
+    constraints,
     batch: PlanBatch.parse({
       batchId: row.id,
       baseTripId: row.base_trip_id,
       baseRevision: row.base_revision,
       candidates: JSON.parse(row.candidates_json),
-      places: JSON.parse(row.places_json),
+      places: wrapped.places,
       createdAt: row.created_at,
     }),
   };
 }
 
-/** Server-side re-check: a client "valid" is downgraded when structure is inconsistent. */
-function reviewCandidate(c: PlanCandidate, placeIds: Set<string>): ValidationState {
+/** Server-side re-check. A client "valid" is never trusted: the stored state is capped at needs_review. */
+function reviewCandidate(c: PlanCandidate): ValidationState {
   if (c.validationState !== 'valid') return c.validationState;
-  const seen = new Set<string>();
-  for (const day of c.days) {
-    for (const it of day.items) {
-      const id = it.type === 'activity' ? it.activityId : it.legId;
-      if (seen.has(id)) return 'needs_review';
-      seen.add(id);
-      const refs = it.type === 'activity' ? [it.placeId] : [it.fromPlaceId, it.toPlaceId];
-      if (refs.some((r) => r !== null && !placeIds.has(r))) return 'needs_review';
-      if (it.type === 'activity' && it.start && it.end && it.end.utc < it.start.utc) return 'needs_review';
-    }
-  }
-  return 'valid';
-}
-
-function constraintsFor(c: PlanCandidate, base: Trip | null): TripConstraints | null {
-  if (base) return base.constraints;
-  const first = c.days[0];
-  const last = c.days[c.days.length - 1];
-  if (!first || !last) return null;
-  const legs = c.days.flatMap((d) => d.items).filter((i) => i.type === 'leg');
-  // Candidates carry no constraints (contract gap): derive the minimum and never invent a budget.
-  return {
-    area: c.title.slice(0, 200) || 'unknown',
-    startDate: first.date,
-    endDate: last.date < first.date ? first.date : last.date,
-    timeZone: first.timeZone,
-    transportMode: legs.some((l) => l.mode === 'car') ? 'car' : 'transit',
-  };
+  return 'needs_review';
 }
 
 function parseListQuery(q: unknown): { limit: number; cursor?: string } | null {
@@ -137,8 +139,36 @@ export function registerTrips(app: FastifyInstance, db: Db, _config: SharedConfi
     const ids = input.candidates.map((c) => c.candidateId);
     if (new Set(ids).size !== ids.length) return fail(reply, req.id, 'VALIDATION_FAILED', 'Duplicate candidateId.');
     const now = nowIso();
-    if (input.places.some((p) => !p.provenance.mayStore || (p.provenance.retainUntil !== null && p.provenance.retainUntil < now))) {
-      return fail(reply, req.id, 'RESTRICTED_ASSET', 'A place may not be stored.');
+    const candidates = input.candidates.map((c) => ({ ...c, validationState: reviewCandidate(c) }));
+    const state = worst(candidates.map((c) => c.validationState));
+    const candidatesJson = JSON.stringify(candidates);
+    const placesJson = JSON.stringify({ places: input.places, ...(input.constraints ? { constraints: input.constraints } : {}) });
+
+    type Outcome = { status: 200 | 201; created: PlanBatchCreated } | 'CONFLICT';
+    // Idempotent replay of (owner, generationId) is decided before any base/retention check.
+    const replay = (): Outcome | null => {
+      const prev = db
+        .prepare('SELECT * FROM plan_batches WHERE owner_id = ? AND generation_id = ?')
+        .get(userId, input.generationId) as BatchRow | undefined;
+      if (!prev) return null;
+      const same =
+        prev.candidates_json === candidatesJson &&
+        prev.places_json === placesJson &&
+        prev.base_trip_id === input.baseTripId &&
+        prev.base_revision === input.baseRevision;
+      if (!same) return 'CONFLICT';
+      const pc = JSON.parse(prev.candidates_json) as PlanCandidate[];
+      return {
+        status: 200,
+        created: { batchId: prev.id, candidateIds: pc.map((c) => c.candidateId), validationState: worst(pc.map((c) => c.validationState)) },
+      };
+    };
+    const early = replay();
+    if (early === 'CONFLICT') return fail(reply, req.id, 'IDEMPOTENCY_CONFLICT', 'generationId already used with different content.');
+    if (early) return reply.status(early.status).send(PlanBatchCreated.parse(early.created));
+
+    if (!batchStorable(input.places, input.candidates, Date.parse(now))) {
+      return fail(reply, req.id, 'RESTRICTED_ASSET', 'Data may not be stored.');
     }
     if (input.baseTripId !== null) {
       const base = getTripForOwner(db, input.baseTripId, userId);
@@ -152,30 +182,10 @@ export function registerTrips(app: FastifyInstance, db: Db, _config: SharedConfi
     } else if (input.baseRevision !== null) {
       return fail(reply, req.id, 'VALIDATION_FAILED', 'Invalid request.');
     }
-    const placeIds = new Set(input.places.map((p) => p.placeId));
-    const candidates = input.candidates.map((c) => ({ ...c, validationState: reviewCandidate(c, placeIds) }));
-    const state = worst(candidates.map((c) => c.validationState));
-    const candidatesJson = JSON.stringify(candidates);
-    const placesJson = JSON.stringify(input.places);
 
-    type Outcome = { status: 200 | 201; created: PlanBatchCreated } | 'CONFLICT';
     const out = transaction(db, (): Outcome => {
-      const prev = db
-        .prepare('SELECT * FROM plan_batches WHERE owner_id = ? AND generation_id = ?')
-        .get(userId, input.generationId) as BatchRow | undefined;
-      if (prev) {
-        const same =
-          prev.candidates_json === candidatesJson &&
-          prev.places_json === placesJson &&
-          prev.base_trip_id === input.baseTripId &&
-          prev.base_revision === input.baseRevision;
-        if (!same) return 'CONFLICT';
-        const pc = JSON.parse(prev.candidates_json) as PlanCandidate[];
-        return {
-          status: 200,
-          created: { batchId: prev.id, candidateIds: pc.map((c) => c.candidateId), validationState: worst(pc.map((c) => c.validationState)) },
-        };
-      }
+      const again = replay();
+      if (again) return again;
       const batchId = randomUUID();
       db.prepare(
         `INSERT INTO plan_batches (id, owner_id, base_trip_id, base_revision, generation_id, schema_version,
@@ -192,6 +202,9 @@ export function registerTrips(app: FastifyInstance, db: Db, _config: SharedConfi
     const id = Id.safeParse((req.params as { id: string }).id);
     const found = id.success ? loadBatch(db, id.data, userId) : null;
     if (!found) return fail(reply, req.id, 'NOT_FOUND', 'Not found.');
+    if (!batchStorable(found.batch.places, found.batch.candidates, Date.now())) {
+      return fail(reply, req.id, 'EXPIRED', 'Batch data has expired.');
+    }
     return found.batch;
   });
 
@@ -209,7 +222,11 @@ export function registerTrips(app: FastifyInstance, db: Db, _config: SharedConfi
       return fail(reply, req.id, 'CONSTRAINT_UNSATISFIED', 'Candidate has not been validated.');
     }
     const now = nowIso();
+    if (!batchStorable(batch.places, [cand], Date.parse(now))) {
+      return fail(reply, req.id, 'RESTRICTED_ASSET', 'Data may no longer be stored.');
+    }
     let existing: Trip | null = null;
+    let newTripId: string | null = null;
     if (r.tripId !== null) {
       existing = getTripForOwner(db, r.tripId, userId);
       if (!existing) return fail(reply, req.id, 'NOT_FOUND', 'Not found.');
@@ -217,17 +234,32 @@ export function registerTrips(app: FastifyInstance, db: Db, _config: SharedConfi
       if (batch.baseTripId !== null && batch.baseTripId !== r.tripId) {
         return fail(reply, req.id, 'VALIDATION_FAILED', 'Candidate was not generated for this trip.');
       }
-    } else if (r.expectedRevision !== null) {
-      return fail(reply, req.id, 'VALIDATION_FAILED', 'Invalid request.');
+      if (batch.baseRevision !== null && existing.revision !== batch.baseRevision) {
+        return fail(reply, req.id, 'REVISION_CONFLICT', 'Trip changed since the candidate was generated.', false, {
+          expectedRevision: batch.baseRevision,
+          currentRevision: existing.revision,
+        });
+      }
+    } else {
+      if (r.expectedRevision !== null) return fail(reply, req.id, 'VALIDATION_FAILED', 'Invalid request.');
+      // Deterministic id: applying the same candidate twice yields the same trip.
+      newTripId = 't_' + createHash('sha256').update(`${userId}|${r.batchId}|${r.candidateId}`).digest('base64url').slice(0, 32);
+      const prior = getTripForOwner(db, newTripId, userId);
+      if (prior) {
+        return TripWriteResult.parse({ tripId: prior.tripId, revision: prior.revision, trip: prior, warnings: prior.warnings });
+      }
+      const anyRow = db.prepare('SELECT 1 FROM trips WHERE id = ?').get(newTripId);
+      if (anyRow) return fail(reply, req.id, 'ALREADY_COMMITTED', 'This candidate was already applied and the trip was deleted.');
     }
     const base = existing ?? (batch.baseTripId ? getTripForOwner(db, batch.baseTripId, userId) : null);
-    const constraints = constraintsFor(cand, base);
-    if (!constraints) return fail(reply, req.id, 'CONSTRAINT_UNSATISFIED', 'Candidate has no days.');
+    const constraints = base ? base.constraints : found.constraints;
+    if (!constraints) return fail(reply, req.id, 'CONSTRAINT_UNSATISFIED', 'Batch has no trip constraints.');
+    const title = cand.title.trim() ? cand.title.slice(0, 200) : constraints.area;
     const doc = {
       schemaVersion: 1 as const,
-      tripId: existing?.tripId ?? randomUUID(),
+      tripId: existing?.tripId ?? newTripId!,
       ownerId: userId,
-      title: cand.title.slice(0, 200) || 'Untitled',
+      title,
       revision: 1,
       constraints,
       days: cand.days,
@@ -326,6 +358,12 @@ export function registerTrips(app: FastifyInstance, db: Db, _config: SharedConfi
         currentRevision: current,
       });
     if (trip.revision !== body.data.expectedRevision) return conflict(trip.revision);
+    const nowMs = Date.now();
+    for (const op of body.data.operations) {
+      if ((op.op === 'add' || op.op === 'update') && op.item.type === 'leg' && op.item.provenance && !storable(op.item.provenance, nowMs)) {
+        return fail(reply, req.id, 'RESTRICTED_ASSET', 'Data may not be stored.');
+      }
+    }
     const applied = applyOperations(trip, body.data.operations);
     if (!applied.ok) {
       return fail(reply, req.id, 'CONSTRAINT_UNSATISFIED', 'Operation not applicable.', false, {

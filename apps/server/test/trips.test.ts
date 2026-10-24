@@ -48,7 +48,7 @@ const call = (app: App, s: Session, method: 'GET' | 'POST' | 'PATCH', url: strin
   app.inject({ method, url, payload: payload as object, headers: { cookie: s.cookie, 'x-csrf-token': s.csrf } });
 
 const tz = 'Asia/Tokyo';
-const place = (id: string) => ({
+const place = (id: string): any => ({
   placeId: id, name: id, kind: 'spot', location: { lat: 35, lng: 139 }, timeZone: tz, openingHours: null, description: null, photo: null,
   dataStatus: 'fixture',
   provenance: { source: 'fixture', fetchedAt: null, attribution: null, maySendToModel: true, mayStore: true, mayExport: true, retainUntil: null },
@@ -66,7 +66,8 @@ const candidate = (id: string, state = 'needs_review') => ({
 });
 const batchBody = (over: object = {}) => ({
   schemaVersion: 1, baseTripId: null, baseRevision: null, generationId: `gen_${Math.random().toString(36).slice(2)}`,
-  candidates: [candidate('c1'), candidate('c2', 'invalid')], places: [place('p1')], ...over,
+  candidates: [candidate('c1'), candidate('c2', 'invalid')], places: [place('p1')],
+  constraints: { area: 'Kanazawa', startDate: '2026-11-01', endDate: '2026-11-01', timeZone: tz, transportMode: 'transit' }, ...over,
 });
 
 async function createBatch(app: App, s: Session, over: object = {}) {
@@ -268,5 +269,98 @@ describe('trips API', () => {
     const a2 = await login(app2, 'user-a');
     const got = Trip.parse((await call(app2, a2, 'GET', `/api/v1/trips/${t.tripId}`)).json());
     expect(got).toMatchObject({ title: 'persisted', revision: 2 });
+  });
+
+  it('B1: no constraints -> cannot create a new trip; base trip constraints are used for updates', async () => {
+    const { app } = make();
+    const a = await login(app, 'user-a');
+    const { constraints: _c, ...noCons } = batchBody();
+    const b = await call(app, a, 'POST', '/api/v1/plan-batches', noCons);
+    expect(b.statusCode).toBe(201);
+    const r = await call(app, a, 'POST', '/api/v1/trips/apply-candidate', { batchId: b.json().batchId, candidateId: 'c1', tripId: null, expectedRevision: null });
+    expect(r.statusCode).toBe(422);
+    expect(errOf(r).code).toBe('CONSTRAINT_UNSATISFIED');
+    const t = await applyNew(app, a);
+    expect(t.trip.constraints.area).toBe('Kanazawa');
+    const b2 = await call(app, a, 'POST', '/api/v1/plan-batches', { ...noCons, generationId: 'gen_other', baseTripId: t.tripId, baseRevision: 1 });
+    const up = await call(app, a, 'POST', '/api/v1/trips/apply-candidate', { batchId: b2.json().batchId, candidateId: 'c1', tripId: t.tripId, expectedRevision: 1 });
+    expect(up.statusCode).toBe(200);
+    expect(TripWriteResult.parse(up.json()).trip.constraints.area).toBe('Kanazawa');
+  });
+
+  it('B2: expired or non-storable provenance is rejected at save, apply, read and edit', async () => {
+    const { app, db } = make();
+    const a = await login(app, 'user-a');
+    const past = place('p1');
+    past.provenance.retainUntil = '2020-01-01T00:00:00Z';
+    expect((await call(app, a, 'POST', '/api/v1/plan-batches', batchBody({ places: [past] }))).statusCode).toBe(422);
+    const prov = { source: 'x', fetchedAt: null, attribution: null, maySendToModel: true, mayStore: false, mayExport: true, retainUntil: null };
+    const leg = (id: string, p: object | null) => ({ type: 'leg', legId: id, mode: 'transit', fromPlaceId: 'p1', toPlaceId: 'p1', departure: null, arrival: null, durationSeconds: null, lineName: null, platform: null, transfers: null, fare: null, dataStatus: 'fixture', provenance: p });
+    const c = candidate('c1');
+    c.days[0]!.items.push(leg('l1', prov) as never);
+    expect((await call(app, a, 'POST', '/api/v1/plan-batches', batchBody({ candidates: [c] }))).statusCode).toBe(422);
+
+    const batch = await createBatch(app, a);
+    const stored = db.prepare('SELECT places_json FROM plan_batches').get() as { places_json: string };
+    const w = JSON.parse(stored.places_json);
+    w.places[0].provenance.retainUntil = '2020-01-01T00:00:00Z';
+    db.prepare('UPDATE plan_batches SET places_json = ?').run(JSON.stringify(w));
+    const g = await call(app, a, 'GET', `/api/v1/plan-batches/${batch.batchId}`);
+    expect(g.statusCode).toBe(410);
+    expect(errOf(g).code).toBe('EXPIRED');
+    const ap = await call(app, a, 'POST', '/api/v1/trips/apply-candidate', { batchId: batch.batchId, candidateId: 'c1', tripId: null, expectedRevision: null });
+    expect(ap.statusCode).toBe(422);
+    expect(errOf(ap).code).toBe('RESTRICTED_ASSET');
+
+    const t = await applyNew(app, a);
+    const add = await call(app, a, 'PATCH', `/api/v1/trips/${t.tripId}`, { expectedRevision: 1, operations: [{ op: 'add', dayIndex: 0, position: 0, item: leg('l9', prov) }] });
+    expect(add.statusCode).toBe(422);
+    expect(errOf(add).code).toBe('RESTRICTED_ASSET');
+  });
+
+  it('B3: applying to a trip whose revision moved past batch.baseRevision is 409', async () => {
+    const { app } = make();
+    const a = await login(app, 'user-a');
+    const t = await applyNew(app, a);
+    const b = await createBatch(app, a, { baseTripId: t.tripId, baseRevision: 1 });
+    await call(app, a, 'PATCH', `/api/v1/trips/${t.tripId}`, { expectedRevision: 1, operations: [{ op: 'set_title', title: 'moved' }] });
+    const r = await call(app, a, 'POST', '/api/v1/trips/apply-candidate', { batchId: b.batchId, candidateId: 'c1', tripId: t.tripId, expectedRevision: 2 });
+    expect(r.statusCode).toBe(409);
+    expect(errOf(r).details).toEqual({ expectedRevision: 1, currentRevision: 2 });
+  });
+
+  it('B4: applying the same candidate into a new trip twice is idempotent; deleted trip -> 409 ALREADY_COMMITTED', async () => {
+    const { app, db } = make();
+    const a = await login(app, 'user-a');
+    const b = await createBatch(app, a);
+    const req = { batchId: b.batchId, candidateId: 'c1', tripId: null, expectedRevision: null };
+    const r1 = await call(app, a, 'POST', '/api/v1/trips/apply-candidate', req);
+    const r2 = await call(app, a, 'POST', '/api/v1/trips/apply-candidate', req);
+    expect(r1.statusCode).toBe(201);
+    expect(r2.statusCode).toBe(200);
+    expect(r2.json().tripId).toBe(r1.json().tripId);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM trips').get()).toEqual({ n: 1 });
+    db.prepare("UPDATE trips SET deleted_at = '2026-11-02T00:00:00Z'").run();
+    const r3 = await call(app, a, 'POST', '/api/v1/trips/apply-candidate', req);
+    expect(r3.statusCode).toBe(409);
+    expect(errOf(r3).code).toBe('ALREADY_COMMITTED');
+  });
+
+  it('O1/O2/O4: replay precedes checks; client valid is capped; unknown placeId rejected on edit', async () => {
+    const { app } = make();
+    const a = await login(app, 'user-a');
+    const body = batchBody({ candidates: [candidate('c1', 'valid')] });
+    const r1 = await call(app, a, 'POST', '/api/v1/plan-batches', body);
+    expect(r1.json().validationState).toBe('needs_review');
+    const t = await applyNew(app, a);
+    const withBase = { ...body, generationId: 'gen_base', baseTripId: t.tripId, baseRevision: 1 };
+    const rb = await call(app, a, 'POST', '/api/v1/plan-batches', withBase);
+    expect(rb.statusCode).toBe(201);
+    await call(app, a, 'PATCH', `/api/v1/trips/${t.tripId}`, { expectedRevision: 1, operations: [{ op: 'set_title', title: 'n' }] });
+    expect((await call(app, a, 'POST', '/api/v1/plan-batches', withBase)).statusCode).toBe(200);
+    const item = { ...activity('a9', 5), placeId: 'ghost' };
+    const bad = await call(app, a, 'PATCH', `/api/v1/trips/${t.tripId}`, { expectedRevision: 2, operations: [{ op: 'add', dayIndex: 0, position: 0, item }] });
+    expect(bad.statusCode).toBe(422);
+    expect(errOf(bad).code).toBe('CONSTRAINT_UNSATISFIED');
   });
 });

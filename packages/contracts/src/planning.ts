@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { DataMode, Id, LatLng, Money, SchemaVersion, TransportMode, UtcInstant } from './common.ts';
-import { ItineraryItem, PlaceInfo, Trip, TripDay, TripSummary, TravelLeg, ValidationState } from './trip.ts';
+import { ItineraryItem, PlaceInfo, Trip, TripConstraints, TripDay, TripSummary, TravelLeg, ValidationState } from './trip.ts';
 
 /** K05 POST /api/v1/planning-context */
 export const PlanningContextRequest = z.object({
@@ -50,6 +50,8 @@ export const PlanBatchCreate = z.strictObject({
   generationId: Id,
   candidates: z.array(PlanCandidate).min(1).max(3),
   places: z.array(PlaceInfo),
+  /** K07: required to apply into a new trip. */
+  constraints: TripConstraints.optional(),
 });
 export type PlanBatchCreate = z.infer<typeof PlanBatchCreate>;
 

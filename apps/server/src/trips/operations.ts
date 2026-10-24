@@ -19,6 +19,12 @@ function locate(days: TripDay[], id: string): { d: number; p: number } | null {
  * mutated. Structural edits mark the trip `needs_revalidation` (travel legs and times are no longer
  * confirmed); a title-only edit keeps the validation state. revision/updatedAt are left to the repo.
  */
+function missingPlace(trip: Trip, it: ItineraryItem): boolean {
+  const known = new Set(trip.places.map((p) => p.placeId));
+  const refs = it.type === 'activity' ? [it.placeId] : [it.fromPlaceId, it.toPlaceId];
+  return refs.some((r) => r !== null && !known.has(r));
+}
+
 export function applyOperations(trip: Trip, ops: TripOperation[]): OpResult {
   const days: TripDay[] = trip.days.map((d) => ({ ...d, items: [...d.items] }));
   let title = trip.title;
@@ -34,6 +40,7 @@ export function applyOperations(trip: Trip, ops: TripOperation[]): OpResult {
         if (!day) return bad('dayIndex out of range');
         if (op.position > day.items.length) return bad('position out of range');
         if (locate(days, itemId(op.item))) return bad('item id already exists');
+        if (missingPlace(trip, op.item)) return bad('unknown placeId');
         day.items.splice(op.position, 0, op.item);
         structural = true;
         break;
@@ -62,6 +69,7 @@ export function applyOperations(trip: Trip, ops: TripOperation[]): OpResult {
         if (itemId(op.item) !== op.itemId) return bad('item id must not change');
         const cur = days[at.d]!.items[at.p]!;
         if (cur.type !== op.item.type) return bad('item type must not change');
+        if (missingPlace(trip, op.item)) return bad('unknown placeId');
         days[at.d]!.items[at.p] = op.item;
         structural = true;
         break;
@@ -112,16 +120,17 @@ export function computeDiff(before: Trip, after: Trip): TripDiff {
     const delta = (ca.get(cur) ?? 0) - (cb.get(cur) ?? 0);
     if (delta !== 0) knownCostDelta.push({ amountMinor: delta, currency: cur });
   }
+  // TravelLeg has a single `fare` field for transit and car (tolls); walking is not treated as unknown cost.
   const unknownCostItems: string[] = [];
   for (const day of after.days) {
     for (const it of day.items) {
-      if (it.type === 'activity' ? it.cost === null : it.mode === 'transit' && it.fare === null) {
+      if (it.type === 'activity' ? it.cost === null : it.mode !== 'walk' && it.fare === null) {
         unknownCostItems.push(itemId(it));
       }
     }
   }
   return {
-    durationDeltaSeconds: a === null && b === null ? null : (a ?? 0) - (b ?? 0),
+    durationDeltaSeconds: a === null || b === null ? null : a - b,
     knownCostDelta,
     unknownCostItems,
   };
