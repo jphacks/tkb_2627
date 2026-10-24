@@ -1,6 +1,6 @@
 {
   "repository": "jphacks/tkb_2627",
-  "fetchedAt": "2026-10-24T15:13:47.578Z",
+  "fetchedAt": "2026-10-24T16:22:22.634Z",
   "warnings": [],
   "tasks": {
     "B01": {
@@ -299,6 +299,8 @@
         "number": 31,
         "url": "https://github.com/jphacks/tkb_2627/issues/31",
         "assignees": [
+          "KatTanaka",
+          "poyyk",
           "murataka-csl"
         ]
       }
@@ -309,6 +311,7 @@
         "number": 32,
         "url": "https://github.com/jphacks/tkb_2627/issues/32",
         "assignees": [
+          "KatTanaka",
           "murataka-csl"
         ]
       }
@@ -319,6 +322,7 @@
         "number": 33,
         "url": "https://github.com/jphacks/tkb_2627/issues/33",
         "assignees": [
+          "poyyk",
           "murataka-csl"
         ]
       }
@@ -349,6 +353,7 @@
         "number": 36,
         "url": "https://github.com/jphacks/tkb_2627/issues/36",
         "assignees": [
+          "KatTanaka",
           "murataka-csl"
         ]
       }
