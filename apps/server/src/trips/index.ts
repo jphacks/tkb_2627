@@ -268,7 +268,8 @@ export function registerTrips(app: FastifyInstance, db: Db, _config: SharedConfi
       places: batch.places,
       validationState: cand.validationState,
       warnings: cand.warnings,
-      createdAt: now,
+      // Keep the original createdAt: updateTripWithRevision stores this document in trip_versions as-is.
+      createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     };
     const parsed = Trip.safeParse(doc);
