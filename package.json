@@ -1,0 +1,17 @@
+{
+  "name": "tkb-2627-jphacks-design-kit",
+  "version": "5.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "check": "node scripts/check-plan.mjs && node scripts/check-model.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "guide": "node scripts/render-dashboard.mjs",
+    "master": "node scripts/make-master.mjs",
+    "check:repo": "node scripts/check-repo.mjs"
+  }
+}

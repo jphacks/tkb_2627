@@ -1,0 +1,65 @@
+[
+  {
+    "id": "I01",
+    "item": "機能仕様・構成・入出力",
+    "truth": "model/*.json、docs/仕様。Git default branchの採用済み版",
+    "writer": "担当がPRで提案、M1が影響担当とレビューしてmerge",
+    "reader": "各Agentが担当タスク開始前に該当箇所だけ読む",
+    "sync": "merge SHAとschemaVersionを影響Issueへ通知",
+    "prohibit": "私有チャットだけでAPI形式を変更しない"
+  },
+  {
+    "id": "I02",
+    "item": "タスク定義・依存・変更範囲",
+    "truth": "ops/tasks.json",
+    "writer": "M1が全担当の意見をまとめてPRで変更",
+    "reader": "全員とタスクボード",
+    "sync": "GitHub Issueのgenerated sectionを再反映。コメントと証拠は消さない",
+    "prohibit": "HTML上で架空の共有状態を変更しない"
+  },
+  {
+    "id": "I03",
+    "item": "担当と作業状態",
+    "truth": "GitHub Issueのassignee・lane・statusラベル",
+    "writer": "担当はdoing/review/blocked。担当変更とdone確定はM1",
+    "reader": "開始前・15〜30分のcheckpoint・再開時にIssueを取得",
+    "sync": "gh CLI→snapshot→HTML。取得時刻を表示",
+    "prohibit": "Issue閉鎖のみをテスト合格・依存完了と解釈しない"
+  },
+  {
+    "id": "I04",
+    "item": "成果物と統合状態",
+    "truth": "作業branch・PR・merge commit・CI結果",
+    "writer": "各実装担当がpush、別review、M1が統合",
+    "reader": "依存するタスクの担当",
+    "sync": "PRへCloses #Issueと要件ID・実行テストを記録",
+    "prohibit": "pushしただけで後続のhard dependencyを解除しない"
+  },
+  {
+    "id": "I05",
+    "item": "UIの承認と変更理由",
+    "truth": "UIレビューIssueの人間コメント＋docs/ui/reviewsの版付き記録",
+    "writer": "M2が画面を提示、人間の回答を転記、M1が契約変更を調整",
+    "reader": "M2と影響するM1/M3/M4",
+    "sync": "画面版・人間の判断・関連commitを相互リンク",
+    "prohibit": "無回答を承認とみなさない"
+  },
+  {
+    "id": "I06",
+    "item": "Agentへの指示と引継ぎ",
+    "truth": "CLAUDE.md、.claude/agents、対象IssueとPR",
+    "writer": "各メインAgentが子AgentへtaskId・path・契約版を渡す",
+    "reader": "同一アカウント内Subagentと次担当のメインAgent",
+    "sync": "結果をIssueへ書戻す。別PCの会話履歴を直接共有しない",
+    "prohibit": "4アカウントを同じ認証の共有プールにしない"
+  },
+  {
+    "id": "I07",
+    "item": "利用者データ・認証・秘密",
+    "truth": "旅程/SNSは共有DB。鍵は各PCの非公開設定。Claude認証は公式CLI",
+    "writer": "アプリと所有者のみ",
+    "reader": "認可されたアプリ処理だけ",
+    "sync": "DBはserver経由。鍵やDBをGitHubに同期しない",
+    "prohibit": "Issue・HTML・logsへtokenを貼らない"
+  }
+]

@@ -1,0 +1,32 @@
+digraph G {
+graph [rankdir=LR,bgcolor="transparent",pad="0.35",nodesep="0.65",ranksep="1.3",splines=spline,outputorder=edgesfirst]; node [shape=plain,fontname="Noto Sans CJK JP"]; edge [fontname="Noto Sans CJK JP",fontsize=11,arrowsize=0.75,penwidth=1.3];
+subgraph cluster_scope { style="rounded,dashed";color="#b5c9d4";label="personal / C4 Component";fontname="Noto Sans CJK JP";fontsize=12;
+"gate";
+"job";
+"shared-client";
+"claude-adapter";
+"validator";
+}
+"web-local" [label=<<TABLE BORDER="1" COLOR="#35857d" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="#edf7f4"><TR><TD><FONT POINT-SIZE="11" COLOR="#586d80">«Container»</FONT></TD></TR><TR><TD><B><FONT POINT-SIZE="16">本人用Web画面</FONT></B></TD></TR><TR><TD><FONT POINT-SIZE="11">React / TypeScript</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12">条件入力、生成進捗、候補の比較と採用</FONT></TD></TR></TABLE>>,URL="#node=web-local",target="_self"];
+"gate" [label=<<TABLE BORDER="1" COLOR="#35857d" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="#edf7f4"><TR><TD><FONT POINT-SIZE="11" COLOR="#586d80">«Component»</FONT></TD></TR><TR><TD><B><FONT POINT-SIZE="16">本人確認と入力受付</FONT></B></TD></TR><TR><TD><FONT POINT-SIZE="11">Fastify handlers</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12">Host・Origin・CSRF・所有権・入<BR/>力を検証</FONT></TD></TR></TABLE>>,URL="#node=gate",target="_self"];
+"job" [label=<<TABLE BORDER="1" COLOR="#35857d" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="#edf7f4"><TR><TD><FONT POINT-SIZE="11" COLOR="#586d80">«Component»</FONT></TD></TR><TR><TD><B><FONT POINT-SIZE="16">生成ジョブ管理</FONT></B></TD></TR><TR><TD><FONT POINT-SIZE="11">TypeScript / memory</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12">順序、重複、取消、進捗、時間制限</FONT></TD></TR></TABLE>>,URL="#node=job",target="_self"];
+"shared-client" [label=<<TABLE BORDER="1" COLOR="#35857d" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="#edf7f4"><TR><TD><FONT POINT-SIZE="11" COLOR="#586d80">«Component»</FONT></TD></TR><TR><TD><B><FONT POINT-SIZE="16">共有APIクライアント</FONT></B></TD></TR><TR><TD><FONT POINT-SIZE="11">HTTP client / app session</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12">本人権限でデータを取得・候補を保存</FONT></TD></TR></TABLE>>,URL="#node=shared-client",target="_self"];
+"claude-adapter" [label=<<TABLE BORDER="1" COLOR="#35857d" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="#edf7f4"><TR><TD><FONT POINT-SIZE="11" COLOR="#586d80">«Component»</FONT></TD></TR><TR><TD><B><FONT POINT-SIZE="16">Claude接続アダプター</FONT></B></TD></TR><TR><TD><FONT POINT-SIZE="11">Node child_process</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12">安全にCLIを起動し構造化出力を解析</FONT></TD></TR></TABLE>>,URL="#node=claude-adapter",target="_self"];
+"validator" [label=<<TABLE BORDER="1" COLOR="#35857d" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="#edf7f4"><TR><TD><FONT POINT-SIZE="11" COLOR="#586d80">«Component»</FONT></TD></TR><TR><TD><B><FONT POINT-SIZE="16">旅程検証</FONT></B></TD></TR><TR><TD><FONT POINT-SIZE="11">TypeScript pure functions</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12">形式・経路・日時・固定予定・予算を照合</FONT></TD></TR></TABLE>>,URL="#node=validator",target="_self"];
+"shared" [label=<<TABLE BORDER="1" COLOR="#35857d" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="#edf7f4"><TR><TD><FONT POINT-SIZE="11" COLOR="#586d80">«Container»</FONT></TD></TR><TR><TD><B><FONT POINT-SIZE="16">共有アプリサーバー</FONT></B></TD></TR><TR><TD><FONT POINT-SIZE="11">Node.js / Fastify</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12">認証、旅程、SNS、外部データ、永続化</FONT></TD></TR></TABLE>>,URL="#node=shared",target="_self"];
+"cli" [label=<<TABLE BORDER="1" COLOR="#6683ae" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="#eef4fb"><TR><TD><FONT POINT-SIZE="11" COLOR="#586d80">«External Software System»</FONT></TD></TR><TR><TD><B><FONT POINT-SIZE="16">公式Claude Code</FONT></B></TD></TR><TR><TD><FONT POINT-SIZE="11">Claude Code CLI</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12">本人の認証でClaudeに依頼しJSONを返<BR/>す</FONT></TD></TR></TABLE>>,URL="#node=cli",target="_self"];
+"web-local" -> "gate" [label=<<FONT COLOR="#254e76">生成要求・CSRF<BR/><FONT POINT-SIZE="9">HTTP / JSON · K01</FONT></FONT>>,color="#315a80",URL="#edge=L01"];
+"gate" -> "web-local" [label=<<FONT COLOR="#18775f">202 JobAccepted／Erro<BR/>r<BR/><FONT POINT-SIZE="9">応答 · K01</FONT></FONT>>,color="#2b8c71",style=dashed,constraint=false,URL="#edge=L01"];
+"gate" -> "job" [label=<<FONT COLOR="#254e76">検証済み本人要求・入力ハッシュ<BR/><FONT POINT-SIZE="9">function call · K01</FONT></FONT>>,color="#315a80",URL="#edge=L02"];
+"job" -> "gate" [label=<<FONT COLOR="#18775f">jobId・state／重複応答<BR/><FONT POINT-SIZE="9">応答 · K01</FONT></FONT>>,color="#2b8c71",style=dashed,constraint=false,URL="#edge=L02"];
+"job" -> "shared-client" [label=<<FONT COLOR="#254e76">planning context照会・結<BR/>果保存<BR/><FONT POINT-SIZE="9">function / Promise · K05</FONT></FONT>>,color="#315a80",URL="#edge=L03"];
+"shared-client" -> "job" [label=<<FONT COLOR="#18775f">許諾済み事実／batchId<BR/><FONT POINT-SIZE="9">応答 · K05</FONT></FONT>>,color="#2b8c71",style=dashed,constraint=false,URL="#edge=L03"];
+"shared-client" -> "shared" [label=<<FONT COLOR="#254e76">アプリ本人セッション＋型付き要求<BR/><FONT POINT-SIZE="9">HTTP(S) / JSON · K07</FONT></FONT>>,color="#315a80",URL="#edge=L04"];
+"shared" -> "shared-client" [label=<<FONT COLOR="#18775f">旅行情報・保存済み候補<BR/><FONT POINT-SIZE="9">応答 · K07</FONT></FONT>>,color="#2b8c71",style=dashed,constraint=false,URL="#edge=L04"];
+"job" -> "claude-adapter" [label=<<FONT COLOR="#254e76">GenerationInput・Abor<BR/>tSignal<BR/><FONT POINT-SIZE="9">Promise · K03</FONT></FONT>>,color="#315a80",URL="#edge=L05"];
+"claude-adapter" -> "job" [label=<<FONT COLOR="#18775f">PlanBlueprint／typed <BR/>error<BR/><FONT POINT-SIZE="9">応答 · K03</FONT></FONT>>,color="#2b8c71",style=dashed,constraint=false,URL="#edge=L05"];
+"claude-adapter" -> "cli" [label=<<FONT COLOR="#254e76">固定引数＋stdin prompt<BR/><FONT POINT-SIZE="9">child_process · K03</FONT></FONT>>,color="#315a80",URL="#edge=L06"];
+"cli" -> "claude-adapter" [label=<<FONT COLOR="#18775f">stdout envelope／stde<BR/>rr／exit code<BR/><FONT POINT-SIZE="9">応答 · K03</FONT></FONT>>,color="#2b8c71",style=dashed,constraint=false,URL="#edge=L06"];
+"job" -> "validator" [label=<<FONT COLOR="#254e76">候補順・固定予定・実データ<BR/><FONT POINT-SIZE="9">function / Promise · K07</FONT></FONT>>,color="#315a80",URL="#edge=L07"];
+"validator" -> "job" [label=<<FONT COLOR="#18775f">検証済み候補・warnings<BR/><FONT POINT-SIZE="9">応答 · K07</FONT></FONT>>,color="#2b8c71",style=dashed,constraint=false,URL="#edge=L07"];
+}

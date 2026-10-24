@@ -1,0 +1,385 @@
+<svg width="1899pt" height="813pt"
+ viewBox="0.00 0.00 1899.00 813.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(25.2 787.48)">
+
+<g id="clust1" class="cluster">
+
+<path fill="none" stroke="#b5c9d4" stroke-dasharray="5,2" d="M20,-284.66C20,-284.66 1828.25,-284.66 1828.25,-284.66 1834.25,-284.66 1840.25,-290.66 1840.25,-296.66 1840.25,-296.66 1840.25,-614.66 1840.25,-614.66 1840.25,-620.66 1834.25,-626.66 1828.25,-626.66 1828.25,-626.66 20,-626.66 20,-626.66 14,-626.66 8,-620.66 8,-614.66 8,-614.66 8,-296.66 8,-296.66 8,-290.66 14,-284.66 20,-284.66"/>
+<text xml:space="preserve" text-anchor="middle" x="924.12" y="-611.26" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">travel / C4 Container</text>
+</g>
+<!-- web&#45;local&#45;&gt;personal -->
+<g id="edge1" class="edge">
+
+<g id="a_edge1"><a xlink:href="#edge=R01" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;生成・状態照会・認可済み通常API&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;HTTP / JSON :4311 · K01&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#315a80" stroke-width="1.3" d="M251.77,-445.75C267.62,-441.59 283.69,-437.46 299,-433.66 369.62,-416.12 448.95,-397.91 512.88,-383.61"/>
+<polygon fill="#315a80" stroke="#315a80" stroke-width="1.3" points="513.13,-386.25 519.87,-382.05 511.98,-381.12 513.13,-386.25"/>
+</a>
+</g>
+<g id="a_edge1&#45;label"><a xlink:href="#edge=R01" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;生成・状態照会・認可済み通常API&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;HTTP / JSON :4311 · K01&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="299" y="-444.21" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#254e76">生成・状態照会・認可済み通常API</text>
+<text xml:space="preserve" text-anchor="start" x="336.12" y="-435.11" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#254e76">HTTP / JSON :4311 · K01</text>
+</a>
+</g>
+</g>
+<!-- web&#45;local&#45;&gt;maps -->
+<g id="edge15" class="edge">
+
+<g id="a_edge15"><a xlink:href="#edge=R08" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;地図表示領域&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;SDK / HTTPS · K06&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#315a80" stroke-width="1.3" d="M251.59,-527.44C327.36,-558.19 428.91,-596.47 521.5,-621.66 642.45,-654.56 674.85,-655.25 799.25,-670.66 897.01,-682.76 1009.27,-690.15 1088.06,-694.27"/>
+<polygon fill="#315a80" stroke="#315a80" stroke-width="1.3" points="1087.91,-696.89 1095.53,-694.66 1088.18,-691.65 1087.91,-696.89"/>
+</a>
+</g>
+<g id="a_edge15&#45;label"><a xlink:href="#edge=R08" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;地図表示領域&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;SDK / HTTPS · K06&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="603.12" y="-675.31" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#254e76">地図表示領域</text>
+<text xml:space="preserve" text-anchor="start" x="597.88" y="-666.21" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#254e76">SDK / HTTPS · K06</text>
+</a>
+</g>
+</g>
+<!-- web&#45;shared&#45;&gt;shared -->
+<g id="edge3" class="edge">
+
+<g id="a_edge3"><a xlink:href="#edge=R02" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;ログイン・旅程・SNS操作&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;HTTPS / JSON · K14&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#315a80" stroke-width="1.3" d="M731.22,-510.56C753.38,-506.03 777.04,-501.97 799.25,-499.66 886.81,-490.53 986.03,-492.24 1062.39,-496.13"/>
+<polygon fill="#315a80" stroke="#315a80" stroke-width="1.3" points="1062,-498.73 1069.63,-496.51 1062.28,-493.49 1062,-498.73"/>
+</a>
+</g>
+<g id="a_edge3&#45;label"><a xlink:href="#edge=R02" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;ログイン・旅程・SNS操作&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;HTTPS / JSON · K14&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="844.62" y="-510.21" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#254e76">ログイン・旅程・SNS操作</text>
+<text xml:space="preserve" text-anchor="start" x="870.12" y="-501.11" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#254e76">HTTPS / JSON · K14</text>
+</a>
+</g>
+</g>
+<!-- web&#45;shared&#45;&gt;maps -->
+<g id="edge17" class="edge">
+
+<g id="a_edge17"><a xlink:href="#edge=R09" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;地図表示領域&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;SDK / HTTPS · K06&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#315a80" stroke-width="1.3" d="M731.52,-559.03C809.99,-580.6 924.81,-612.88 1024.25,-643.66 1045,-650.08 1067.12,-657.25 1088.19,-664.24"/>
+<polygon fill="#315a80" stroke="#315a80" stroke-width="1.3" points="1087.33,-666.73 1095.27,-666.6 1088.99,-661.74 1087.33,-666.73"/>
+</a>
+</g>
+<g id="a_edge17&#45;label"><a xlink:href="#edge=R09" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;地図表示領域&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;SDK / HTTPS · K06&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="878" y="-654.21" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#254e76">地図表示領域</text>
+<text xml:space="preserve" text-anchor="start" x="872.75" y="-645.11" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#254e76">SDK / HTTPS · K06</text>
+</a>
+</g>
+</g>
+<!-- personal&#45;&gt;web&#45;local -->
+<g id="edge2" class="edge">
+
+<g id="a_edge2"><a xlink:href="#edge=R01" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;jobId／状態／旅程・投稿・エラー&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K01&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#2b8c71" stroke-width="1.3" stroke-dasharray="5,2" d="M554.25,-420.91C529.9,-436.75 502.26,-451.73 474.5,-460.66 406.22,-482.62 326.26,-487.56 261.09,-486.69"/>
+<polygon fill="#2b8c71" stroke="#2b8c71" stroke-width="1.3" points="261.51,-484.08 253.96,-486.57 261.42,-489.33 261.51,-484.08"/>
+</a>
+</g>
+<g id="a_edge2&#45;label"><a xlink:href="#edge=R01" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;jobId／状態／旅程・投稿・エラー&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K01&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="302.38" y="-496.98" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#18775f">jobId／状態／旅程・投稿・エラー</text>
+<text xml:space="preserve" text-anchor="start" x="366.12" y="-487.88" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#18775f">応答 · K01</text>
+</a>
+</g>
+</g>
+<!-- personal&#45;&gt;shared -->
+<g id="edge5" class="edge">
+
+<g id="a_edge5"><a xlink:href="#edge=R03" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;本人セッションで情報取得・候補保存・通常&lt;BR/&gt;API&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;HTTP(S) / JSON · K07&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#315a80" stroke-width="1.3" d="M751.97,-323.72C831.45,-306.91 938.21,-296.87 1024.25,-333.66 1072.5,-354.28 1113.33,-396.79 1142.24,-434.39"/>
+<polygon fill="#315a80" stroke="#315a80" stroke-width="1.3" points="1140.06,-435.86 1146.67,-440.26 1144.25,-432.69 1140.06,-435.86"/>
+</a>
+</g>
+<g id="a_edge5&#45;label"><a xlink:href="#edge=R03" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;本人セッションで情報取得・候補保存・通常&lt;BR/&gt;API&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;HTTP(S) / JSON · K07&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="799.25" y="-355.21" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#254e76">本人セッションで情報取得・候補保存・通常</text>
+<text xml:space="preserve" text-anchor="start" x="902.75" y="-344.21" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#254e76">API</text>
+<text xml:space="preserve" text-anchor="start" x="867.12" y="-335.11" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#254e76">HTTP(S) / JSON · K07</text>
+</a>
+</g>
+</g>
+<!-- personal&#45;&gt;cli -->
+<g id="edge7" class="edge">
+
+<g id="a_edge7"><a xlink:href="#edge=R04" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;旅行条件＋候補ID＋出力Schema&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;stdin / stdout / process · K03&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#315a80" stroke-width="1.3" d="M673.12,-292.59C708.99,-230.07 764.16,-141.66 799.25,-122.66 879.26,-79.32 982.74,-78.78 1062.91,-88.02"/>
+<polygon fill="#315a80" stroke="#315a80" stroke-width="1.3" points="1062.36,-90.6 1070.12,-88.89 1062.99,-85.39 1062.36,-90.6"/>
+</a>
+</g>
+<g id="a_edge7&#45;label"><a xlink:href="#edge=R04" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;旅行条件＋候補ID＋出力Schema&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;stdin / stdout / process · K03&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="830" y="-133.21" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#254e76">旅行条件＋候補ID＋出力Schema</text>
+<text xml:space="preserve" text-anchor="start" x="855.12" y="-124.11" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#254e76">stdin / stdout / process · K03</text>
+</a>
+</g>
+</g>
+<!-- shared&#45;&gt;web&#45;shared -->
+<g id="edge4" class="edge">
+
+<g id="a_edge4"><a xlink:href="#edge=R02" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;Trip／Post／権限付き結果&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K14&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#2b8c71" stroke-width="1.3" stroke-dasharray="5,2" d="M1071.6,-522.19C1055.71,-523.97 1039.6,-525.54 1024.25,-526.66 928.28,-533.64 818.58,-534.99 740.64,-534.84"/>
+<polygon fill="#2b8c71" stroke="#2b8c71" stroke-width="1.3" points="740.78,-532.21 733.27,-534.82 740.76,-537.46 740.78,-532.21"/>
+</a>
+</g>
+<g id="a_edge4&#45;label"><a xlink:href="#edge=R02" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;Trip／Post／権限付き結果&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K14&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="846.5" y="-545.15" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#18775f">Trip／Post／権限付き結果</text>
+<text xml:space="preserve" text-anchor="start" x="891.12" y="-536.05" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#18775f">応答 · K14</text>
+</a>
+</g>
+</g>
+<!-- shared&#45;&gt;personal -->
+<g id="edge6" class="edge">
+
+<g id="a_edge6"><a xlink:href="#edge=R03" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;旅行情報／batchId／Trip／Po&lt;BR/&gt;st&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K07&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#2b8c71" stroke-width="1.3" stroke-dasharray="5,2" d="M1071.38,-465.09C1055.6,-460.02 1039.57,-455.08 1024.25,-450.66 937.08,-425.52 837.6,-401.42 761.41,-383.92"/>
+<polygon fill="#2b8c71" stroke="#2b8c71" stroke-width="1.3" points="762.05,-381.37 754.15,-382.26 760.88,-386.49 762.05,-381.37"/>
+</a>
+</g>
+<g id="a_edge6&#45;label"><a xlink:href="#edge=R03" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;旅行情報／batchId／Trip／Po&lt;BR/&gt;st&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K07&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="838.62" y="-472.21" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#18775f">旅行情報／batchId／Trip／Po</text>
+<text xml:space="preserve" text-anchor="start" x="907.62" y="-461.21" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#18775f">st</text>
+<text xml:space="preserve" text-anchor="start" x="891.12" y="-452.11" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#18775f">応答 · K07</text>
+</a>
+</g>
+</g>
+<!-- shared&#45;&gt;db -->
+<g id="edge11" class="edge">
+
+<g id="a_edge11"><a xlink:href="#edge=R06" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;認可後のSQL・版付き更新&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;SQLite / in&#45;process · K20&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#315a80" stroke-width="1.3" d="M1307.79,-500.86C1323.66,-500.36 1339.72,-499.94 1355,-499.66 1429.99,-498.29 1448.76,-498.39 1523.75,-499.66 1536.1,-499.87 1548.94,-500.16 1561.8,-500.5"/>
+<polygon fill="#315a80" stroke="#315a80" stroke-width="1.3" points="1561.62,-503.12 1569.19,-500.71 1561.77,-497.88 1561.62,-503.12"/>
+</a>
+</g>
+<g id="a_edge11&#45;label"><a xlink:href="#edge=R06" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;認可後のSQL・版付き更新&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;SQLite / in&#45;process · K20&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="1372.25" y="-510.21" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#254e76">認可後のSQL・版付き更新</text>
+<text xml:space="preserve" text-anchor="start" x="1389.12" y="-501.11" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#254e76">SQLite / in&#45;process · K20</text>
+</a>
+</g>
+</g>
+<!-- shared&#45;&gt;providers -->
+<g id="edge13" class="edge">
+
+<g id="a_edge13"><a xlink:href="#edge=R07" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;地点・経路・日時の照会&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;HTTPS · K06&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#315a80" stroke-width="1.3" d="M1307.92,-550.06C1393.83,-582.58 1509.53,-626.37 1593.04,-657.98"/>
+<polygon fill="#315a80" stroke="#315a80" stroke-width="1.3" points="1592,-660.39 1599.94,-660.59 1593.86,-655.48 1592,-660.39"/>
+</a>
+</g>
+<g id="a_edge13&#45;label"><a xlink:href="#edge=R07" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;地点・経路・日時の照会&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;HTTPS · K06&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="1377.5" y="-641.27" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#254e76">地点・経路・日時の照会</text>
+<text xml:space="preserve" text-anchor="start" x="1413.12" y="-632.17" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#254e76">HTTPS · K06</text>
+</a>
+</g>
+</g>
+<!-- db&#45;&gt;shared -->
+<g id="edge12" class="edge">
+
+<g id="a_edge12"><a xlink:href="#edge=R06" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;行・保存ID・新revision／競合&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K20&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#2b8c71" stroke-width="1.3" stroke-dasharray="5,2" d="M1570.83,-522.84C1554.99,-524.41 1539.02,-525.75 1523.75,-526.66 1448.88,-531.09 1429.85,-531.42 1355,-526.66 1342.64,-525.87 1329.79,-524.76 1316.96,-523.44"/>
+<polygon fill="#2b8c71" stroke="#2b8c71" stroke-width="1.3" points="1317.32,-520.84 1309.59,-522.66 1316.77,-526.06 1317.32,-520.84"/>
+</a>
+</g>
+<g id="a_edge12&#45;label"><a xlink:href="#edge=R06" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;行・保存ID・新revision／競合&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K20&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="1364.75" y="-540.66" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#18775f">行・保存ID・新revision／競合</text>
+<text xml:space="preserve" text-anchor="start" x="1418.75" y="-531.56" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#18775f">応答 · K20</text>
+</a>
+</g>
+</g>
+<!-- cli&#45;&gt;personal -->
+<g id="edge8" class="edge">
+
+<g id="a_edge8"><a xlink:href="#edge=R04" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;stdout構造化JSON／exit c&lt;BR/&gt;ode&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K03&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#2b8c71" stroke-width="1.3" stroke-dasharray="5,2" d="M1072.34,-183.13C1056.48,-191.35 1040.17,-199.12 1024.25,-205.66 928.41,-245.03 895.21,-227.58 799.25,-266.66 783.82,-272.94 768,-280.38 752.6,-288.25"/>
+<polygon fill="#2b8c71" stroke="#2b8c71" stroke-width="1.3" points="751.78,-285.72 746.33,-291.49 754.2,-290.38 751.78,-285.72"/>
+</a>
+</g>
+<g id="a_edge8&#45;label"><a xlink:href="#edge=R04" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;stdout構造化JSON／exit c&lt;BR/&gt;ode&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K03&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="847.62" y="-288.21" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#18775f">stdout構造化JSON／exit c</text>
+<text xml:space="preserve" text-anchor="start" x="902.75" y="-277.21" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#18775f">ode</text>
+<text xml:space="preserve" text-anchor="start" x="891.12" y="-268.11" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#18775f">応答 · K03</text>
+</a>
+</g>
+</g>
+<!-- cli&#45;&gt;anthropic -->
+<g id="edge9" class="edge">
+
+<g id="a_edge9"><a xlink:href="#edge=R05" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;公式CLI管理の生成依頼&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;HTTPS / managed by CLI · K04&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#315a80" stroke-width="1.3" d="M1306.96,-112.66C1388.75,-112.66 1497.89,-112.66 1580.48,-112.66"/>
+<polygon fill="#315a80" stroke="#315a80" stroke-width="1.3" points="1580.44,-115.28 1587.94,-112.66 1580.44,-110.03 1580.44,-115.28"/>
+</a>
+</g>
+<g id="a_edge9&#45;label"><a xlink:href="#edge=R05" xlink:title="&lt;FONT COLOR=&quot;#254e76&quot;&gt;公式CLI管理の生成依頼&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;HTTPS / managed by CLI · K04&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="1380.12" y="-123.21" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#254e76">公式CLI管理の生成依頼</text>
+<text xml:space="preserve" text-anchor="start" x="1376" y="-114.11" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#254e76">HTTPS / managed by CLI · K04</text>
+</a>
+</g>
+</g>
+<!-- anthropic&#45;&gt;cli -->
+<g id="edge10" class="edge">
+
+<g id="a_edge10"><a xlink:href="#edge=R05" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;Claudeの候補出力・利用上限&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K04&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#2b8c71" stroke-width="1.3" stroke-dasharray="5,2" d="M1590.1,-90.26C1568.21,-86.68 1545.32,-83.53 1523.75,-81.66 1449.03,-75.15 1429.67,-74.68 1355,-81.66 1342.31,-82.84 1329.15,-84.53 1316.04,-86.52"/>
+<polygon fill="#2b8c71" stroke="#2b8c71" stroke-width="1.3" points="1315.93,-83.88 1308.92,-87.63 1316.74,-89.07 1315.93,-83.88"/>
+</a>
+</g>
+<g id="a_edge10&#45;label"><a xlink:href="#edge=R05" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;Claudeの候補出力・利用上限&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K04&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="1365.88" y="-92.21" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#18775f">Claudeの候補出力・利用上限</text>
+<text xml:space="preserve" text-anchor="start" x="1418.75" y="-83.11" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#18775f">応答 · K04</text>
+</a>
+</g>
+</g>
+<!-- providers&#45;&gt;shared -->
+<g id="edge14" class="edge">
+
+<g id="a_edge14"><a xlink:href="#edge=R07" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;正規化前のデータ・出典／未取得&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K06&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#2b8c71" stroke-width="1.3" stroke-dasharray="5,2" d="M1601.53,-658.11C1590.03,-650.31 1579.35,-641.2 1570.75,-630.66 1523.08,-572.24 1584,-512.99 1523.75,-467.66 1465.44,-423.78 1384.34,-431.99 1316.77,-451.8"/>
+<polygon fill="#2b8c71" stroke="#2b8c71" stroke-width="1.3" points="1316.05,-449.27 1309.63,-453.96 1317.57,-454.3 1316.05,-449.27"/>
+</a>
+</g>
+<g id="a_edge14&#45;label"><a xlink:href="#edge=R07" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;正規化前のデータ・出典／未取得&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K06&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="1355" y="-478.21" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#18775f">正規化前のデータ・出典／未取得</text>
+<text xml:space="preserve" text-anchor="start" x="1418.75" y="-469.11" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#18775f">応答 · K06</text>
+</a>
+</g>
+</g>
+<!-- maps&#45;&gt;web&#45;local -->
+<g id="edge16" class="edge">
+
+<g id="a_edge16"><a xlink:href="#edge=R08" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;地図・帰属表示&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K06&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#2b8c71" stroke-width="1.3" stroke-dasharray="5,2" d="M1097.15,-658.3C1087.05,-650.46 1077.99,-641.3 1071.25,-630.66 1004.64,-525.55 1115.86,-156.88 1024.25,-72.66 768.65,162.32 353.38,-237.27 197.1,-406.98"/>
+<polygon fill="#2b8c71" stroke="#2b8c71" stroke-width="1.3" points="195.22,-405.15 192.08,-412.45 199.09,-408.7 195.22,-405.15"/>
+</a>
+</g>
+<g id="a_edge16&#45;label"><a xlink:href="#edge=R08" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;地図・帰属表示&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K06&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="597.5" y="-131.14" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#18775f">地図・帰属表示</text>
+<text xml:space="preserve" text-anchor="start" x="616.25" y="-122.04" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#18775f">応答 · K06</text>
+</a>
+</g>
+</g>
+<!-- maps&#45;&gt;web&#45;shared -->
+<g id="edge18" class="edge">
+
+<g id="a_edge18"><a xlink:href="#edge=R09" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;地図・帰属表示&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K06&lt;/FONT&gt;&lt;/FONT&gt;">
+<path fill="none" stroke="#2b8c71" stroke-width="1.3" stroke-dasharray="5,2" d="M1097.34,-658.18C1087.21,-650.36 1078.1,-641.23 1071.25,-630.66 1016.36,-545.89 1099.26,-246.27 1024.25,-178.66 987.11,-145.18 837.56,-146.52 799.25,-178.66 707.27,-255.81 814.2,-341.82 752.25,-444.66 748.05,-451.62 743.1,-458.25 737.63,-464.5"/>
+<polygon fill="#2b8c71" stroke="#2b8c71" stroke-width="1.3" points="736,-462.4 732.85,-469.7 739.86,-465.96 736,-462.4"/>
+</a>
+</g>
+<g id="a_edge18&#45;label"><a xlink:href="#edge=R09" xlink:title="&lt;FONT COLOR=&quot;#18775f&quot;&gt;地図・帰属表示&lt;BR/&gt;&lt;FONT POINT&#45;SIZE=&quot;9&quot;&gt;応答 · K06&lt;/FONT&gt;&lt;/FONT&gt;">
+<text xml:space="preserve" text-anchor="start" x="872.38" y="-189.21" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#18775f">地図・帰属表示</text>
+<text xml:space="preserve" text-anchor="start" x="891.12" y="-180.11" font-family="Noto Sans CJK JP, sans-serif" font-size="9.00" fill="#18775f">応答 · K06</text>
+</a>
+</g>
+</g>
+<!-- web&#45;local -->
+<g id="node1" class="node">
+
+<g id="a_node1"><a xlink:href="#node=web-local" xlink:title="&lt;TABLE&gt;" target="_self">
+<polygon fill="#edf7f4" stroke="none" points="16,-413.71 16,-541.6 252,-541.6 252,-413.71 16,-413.71"/>
+<polygon fill="none" stroke="#35857d" points="16,-413.71 16,-541.6 252,-541.6 252,-413.71 16,-413.71"/>
+<text xml:space="preserve" text-anchor="start" x="104.38" y="-522.6" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#586d80">«Container»</text>
+<text xml:space="preserve" text-anchor="start" x="77.75" y="-487.4" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="16.00">本人用Web画面</text>
+<text xml:space="preserve" text-anchor="start" x="89.75" y="-457.46" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">React / TypeScript</text>
+<text xml:space="preserve" text-anchor="start" x="26" y="-425.21" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">条件入力、生成進捗、候補の比較と採用</text>
+</a>
+</g>
+</g>
+<!-- web&#45;shared -->
+<g id="node2" class="node">
+
+<g id="a_node2"><a xlink:href="#node=web-shared" xlink:title="&lt;TABLE&gt;" target="_self">
+<polygon fill="#edf7f4" stroke="none" points="542.12,-469.34 542.12,-597.98 731.62,-597.98 731.62,-469.34 542.12,-469.34"/>
+<polygon fill="none" stroke="#35857d" points="542.12,-469.34 542.12,-597.98 731.62,-597.98 731.62,-469.34 542.12,-469.34"/>
+<text xml:space="preserve" text-anchor="start" x="607.25" y="-578.98" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#586d80">«Container»</text>
+<text xml:space="preserve" text-anchor="start" x="588.5" y="-543.78" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="16.00">共有Web画面</text>
+<text xml:space="preserve" text-anchor="start" x="592.62" y="-513.84" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">React / TypeScript</text>
+<text xml:space="preserve" text-anchor="start" x="552.12" y="-481.59" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">旅程閲覧、編集、SNS、ガイド</text>
+</a>
+</g>
+</g>
+<!-- personal -->
+<g id="node3" class="node">
+
+<g id="a_node3"><a xlink:href="#node=personal" xlink:title="&lt;TABLE&gt;" target="_self">
+<polygon fill="#edf7f4" stroke="none" points="521.5,-292.34 521.5,-420.98 752.25,-420.98 752.25,-292.34 521.5,-292.34"/>
+<polygon fill="none" stroke="#35857d" points="521.5,-292.34 521.5,-420.98 752.25,-420.98 752.25,-292.34 521.5,-292.34"/>
+<text xml:space="preserve" text-anchor="start" x="607.25" y="-401.98" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#586d80">«Container»</text>
+<text xml:space="preserve" text-anchor="start" x="570.88" y="-366.78" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="16.00">本人用App Server</text>
+<text xml:space="preserve" text-anchor="start" x="598.25" y="-336.84" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">Node.js / Fastify</text>
+<text xml:space="preserve" text-anchor="start" x="531.5" y="-304.59" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">本人の生成ジョブ・CLI起動・結果検証</text>
+</a>
+</g>
+</g>
+<!-- shared -->
+<g id="node4" class="node">
+
+<g id="a_node4"><a xlink:href="#node=shared" xlink:title="&lt;TABLE&gt;" target="_self">
+<polygon fill="#edf7f4" stroke="none" points="1071.25,-441.65 1071.25,-569.66 1308,-569.66 1308,-441.65 1071.25,-441.65"/>
+<polygon fill="none" stroke="#35857d" points="1071.25,-441.65 1071.25,-569.66 1308,-569.66 1308,-441.65 1071.25,-441.65"/>
+<text xml:space="preserve" text-anchor="start" x="1160" y="-550.66" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#586d80">«Container»</text>
+<text xml:space="preserve" text-anchor="start" x="1119.12" y="-515.46" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="16.00">共有アプリサーバー</text>
+<text xml:space="preserve" text-anchor="start" x="1151" y="-486.16" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">Node.js / Fastify</text>
+<text xml:space="preserve" text-anchor="start" x="1081.25" y="-453.91" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">認証、旅程、SNS、外部データ、永続化</text>
+</a>
+</g>
+</g>
+<!-- db -->
+<g id="node5" class="node">
+
+<g id="a_node5"><a xlink:href="#node=db" xlink:title="&lt;TABLE&gt;" target="_self">
+<polygon fill="#edf7f4" stroke="none" points="1570.75,-441.65 1570.75,-569.66 1832.25,-569.66 1832.25,-441.65 1570.75,-441.65"/>
+<polygon fill="none" stroke="#35857d" points="1570.75,-441.65 1570.75,-569.66 1832.25,-569.66 1832.25,-441.65 1570.75,-441.65"/>
+<text xml:space="preserve" text-anchor="start" x="1671.88" y="-550.66" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#586d80">«Container»</text>
+<text xml:space="preserve" text-anchor="start" x="1639.25" y="-515.46" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="16.00">共通データベース</text>
+<text xml:space="preserve" text-anchor="start" x="1668.5" y="-486.16" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">SQLite / WAL</text>
+<text xml:space="preserve" text-anchor="start" x="1580.75" y="-453.91" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">全利用者の旅程・SNS・認可情報を永続保存</text>
+</a>
+</g>
+</g>
+<!-- cli -->
+<g id="node6" class="node">
+
+<g id="a_node6"><a xlink:href="#node=cli" xlink:title="&lt;TABLE&gt;" target="_self">
+<polygon fill="#eef4fb" stroke="none" points="1072,-41.96 1072,-183.35 1307.25,-183.35 1307.25,-41.96 1072,-41.96"/>
+<polygon fill="none" stroke="#6683ae" points="1072,-41.96 1072,-183.35 1307.25,-183.35 1307.25,-41.96 1072,-41.96"/>
+<text xml:space="preserve" text-anchor="start" x="1121" y="-164.35" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#586d80">«External Software System»</text>
+<text xml:space="preserve" text-anchor="start" x="1125.12" y="-129.15" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="16.00">公式Claude Code</text>
+<text xml:space="preserve" text-anchor="start" x="1147.62" y="-99.22" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">Claude Code CLI</text>
+<text xml:space="preserve" text-anchor="start" x="1082" y="-66.97" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">本人の認証でClaudeに依頼しJSONを返</text>
+<text xml:space="preserve" text-anchor="start" x="1183.62" y="-54.22" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">す</text>
+</a>
+</g>
+</g>
+<!-- anthropic -->
+<g id="node7" class="node">
+
+<g id="a_node7"><a xlink:href="#node=anthropic" xlink:title="&lt;TABLE&gt;" target="_self">
+<polygon fill="#eef4fb" stroke="none" points="1589.88,-41.53 1589.88,-183.79 1813.12,-183.79 1813.12,-41.53 1589.88,-41.53"/>
+<polygon fill="none" stroke="#6683ae" points="1589.88,-41.53 1589.88,-183.79 1813.12,-183.79 1813.12,-41.53 1589.88,-41.53"/>
+<text xml:space="preserve" text-anchor="start" x="1632.88" y="-164.79" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#586d80">«External Software System»</text>
+<text xml:space="preserve" text-anchor="start" x="1643.38" y="-129.59" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="16.00">Claudeサービス</text>
+<text xml:space="preserve" text-anchor="start" x="1661" y="-98.79" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">Anthropic hosted</text>
+<text xml:space="preserve" text-anchor="start" x="1599.88" y="-66.54" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">公式Claude Codeの依頼から旅程候補</text>
+<text xml:space="preserve" text-anchor="start" x="1683.5" y="-53.79" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">を生成</text>
+</a>
+</g>
+</g>
+<!-- providers -->
+<g id="node8" class="node">
+
+<g id="a_node8"><a xlink:href="#node=providers" xlink:title="&lt;TABLE&gt;" target="_self">
+<polygon fill="#eef4fb" stroke="none" points="1601.5,-635.03 1601.5,-762.28 1801.5,-762.28 1801.5,-635.03 1601.5,-635.03"/>
+<polygon fill="none" stroke="#6683ae" points="1601.5,-635.03 1601.5,-762.28 1801.5,-762.28 1801.5,-635.03 1601.5,-635.03"/>
+<text xml:space="preserve" text-anchor="start" x="1632.88" y="-743.28" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#586d80">«External Software System»</text>
+<text xml:space="preserve" text-anchor="start" x="1638.5" y="-708.08" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="16.00">旅行情報サービス</text>
+<text xml:space="preserve" text-anchor="start" x="1683.12" y="-678.78" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">HTTPS</text>
+<text xml:space="preserve" text-anchor="start" x="1611.5" y="-646.53" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">地点・時刻・移動・画像等を供給</text>
+</a>
+</g>
+</g>
+<!-- maps -->
+<g id="node9" class="node">
+
+<g id="a_node9"><a xlink:href="#node=maps" xlink:title="&lt;TABLE&gt;" target="_self">
+<polygon fill="#eef4fb" stroke="none" points="1097.12,-635.03 1097.12,-762.28 1282.12,-762.28 1282.12,-635.03 1097.12,-635.03"/>
+<polygon fill="none" stroke="#6683ae" points="1097.12,-635.03 1097.12,-762.28 1282.12,-762.28 1282.12,-635.03 1097.12,-635.03"/>
+<text xml:space="preserve" text-anchor="start" x="1121" y="-743.28" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00" fill="#586d80">«External Software System»</text>
+<text xml:space="preserve" text-anchor="start" x="1126.62" y="-708.08" font-family="Noto Sans CJK JP, sans-serif" font-weight="bold" font-size="16.00">地図表示サービス</text>
+<text xml:space="preserve" text-anchor="start" x="1136.75" y="-678.78" font-family="Noto Sans CJK JP, sans-serif" font-size="11.00">Maps JavaScript SDK</text>
+<text xml:space="preserve" text-anchor="start" x="1107.12" y="-646.53" font-family="Noto Sans CJK JP, sans-serif" font-size="12.00">地図タイル・ベース地図を表示</text>
+</a>
+</g>
+</g>
+</g>
+</svg>

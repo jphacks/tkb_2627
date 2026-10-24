@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tkb_2627 | GitHubとClaude Code 開発開始ガイド</title>
+<style>
+:root{color-scheme:light;--ink:#183348;--accent:#18746e;--muted:#5d7485;--line:#dbe5ea;--bg:#f3f7f9}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.8 system-ui,'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif}header{padding:35px max(20px,calc((100vw - 1160px)/2));background:#102d3b;color:white}header h1{font-size:clamp(24px,3.2vw,38px);margin:5px 0}header p{max-width:920px;color:#d5e7ec;margin:3px 0}.tag{font-size:12px;color:#8be0d2;font-weight:800;letter-spacing:1.8px}main{max-width:1180px;margin:auto;padding:26px 20px 70px}.panel{background:white;border:1px solid var(--line);border-radius:14px;padding:22px 25px;margin:16px 0;box-shadow:0 6px 20px #17354b08}h2{font-size:20px;margin:0 0 13px}h3{font-size:16px;margin:13px 0 7px}p{margin:8px 0}small,.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}.card{border:1px solid var(--line);border-radius:10px;padding:15px;background:#f8fbfc}.card strong{display:block;color:var(--accent)}.card span{font-size:12px;color:var(--muted)}.nav{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}.nav a{background:#fff;border:1px solid var(--line);padding:7px 13px;text-decoration:none;border-radius:8px;color:var(--ink);font-size:13px}.code{font:13px/1.8 ui-monospace,SFMono-Regular,Consolas,monospace;background:#132a36;color:#e7f6f4;padding:13px 17px;border-radius:8px;overflow-x:auto;white-space:pre}.tree{font:13px/1.9 ui-monospace,SFMono-Regular,Consolas,monospace;background:#f7fafb;border:1px solid var(--line);border-radius:11px;padding:18px;overflow-x:auto;white-space:pre}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:#486679;background:#ecf3f5}td,th{padding:11px;border-bottom:1px solid var(--line);vertical-align:top}button{padding:9px 14px;border-radius:7px;border:1px solid #bddbd4;background:white;color:var(--accent);font-weight:700;cursor:pointer}button.active{background:var(--accent);color:white}button:focus-visible{outline:3px solid #5fd3bf}.tabs{display:flex;gap:9px;flex-wrap:wrap;margin:15px 0}.tip{border-left:4px solid #e4a955;background:#fffbf3;padding:12px 16px;margin:15px 0}.yes{border-left:4px solid var(--accent);background:#f2fbf8;padding:12px 16px;margin:15px 0}.step{display:flex;gap:14px;align-items:start;margin:14px 0}.num{font-size:12px;display:grid;place-items:center;flex:none;width:30px;height:30px;background:#d7f1eb;border-radius:50%;font-weight:800;color:var(--accent)}a{color:#286b83}@media(max-width:840px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:550px){.grid{grid-template-columns:1fr}main{padding:16px 10px 40px}.panel{padding:17px 15px}table{display:block;overflow-x:auto;white-space:nowrap}}@media print{header{color:black;background:white}.panel{break-inside:avoid}}
+</style></head><body><header><div class="tag">JPHACKS • TEAM REPOSITORY</div><h1>tkb_2627 から始める4人開発</h1><p>全員、各自のPCで同じGitHubリポジトリに接続済み。新しいリポジトリを作らず、M1だけが初回構築し、M2・M3・M4はGitHubから取得して担当Agentと一緒に作業します。</p></header><main>
+<div class="nav"><a href="#root">フォルダ構成</a><a href="#start">最初の開始</a><a href="#roles">4人の担当</a><a href="#agents">Agent実行</a><a href="#sync">情報の管理</a></div>
+<section id="root" class="panel"><h2>01　プロジェクトフォルダと構成</h2><div class="yes">✅　全員のGitルート名を <b>tkb_2627</b> に統一。ZIPは別フォルダで展開し、キットだけを安全に配置します。</div><div class="tree">tkb_2627/                  ← 既存Gitリポジトリ。Claude Codeをここで起動
+├─ .git/                     ← 既存。削除・再初期化しない
+├─ .claude/agents/           ← 6種類のSubagentをGitで共有
+├─ .github/                 ← PRとCI
+├─ apps/                    ← M1の初回実装で作成
+│  ├─ web/                  ← M2：旅行画面・SNS画面
+│  ├─ server/               ← M1：共通認証・旅程保存・SNS
+│  └─ ai-local/             ← M4：本人用Claude App Server
+├─ packages/                ← M1が骨格を作り担当別に実装
+│  ├─ contracts/            ← M1：共通の入出力定義
+│  ├─ db/                   ← M1：共通SQLite
+│  ├─ travel-data/          ← M3：観光・交通情報
+│  ├─ planner/              ← M3：行程検証
+│  ├─ ai/                   ← M4：Claude入出力とfake runner
+│  └─ exports/              ← M2：PDFほか
+├─ docs/ ・ model/          ← 仕様・C4設計の正本
+├─ ops/                     ← タスク・依存・担当
+├─ prompts/M1_START.txt ... ← 人間4人ごとの開始指示
+├─ CLAUDE.md                ← AI全員共通の開発規則
+├─ SYSTEM_DESIGN.html       ← C4、SNS、入出力の説明
+└─ DEVELOPMENT_GUIDE.html  ← タスク、共同開発、引継ぎ</div><p class="muted">表示中のapps/packagesは最終的に作る予定の構成です。この設計キットを置いただけでは完成しません。</p></section>
+<section id="start" class="panel"><h2>02　開始手順（最初だけM1が実施）</h2><div class="step"><span class="num">1</span><div><b>4人が各PCのtkb_2627を確認</b><div class="code">cd tkb_2627
+git rev-parse --show-toplevel
+git remote get-url origin
+git status --short</div><small>フォルダ名とリモート名がtkb_2627。別repoなら停止。未commitの変更を破棄しない。</small></div></div>
+<div class="step"><span class="num">2</span><div><b>M1だけがキットをコピー</b><div class="code"># ZIPの展開先をtkb_2627と同じ階層に置く
+node ../tkb_2627_bootstrap_v5/scripts/place-kit.mjs --target . --expect-repo tkb_2627
+# 差分が問題ない場合だけ
+node ../tkb_2627_bootstrap_v5/scripts/place-kit.mjs --target . --expect-repo tkb_2627 --apply
+node scripts/check-repo.mjs</div><small>既存READMEや設定の衝突時は自動上書きしません。dry-runで確認後、--apply --skip-conflictsで不足分だけ追加し、既存ファイルはM1が安全に統合します。</small></div></div>
+<div class="step"><span class="num">3</span><div><b>M1がClaude Codeで骨格を実装</b><div class="code">claude</div><small>入力：「prompts/M1_START.txtとdocs/11_AGENT_DISPATCH.mdを読んで、B01から実装してください」。M1が共通型、最低限のUI・APIを作りブランチへpush、PRで統合。</small></div></div>
+<div class="step"><span class="num">4</span><div><b>他の3人はGitHubから取得</b><div class="code">cd tkb_2627
+git status --short
+git fetch origin
+# 現在ブランチが追跡するdefault branchなら
+# git pull --ff-only で安全に取り込む
+claude</div><small>各自「prompts/M2_START.txt」などを読む。新しいcloneやキット再配置はしない。</small></div></div>
+<div class="tip">⚠ Gitのdefault branch名と現在ブランチはリポジトリごとに異なります。既にgit接続済みでも追跡先がない可能性があるため、Claude Codeに状況確認させ、安易にpullやresetを繰り返さないでください。</div></section>
+<section id="roles" class="panel"><h2>03　4人の担当</h2><div class="grid"><div class="card"><strong>M1　基盤・SNS・統合</strong><span>共通DB、認証、SNS、契約、CI、merge管理</span></div><div class="card"><strong>M2　UI</strong><span>画面、旅程地図同期、しおり、SNS画面</span></div><div class="card"><strong>M3　旅行情報</strong><span>交通、観光、営業時間、時差、経路・費用</span></div><div class="card"><strong>M4　Claude</strong><span>本人専用App Server、Claude JSON、旅程生成</span></div></div><p>役割は人間ごと。<b>1人のClaude Codeセッション内で、作業フェーズ別のSubagentを選ぶ</b>二段階の分業です。</p></section>
+<section id="agents" class="panel"><h2>04　Agentの指定は実装時に実際に行う</h2><div class="tabs" id="role-tabs"><button data-role="M1" class="active">M1</button><button data-role="M2">M2</button><button data-role="M3">M3</button><button data-role="M4">M4</button></div><div id="routing"></div><h3>Agentを使う順番</h3><table><thead><tr><th>段階</th><th>Agent</th><th>モデル</th><th>用途</th></tr></thead><tbody><tr><td>構造判断</td><td>architect</td><td>inherit</td><td>共通API/DBに影響する場合だけ、読取りレビュー</td></tr><tr><td>UI実装</td><td>ui-builder</td><td>sonnet</td><td>画面・操作の試作</td></tr><tr><td>一般実装</td><td>implementer</td><td>sonnet</td><td>API、SNS、旅程、Claude接続</td></tr><tr><td>テスト</td><td>test-author</td><td>sonnet</td><td>成功/異常系、認可、回帰</td></tr><tr><td>PR前の必須確認</td><td>reviewer</td><td>inherit</td><td>独立した読取りレビュー</td></tr><tr><td>仕様との整合</td><td>doc-checker</td><td>haiku</td><td>C4/契約/READMEと変更の照合</td></tr></tbody></table><p class="muted">Agent定義は.claude/agents/*.md。自動的な役割選択だけに頼らず、Claude Codeへ「実装はimplementer、PR前はreviewer」など明示。CLIで@からAgentを選んで呼び出すこともできます。実行したAgentと結果をIssueへ残します。</p></section>
+<section id="sync" class="panel"><h2>05　4人の情報管理はGitHubに集約</h2><table><thead><tr><th>共有するもの</th><th>正本</th><th>いつ更新するか</th></tr></thead><tbody><tr><td>仕様・API入出力</td><td>docs/・model/・packages/contracts/</td><td>PRで合意→M1統合→関係IssueへSHA通知</td></tr><tr><td>タスクと依存関係</td><td>ops/tasks.json</td><td>M1が依存や責任範囲を変更したとき</td></tr><tr><td>誰が何をしているか</td><td>GitHub Issues</td><td>開始・15〜30分の中間・block・完了時</td></tr><tr><td>コード変更・検証</td><td>ブランチ・Pull Request・CI</td><td>小さなcommit+push、PRレビュー</td></tr><tr><td>UI承認</td><td>UI Issueの人間コメント</td><td>試作画面を見て承認・修正</td></tr><tr><td>AI Agentの委任</td><td>CLAUDE.md / docs/11_AGENT_DISPATCH.md</td><td>メインがタスク単位で指名、結果をIssueへ報告</td></tr></tbody></table><div class="yes">✅　GitHubで同期するのは、採用済みファイルと作業状況です。<b>Claude Proのログイン情報や、各PCの会話履歴、SQLiteの実データは共有しません。</b></div><p>詳細のC4設計はSYSTEM_DESIGN.html、54タスクの依存グラフと14段階の共同開発手順はDEVELOPMENT_GUIDE.htmlを参照してください。</p></section>
+<script>
+const roles={M1:['初期構築・契約・SNS','architect → implementer → test-author → reviewer → doc-checker','B01 / B02 / B03 / G01 / G02'],M2:['UI試作・改善','ui-builder → test-author → reviewer → doc-checker','B04 / U01 / U02'],M3:['交通・観光・日時','implementer → test-author → reviewer（契約変更時はarchitect）','D01 / D05'],M4:['本人用Claude・旅程','implementer → test-author → reviewer（高リスクならarchitect）','A01 / A02']};
+function showRole(id){const x=roles[id];document.getElementById('routing').innerHTML='<div class="yes"><b>'+id+'：'+x[0]+'</b><p><b>主な起動順：</b>'+x[1]+'</p><p><b>最初のタスク：</b>'+x[2]+'</p></div>';for(const b of document.querySelectorAll('[data-role]')){const on=b.dataset.role===id;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));}}document.querySelectorAll('[data-role]').forEach(b=>b.addEventListener('click',()=>showRole(b.dataset.role)));showRole('M1');
+</script></main></body></html>

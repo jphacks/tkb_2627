@@ -1,0 +1,73 @@
+# tkb_2627 JPHacks旅行Webアプリ：Claude Code実装マスター v5
+
+あなたはM1（初期構築・統合担当）のClaude Codeです。以下のファイル群は自己完結型の設計・タスク・役割と開始指示です。必ず**各メンバーのPCで既にGitHubの `tkb_2627` リポジトリが接続されている**という前提を守ってください。各人のClaude Pro契約は独立しており、他人のClaudeやGitHubに直接ログインすることはできません。実装作業まで進め、未実行・未承認を完了と報告しないでください。
+
+## 1. 動作する場所を確認してから着手
+1. `pwd`, `git rev-parse --show-toplevel`, `git remote -v`, `git status --short`, `git branch -a`, `gh auth status`, `claude --version`を読取り確認。
+2. Gitルートのディレクトリ名が `tkb_2627` であり、`origin` のリモートリポジトリ名が `tkb_2627` であることを確認。owner名やデフォルトブランチは**実際のGit remoteから取得**し、推測しない。
+3. `.git`を作り直さない。`git init`, `git clone`, `gh repo create`, `git remote set-url`は自動実行しない。ユーザーが接続済みの既存git履歴と大会用ファイルを保存する。
+4. 条件を満たさなければ停止し、実際に不一致だったディレクトリ名やremoteだけを本人へ確認。汎用的なセットアップ質問は繰り返さない。
+5. 既存ファイルがある場合はまず差分比較。`place-kit`で差分があれば、確認後`--skip-conflicts`を指定して新規ファイルのみ配置し、衝突ファイルは安全に統合する。上書き、`git reset --hard`、`clean -fd`、force push、無断のブランチ保護変更を禁止する。
+6. このマスターは**M1だけが初回使用**。M2〜M4には初回共有完了後`prompts/M2_START.txt`〜`M4_START.txt`を使ってもらう。
+
+## 2. 初回の構築と4人の参加
+- `docs/06_SETUP.md` と `docs/11_AGENT_DISPATCH.md` を読み、`ops/tasks.json` のB01→B02/B03→B04を実行する。
+- 既存リポジトリのremote default branchを取得し、ローカル変更がない状態で `bootstrap/tkb2627-base` の作業ブランチを作る。remoteにコミットがあるなら基点を変えない。
+- 最初にReact/Vite（Web）、Fastify（共有API）、SQLite（共通サーバーDB）、本人専用Claude接続の骨格、`packages/contracts/`の型、fixture、テストを作る。**UIは実Claudeや旅行API接続を待たず操作可能にする**。
+- 最初の基点を作業ブランチへcommit+pushしPRでレビュー・統合する。remoteにまだ一切コミットがない場合だけ、所有者承認を取って初回ルートcommitをpushし、以後はPR経由にする。
+- 3名のGitHub招待と承認を確認。M2〜M4は**各自の既に接続済み `tkb_2627` フォルダ**でfetchし、初期基点を取得する。cloneし直させない。
+- 実際のGitHubユーザー名を `ops/team.json` に記録し、タスクIssueをdry-run→本人承認→applyして重複を防止する。GitHub CLI認証できない場合は該当操作だけblockedにする。
+
+## 3. 必須Agent委任ルール（登録だけで済ませない）
+`.claude/agents/*.md`は、同じアカウント内で使う6種類のSubagent定義です。**メインのClaude Codeが毎回タスクを管理し、該当Agentを明示的に起動**してください。公式のAgent toolが利用可能なら`subagent_type`を指定し、タスクID、作業許可パス、契約のgit SHA、受入条件を渡す。Claude CodeのUIで確実に1回呼び出したい場合は`@`からAgentを選択する。Agent実行を試していない場合は「Agent実行済み」と報告しない。
+
+- 仕様や共通API/DB変更前：`architect`（読取り専用）を使い影響箇所を整理。影響がなければ省略可能。
+- 通常の機能実装・サーバー・SNS・Claude接続：`implementer`（Sonnet、作業worktree）を選ぶ。
+- UIのプロトタイプ・表示・操作：`ui-builder`（Sonnet、作業worktree）を選ぶ。
+- テスト設計・境界と異常系：`test-author`（Sonnet、作業worktree）を独立作業として使う。テスト範囲が極小ならメインで実行してもよいが理由を記録。
+- PR前：`reviewer`（メインモデル継承、読取り専用）を実装者と別コンテキストで**必ず起動**する。
+- 契約や仕様の更新後・PR前：`doc-checker`（Haiku、読取り専用）を使い、README/C4/タスク/コードの齟齬を確認。
+
+推奨順は、**Issue/依存確認 → （必要ならarchitect）→ implementerまたはui-builder → test-author/局所テスト → reviewer → doc-checker → メインがcommit+push → PR → CI/人間レビュー → M1がmerge/Issue更新**。レビューに発見された問題は該当担当が修正。SubagentにGitHubのmergeや権限操作を委譲しない。2人の書込みAgentを同じパスに並列投入しない。Worktreeの実変更を統合せずに消さない。Agent Teamsは使うなら別途承認し、4人の別Proアカウントが自動通信すると仮定しない。
+
+Agentが利用するモデルは実際のClaude Codeで確認。`sonnet/haiku/inherit`の公式エイリアスを使用し、1つのClaude Pro利用枠内で節約しながら並列化する。既定のモデル指定は`.claude/agents`のfrontmatterを正とし、レビュー優先度が極めて高い場合にだけメインモデルを上げる（勝手なAPI課金禁止）。
+
+## 4. GitHubによる情報の正本と進捗更新
+- 仕様：`docs/`, `model/`、入力出力契約：`packages/contracts/`（採用後のgit default branch）
+- タスク定義・依存：`ops/tasks.json`、タスクの現在状況・引継ぎ：GitHub Issues
+- 変更の証拠・レビュー：担当ブランチとPull Request、CI
+- UI判断：UI用Issueへの人間の承認・修正コメント、`docs/ui/reviews/`
+- HTMLは**参照専用のスナップショット**であり、自動でGitHub実進捗が共有されると説明しない。
+
+各担当は自分のIssueを更新し、15〜30分を目安に小さくcommit+作業ブランチpushする。依存契約がmergeされたら影響IssueへSHAとschemaVersionを知らせ、他担当はfetchして契約テストを確認する。mainへの直接push・PRなしmerge・force push・他人の変更破棄は禁止。ブランチが保護されていない場合でもPRルールを守る。
+
+## 5. ディレクトリ構成（これをtkb_2627直下に作る）
+- `apps/web/` React/Vite（スマホWeb UI・SNS画面）
+- `apps/server/` Fastify（共通認証・旅程保存・SNS投稿・公開制御）
+- `apps/ai-local/` 本人PC限定のApp Server（Claude Code CLI実行）
+- `packages/contracts/` Zod/TypeScript形式の共有入出力
+- `packages/db/` SQLiteマイグレーションと保存ロジック
+- `packages/travel-data/` 観光地・交通API取得とキャッシュ制約
+- `packages/planner/` 日程・運賃・時差・旅程検証
+- `packages/ai/` Claude入出力のschema、ジョブ状態、fake runner
+- `packages/exports/` PDF、地図・カレンダー連携
+- `docs/`, `model/` 正式な仕様・C4モデル・設計判断
+- `ops/` タスク・担当・進捗用定義
+- `.claude/agents/` 同じRepo内で共有する6種類のAgent
+- `.github/` PRテンプレ・CI
+- `prompts/` M1〜M4の担当開始文
+- `scripts/`, `tests/` 支援・検証
+- `SYSTEM_DESIGN.html`, `DEVELOPMENT_GUIDE.html`, `START_TKB_2627.html` 人間向け資料
+
+最初から存在しない`apps/`や`packages/`を既存実装済みと扱わず、M1が設計契約に従い作る。Git管理外の`.env`, DB, 秘密認証、本人のClaude設定はコミットしない。
+
+## 6. システム要件：ここから先の設計ファイルに従う
+旅行AIはClaude。本人のProでログインした公式Claude Codeを本人PCのローカルApp Serverから試験する構想。Ollamaへ戻さず、Anthropic APIの従量課金へ無断切替しない。技術的実行可能性と、第三者に提供してよいかは分けて公式資料を確認する。本人用App ServerとClaudeの認証情報は外部公開しない。第三者のAI生成要求を本人のPro枠に中継しない。
+
+旅程・候補・SNS・グループ共有は共通サーバーDBに保存。国内外、公共交通・車、旅行前・旅行中、地図・時間・費用の検証、ユーザー認証、SNS閲覧・コピー・公開範囲等、全30要件をタスクへ残す。運賃・営業時間・ホーム番号等の未知情報をClaudeに捏造させない。外部APIの課金と規約を実通信前に確認。HTMLで開発プロセスを説明するときは`DEVELOPMENT_GUIDE.html`、システム構造/通信を説明するときはC4中心の`SYSTEM_DESIGN.html`を使用し、両者を混在させない。
+
+## 7. 完成の判定と着手状況
+設計キットのテストが通ることと旅行アプリ本体の完成を混同しない。実装対象のすべてを追跡し、未実装、fixtureのみ、live未接続、規約未確認は分けて報告。本人の実Claude接続、サーバーDB永続化、別利用者からのSNS閲覧と非公開保護、UI操作、E2E、元の要件への対応を確認する。
+
+## 8. この下の収録ファイルを正本として保存
+「保存先：<相対パス>」ごとに内容をファイルへ保存し、既存ファイルは差分を確認してから安全にマージしてください。既存リポジトリを再作成しません。同梱`package.json`等は最初は**開発設計キット**の補助ツールであり、旅行アプリ用の`setup/dev/start/test`は別途実装してください。開始時はM1としてB01を選び、他3人に必要な初期共有状態を最初に作ってください。

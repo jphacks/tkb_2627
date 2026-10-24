@@ -1,0 +1,267 @@
+{
+  "title": "C4 Code｜永続化Repositoryの内部",
+  "scope": "repository",
+  "status": "実装前のテーブル設計。実DBからの逆生成ではない。",
+  "tables": [
+    {
+      "id": "users",
+      "label": "利用者",
+      "fields": [
+        "id PK",
+        "login_id UNIQUE",
+        "password_hash",
+        "display_name",
+        "created_at"
+      ],
+      "note": "ログインIDと表示名。秘密ハッシュはAPIに出さない。"
+    },
+    {
+      "id": "sessions",
+      "label": "アプリセッション",
+      "fields": [
+        "id_hash PK",
+        "user_id FK",
+        "expires_at",
+        "revoked_at"
+      ],
+      "note": "HttpOnly cookieと照合。Claudeの認証情報ではない。"
+    },
+    {
+      "id": "trips",
+      "label": "旅程の現在版",
+      "fields": [
+        "id PK",
+        "owner_id FK",
+        "revision",
+        "constraints_json",
+        "days_json",
+        "validation_state",
+        "deleted_at"
+      ],
+      "note": "ownerIdはセッションから設定。全予定の正本。"
+    },
+    {
+      "id": "trip_versions",
+      "label": "旅程履歴",
+      "fields": [
+        "trip_id FK",
+        "revision",
+        "document_json",
+        "created_at",
+        "UNIQUE(trip_id, revision)"
+      ],
+      "note": "短いtransactionで現在版と同時保存。必要以上の過去GPSは残さない。"
+    },
+    {
+      "id": "plan_batches",
+      "label": "生成候補群",
+      "fields": [
+        "id PK",
+        "owner_id FK",
+        "base_trip_id? FK",
+        "base_revision?",
+        "candidates_json",
+        "created_at"
+      ],
+      "note": "選択前の候補も共通DBに保存。実行待ちキューではない。"
+    },
+    {
+      "id": "groups",
+      "label": "共有グループ",
+      "fields": [
+        "id PK",
+        "owner_id FK",
+        "name",
+        "created_at"
+      ],
+      "note": "作成者を管理者にする。"
+    },
+    {
+      "id": "group_members",
+      "label": "現在の所属",
+      "fields": [
+        "group_id FK",
+        "user_id FK",
+        "role",
+        "joined_at",
+        "PRIMARY KEY(group_id,user_id)"
+      ],
+      "note": "owner/admin/member。都度参照する。"
+    },
+    {
+      "id": "group_invites",
+      "label": "グループ招待",
+      "fields": [
+        "token_hash PK",
+        "group_id FK",
+        "invitee_id? FK",
+        "expires_at",
+        "consumed_at"
+      ],
+      "note": "期限・一度だけの消費。平文tokenは保存しない。"
+    },
+    {
+      "id": "posts",
+      "label": "SNS投稿",
+      "fields": [
+        "id PK",
+        "owner_id FK",
+        "source_trip_id? FK",
+        "source_revision",
+        "snapshot_id FK",
+        "visibility",
+        "group_id? FK",
+        "revision",
+        "story",
+        "deleted_at"
+      ],
+      "note": "private/group/public。group以外はgroup_id=null。"
+    },
+    {
+      "id": "post_snapshots",
+      "label": "公開用固定コピー",
+      "fields": [
+        "id PK",
+        "document_json",
+        "redaction_version",
+        "created_at"
+      ],
+      "note": "公開許可済みの旅行情報だけ。元tripを直接公開しない。"
+    },
+    {
+      "id": "exports",
+      "label": "しおり出力物",
+      "fields": [
+        "id PK",
+        "owner_id FK",
+        "trip_id FK",
+        "source_revision",
+        "file_path",
+        "status",
+        "expires_at"
+      ],
+      "note": "認可してから配信。固定ディレクトリ内のファイルのみ。"
+    },
+    {
+      "id": "operation_keys",
+      "label": "重複更新の防止",
+      "fields": [
+        "owner_id FK",
+        "action",
+        "key_hash",
+        "request_hash",
+        "result_id",
+        "expires_at",
+        "UNIQUE(owner_id,action,key_hash)"
+      ],
+      "note": "採用・投稿等の重複送信で二重作成しない。"
+    }
+  ],
+  "links": [
+    {
+      "source": "users",
+      "target": "sessions",
+      "fromCard": "1",
+      "toCard": "0..*",
+      "field": "sessions.user_id"
+    },
+    {
+      "source": "users",
+      "target": "trips",
+      "fromCard": "1",
+      "toCard": "0..*",
+      "field": "trips.owner_id"
+    },
+    {
+      "source": "trips",
+      "target": "trip_versions",
+      "fromCard": "1",
+      "toCard": "1..*",
+      "field": "trip_versions.trip_id"
+    },
+    {
+      "source": "users",
+      "target": "plan_batches",
+      "fromCard": "1",
+      "toCard": "0..*",
+      "field": "plan_batches.owner_id"
+    },
+    {
+      "source": "trips",
+      "target": "plan_batches",
+      "fromCard": "0..1",
+      "toCard": "0..*",
+      "field": "base_trip_id"
+    },
+    {
+      "source": "users",
+      "target": "posts",
+      "fromCard": "1",
+      "toCard": "0..*",
+      "field": "posts.owner_id"
+    },
+    {
+      "source": "trips",
+      "target": "posts",
+      "fromCard": "0..1",
+      "toCard": "0..*",
+      "field": "source_trip_id"
+    },
+    {
+      "source": "posts",
+      "target": "post_snapshots",
+      "fromCard": "1",
+      "toCard": "1",
+      "field": "snapshot_id"
+    },
+    {
+      "source": "groups",
+      "target": "posts",
+      "fromCard": "0..1",
+      "toCard": "0..*",
+      "field": "posts.group_id"
+    },
+    {
+      "source": "groups",
+      "target": "group_members",
+      "fromCard": "1",
+      "toCard": "1..*",
+      "field": "group_members.group_id"
+    },
+    {
+      "source": "users",
+      "target": "group_members",
+      "fromCard": "1",
+      "toCard": "0..*",
+      "field": "group_members.user_id"
+    },
+    {
+      "source": "groups",
+      "target": "group_invites",
+      "fromCard": "1",
+      "toCard": "0..*",
+      "field": "group_invites.group_id"
+    },
+    {
+      "source": "trips",
+      "target": "exports",
+      "fromCard": "1",
+      "toCard": "0..*",
+      "field": "exports.trip_id"
+    },
+    {
+      "source": "users",
+      "target": "operation_keys",
+      "fromCard": "1",
+      "toCard": "0..*",
+      "field": "operation_keys.owner_id"
+    }
+  ],
+  "rules": [
+    "tripとtrip_versionsは同じtransaction。外部APIやClaudeを待つ間はtransactionを開かない。",
+    "生成ジョブの進捗だけは本人App Serverの一時状態。旅程・候補・SNSの正本は共通DB。",
+    "投稿は公開時のsnapshot。元旅程の編集は公開投稿へ自動波及しない。",
+    "元旅程の削除時は関連投稿を同一transactionでprivate化し、出力物を失効。履歴の物理削除は復元要件に従う。",
+    "保存を許可されないGoogle等の生データをdocument_jsonへ入れない。ID・ユーザー作成予定・許可された値を分ける。"
+  ]
+}

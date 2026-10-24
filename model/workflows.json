@@ -1,0 +1,1029 @@
+[
+  {
+    "id": "F01",
+    "title": "旅程生成：押す→Claude→候補保存→画面へ戻る",
+    "scope": "C4 Dynamic / Container",
+    "actors": [
+      "web-local",
+      "personal",
+      "shared",
+      "cli",
+      "anthropic",
+      "db"
+    ],
+    "steps": [
+      {
+        "number": 1,
+        "relation": "R01",
+        "direction": "request",
+        "label": "生成条件を送信",
+        "contract": "K01",
+        "detail": ""
+      },
+      {
+        "number": 2,
+        "relation": "R01",
+        "direction": "response",
+        "label": "202：jobId・待機状態",
+        "contract": "K01",
+        "detail": "この時点でHTTPを返す。以下は非同期ジョブで実行。"
+      },
+      {
+        "number": 3,
+        "relation": "R03",
+        "direction": "request",
+        "label": "候補・時刻データを照会",
+        "contract": "K05",
+        "detail": ""
+      },
+      {
+        "number": 4,
+        "relation": "R03",
+        "direction": "response",
+        "label": "候補ID・許諾済み事実・unknown",
+        "contract": "K05",
+        "detail": ""
+      },
+      {
+        "number": 5,
+        "relation": "R04",
+        "direction": "request",
+        "label": "条件＋候補＋Schemaをstdinへ",
+        "contract": "K03",
+        "detail": ""
+      },
+      {
+        "number": 6,
+        "relation": "R05",
+        "direction": "request",
+        "label": "公式CLIがClaudeへ生成依頼",
+        "contract": "K04",
+        "detail": ""
+      },
+      {
+        "number": 7,
+        "relation": "R05",
+        "direction": "response",
+        "label": "候補順・理由・警告",
+        "contract": "K04",
+        "detail": ""
+      },
+      {
+        "number": 8,
+        "relation": "R04",
+        "direction": "response",
+        "label": "stdoutの構造化JSON・終了コード",
+        "contract": "K03",
+        "detail": ""
+      },
+      {
+        "number": 9,
+        "actor": "personal",
+        "label": "候補を検証",
+        "detail": "Schema、実在ID、移動時刻、固定予定、予算を検証。追加経路照会はF02。",
+        "direction": "self",
+        "contract": "K23",
+        "internalInput": "CLI出力のPlanBlueprint、現在の旅程版、旅行条件、取得済みの経路と営業時間。",
+        "internalOutput": "ValidatedCandidates：成立する時間順序、既知費用、未取得情報、制約違反一覧。",
+        "internalFailure": "JSON不正・未知の地点IDは拒否。実行不可能案を検証済みとして保存しない。"
+      },
+      {
+        "number": 10,
+        "relation": "R03",
+        "direction": "request",
+        "label": "検証結果付き候補群を保存",
+        "contract": "K07",
+        "detail": ""
+      },
+      {
+        "number": 11,
+        "relation": "R06",
+        "direction": "request",
+        "label": "候補・所有者をtransactionで保存",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 12,
+        "relation": "R06",
+        "direction": "response",
+        "label": "保存batchId・候補ID",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 13,
+        "relation": "R03",
+        "direction": "response",
+        "label": "201：batchId・検証状態",
+        "contract": "K07",
+        "detail": ""
+      },
+      {
+        "number": 14,
+        "relation": "R01",
+        "direction": "request",
+        "label": "jobIdの状態を照会",
+        "contract": "K02",
+        "detail": ""
+      },
+      {
+        "number": 15,
+        "relation": "R01",
+        "direction": "response",
+        "label": "succeeded・batchId",
+        "contract": "K02",
+        "detail": ""
+      },
+      {
+        "number": 16,
+        "relation": "R01",
+        "direction": "request",
+        "label": "batchIdの候補を要求",
+        "contract": "K07",
+        "detail": ""
+      },
+      {
+        "number": 17,
+        "relation": "R03",
+        "direction": "request",
+        "label": "本人権限で候補を読出し",
+        "contract": "K07",
+        "detail": "GET /api/v1/plan-batches/{id}はK07の読出し補助ルート。"
+      },
+      {
+        "number": 18,
+        "relation": "R03",
+        "direction": "response",
+        "label": "保存済み候補群",
+        "contract": "K07",
+        "detail": ""
+      },
+      {
+        "number": 19,
+        "relation": "R01",
+        "direction": "response",
+        "label": "候補・警告を画面へ返す",
+        "contract": "K02",
+        "detail": "直前の候補読出しはブラウザの読出し要求に対する限定proxy。候補本体を表示し採用ボタンへ。"
+      }
+    ],
+    "success": "候補は共通DBに保存済み。画面に複数案と警告。採用はF03で別操作。",
+    "failures": "認証失敗、CLI上限、時間超過、不正JSON、保存失敗はF09。未保存の候補を成功にしない。",
+    "tasks": [
+      "A02",
+      "A03",
+      "A04",
+      "I02"
+    ],
+    "description": ""
+  },
+  {
+    "id": "F02",
+    "title": "旅行情報：何をClaudeへ渡し、何をプログラムで検証するか",
+    "scope": "C4 Dynamic / Container",
+    "actors": [
+      "personal",
+      "shared",
+      "providers"
+    ],
+    "steps": [
+      {
+        "number": 1,
+        "relation": "R03",
+        "direction": "request",
+        "label": "地域・日程・候補数を照会",
+        "contract": "K05",
+        "detail": ""
+      },
+      {
+        "number": 2,
+        "relation": "R07",
+        "direction": "request",
+        "label": "地点検索・営業時間照会",
+        "contract": "K06",
+        "detail": ""
+      },
+      {
+        "number": 3,
+        "relation": "R07",
+        "direction": "response",
+        "label": "地点ID・事実・出典・欠落値",
+        "contract": "K06",
+        "detail": ""
+      },
+      {
+        "number": 4,
+        "actor": "shared",
+        "label": "利用条件で分類",
+        "detail": "AI入力可、保存可、表示のみ、利用不明を分ける。保存不可の生データはDBへ入れない。",
+        "direction": "self",
+        "contract": "K23",
+        "internalInput": "ProviderAdapterの情報と出典、取得日時、保存・AI入力・表示の利用条件。",
+        "internalOutput": "PlanningContext：AIに渡せる事実、プログラム照合専用情報、未取得値を分離。",
+        "internalFailure": "許諾不明の情報をAIへ送らない。情報源を変えるか要確認とする。"
+      },
+      {
+        "number": 5,
+        "relation": "R03",
+        "direction": "response",
+        "label": "送信許可済み情報だけ返却",
+        "contract": "K05",
+        "detail": ""
+      },
+      {
+        "number": 6,
+        "relation": "R03",
+        "direction": "request",
+        "label": "候補順の各区間を指定時刻で確認",
+        "contract": "K06",
+        "detail": ""
+      },
+      {
+        "number": 7,
+        "relation": "R07",
+        "direction": "request",
+        "label": "出発時刻ごとの移動を検索",
+        "contract": "K06",
+        "detail": ""
+      },
+      {
+        "number": 8,
+        "relation": "R07",
+        "direction": "response",
+        "label": "到着時刻・運賃またはnull",
+        "contract": "K06",
+        "detail": ""
+      },
+      {
+        "number": 9,
+        "relation": "R03",
+        "direction": "response",
+        "label": "制約検証用の経路結果",
+        "contract": "K06",
+        "detail": ""
+      }
+    ],
+    "success": "取得値とunknownを区別。実在性と移動の検証結果を旅程に付ける。",
+    "failures": "地域未対応・運賃未取得を0円や推測時刻で埋めない。",
+    "tasks": [
+      "D01",
+      "D02",
+      "D03",
+      "D04",
+      "D06"
+    ],
+    "description": ""
+  },
+  {
+    "id": "F03",
+    "title": "候補を採用：選択→共通DB→地図と行程表",
+    "scope": "C4 Dynamic / Container",
+    "actors": [
+      "web-local",
+      "personal",
+      "shared",
+      "db"
+    ],
+    "steps": [
+      {
+        "number": 1,
+        "relation": "R01",
+        "direction": "request",
+        "label": "batchId・candidateIdを採用",
+        "contract": "K08",
+        "detail": ""
+      },
+      {
+        "number": 2,
+        "relation": "R03",
+        "direction": "request",
+        "label": "本人権限＋expectedRevision",
+        "contract": "K08",
+        "detail": ""
+      },
+      {
+        "number": 3,
+        "relation": "R06",
+        "direction": "request",
+        "label": "候補・所有権・現revisionを読む",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 4,
+        "relation": "R06",
+        "direction": "response",
+        "label": "候補と現在版",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 5,
+        "actor": "shared",
+        "label": "版一致と制約を確認",
+        "detail": "元旅程が変更済みなら409。候補は同じ利用者のものだけ。",
+        "direction": "self",
+        "contract": "K23",
+        "internalInput": "本人所有の候補、baseTripId、expectedRevision、現在のDB版。",
+        "internalOutput": "採用可能なTripドキュメントと、DB更新に使用する現在版番号。",
+        "internalFailure": "所有者不一致404、元版不一致409、成立しない候補422。"
+      },
+      {
+        "number": 6,
+        "relation": "R06",
+        "direction": "request",
+        "label": "trip_versions挿入・trips更新",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 7,
+        "relation": "R06",
+        "direction": "response",
+        "label": "tripId・新revision",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 8,
+        "relation": "R03",
+        "direction": "response",
+        "label": "保存済みTrip・警告",
+        "contract": "K08",
+        "detail": ""
+      },
+      {
+        "number": 9,
+        "relation": "R01",
+        "direction": "response",
+        "label": "地図と行程表へ反映",
+        "contract": "K08",
+        "detail": ""
+      }
+    ],
+    "success": "正本の旅程は共通DB。別端末で再読出しでき、まだSNSには未公開。",
+    "failures": "409なら再読込して比較。無条件上書きや自動強制適用をしない。",
+    "tasks": [
+      "S04",
+      "U05",
+      "I01",
+      "I02"
+    ],
+    "description": ""
+  },
+  {
+    "id": "F04",
+    "title": "旅行中の再計画：訪問済みと予約を固定する",
+    "scope": "C4 Dynamic / Container",
+    "actors": [
+      "web-local",
+      "personal",
+      "shared",
+      "cli"
+    ],
+    "steps": [
+      {
+        "number": 1,
+        "relation": "R01",
+        "direction": "request",
+        "label": "現在地・遅延・元revision",
+        "contract": "K01",
+        "detail": "GenerateRequestにmode=replan、completedActivityIds、fixedActivityIds、nowを追加。"
+      },
+      {
+        "number": 2,
+        "relation": "R01",
+        "direction": "response",
+        "label": "202：再計画jobId",
+        "contract": "K01",
+        "detail": ""
+      },
+      {
+        "number": 3,
+        "relation": "R03",
+        "direction": "request",
+        "label": "最新旅程を本人権限で読出し",
+        "contract": "K09",
+        "detail": ""
+      },
+      {
+        "number": 4,
+        "relation": "R03",
+        "direction": "response",
+        "label": "Trip・現在revision",
+        "contract": "K09",
+        "detail": ""
+      },
+      {
+        "number": 5,
+        "actor": "personal",
+        "label": "固定対象を確定",
+        "detail": "訪問済み、変更不能な予約は維持。今からの残りだけを作る。",
+        "direction": "self",
+        "contract": "K23",
+        "internalInput": "現在地と現在時刻、保存済み旅程、visitedActivityIds、変更不可の予約。",
+        "internalOutput": "FixedActivitiesと再計画対象の未訪問予定。次のClaude入力に組み込む。",
+        "internalFailure": "予約に間に合わない場合は警告。予約自体を勝手に移動・削除しない。"
+      },
+      {
+        "number": 6,
+        "relation": "R04",
+        "direction": "request",
+        "label": "残りの条件・固定ID・候補",
+        "contract": "K03",
+        "detail": ""
+      },
+      {
+        "number": 7,
+        "relation": "R04",
+        "direction": "response",
+        "label": "残り旅程の候補JSON",
+        "contract": "K03",
+        "detail": ""
+      },
+      {
+        "number": 8,
+        "relation": "R03",
+        "direction": "request",
+        "label": "元revision付きで候補保存",
+        "contract": "K07",
+        "detail": ""
+      },
+      {
+        "number": 9,
+        "relation": "R03",
+        "direction": "response",
+        "label": "batchId／409競合",
+        "contract": "K07",
+        "detail": ""
+      },
+      {
+        "number": 10,
+        "relation": "R01",
+        "direction": "request",
+        "label": "進捗を照会",
+        "contract": "K02",
+        "detail": ""
+      },
+      {
+        "number": 11,
+        "relation": "R01",
+        "direction": "response",
+        "label": "変更前後の差分を確認可能",
+        "contract": "K02",
+        "detail": ""
+      }
+    ],
+    "success": "ユーザーの確認後にF03で採用。訪問済みの書換えは検証で拒否。",
+    "failures": "古い生成結果が新しい編集を上書きしない。GPS拒否時は手入力。",
+    "tasks": [
+      "A05",
+      "A06",
+      "U06",
+      "I03"
+    ],
+    "description": ""
+  },
+  {
+    "id": "F05",
+    "title": "SNS投稿：元旅程から安全な公開コピーを作る",
+    "scope": "C4 Dynamic / Container",
+    "actors": [
+      "web-shared",
+      "shared",
+      "db"
+    ],
+    "steps": [
+      {
+        "number": 1,
+        "relation": "R02",
+        "direction": "request",
+        "label": "tripId・版・公開範囲・文章",
+        "contract": "K12",
+        "detail": ""
+      },
+      {
+        "number": 2,
+        "relation": "R06",
+        "direction": "request",
+        "label": "旅程所有者とgroup所属を確認",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 3,
+        "relation": "R06",
+        "direction": "response",
+        "label": "Trip・owner・membership",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 4,
+        "actor": "shared",
+        "label": "公開用snapshotを作成",
+        "detail": "自宅住所・詳細現在地・秘密メモを除外。許可されない外部画像も除く。",
+        "direction": "self",
+        "contract": "K23",
+        "internalInput": "元のTrip版、投稿文、公開範囲、現在のgroup所属、削除対象となる個人情報。",
+        "internalOutput": "SanitizedSnapshotとredactions一覧、元版・公開範囲・期限に結びつくpreviewToken。",
+        "internalFailure": "除外必須情報が残れば公開不可。元版の変更や期限切れなら再プレビュー。"
+      },
+      {
+        "number": 5,
+        "relation": "R02",
+        "direction": "response",
+        "label": "previewToken・除外項目・見え方",
+        "contract": "K12",
+        "detail": ""
+      },
+      {
+        "number": 6,
+        "relation": "R02",
+        "direction": "request",
+        "label": "プレビューを確認して投稿",
+        "contract": "K13",
+        "detail": ""
+      },
+      {
+        "number": 7,
+        "relation": "R06",
+        "direction": "request",
+        "label": "token・旅程版・所属を再確認",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 8,
+        "relation": "R06",
+        "direction": "response",
+        "label": "一致／競合",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 9,
+        "relation": "R06",
+        "direction": "request",
+        "label": "投稿＋snapshotを同時保存",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 10,
+        "relation": "R06",
+        "direction": "response",
+        "label": "postId・postRevision",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 11,
+        "relation": "R02",
+        "direction": "response",
+        "label": "201：投稿内容と公開範囲",
+        "contract": "K13",
+        "detail": ""
+      }
+    ],
+    "success": "元旅程と投稿snapshotは独立。元旅程を後で編集しても公開内容は勝手に変わらない。",
+    "failures": "プレビュー以降の元旅程変更、招待取消、期限切れは保存せず再確認。",
+    "tasks": [
+      "S05",
+      "U08",
+      "T03",
+      "I04"
+    ],
+    "description": ""
+  },
+  {
+    "id": "F06",
+    "title": "SNS閲覧：権限で絞ってから結果を返す",
+    "scope": "C4 Dynamic / Container",
+    "actors": [
+      "web-shared",
+      "shared",
+      "db"
+    ],
+    "steps": [
+      {
+        "number": 1,
+        "relation": "R02",
+        "direction": "request",
+        "label": "公開／所属groupの投稿一覧を要求",
+        "contract": "K14",
+        "detail": ""
+      },
+      {
+        "number": 2,
+        "relation": "R06",
+        "direction": "request",
+        "label": "セッション・現在の所属を取得",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 3,
+        "relation": "R06",
+        "direction": "response",
+        "label": "ActorContext・所属group IDs",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 4,
+        "relation": "R06",
+        "direction": "request",
+        "label": "ACL WHERE＋cursor＋limitで検索",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 5,
+        "relation": "R06",
+        "direction": "response",
+        "label": "閲覧可能な投稿だけ返却",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 6,
+        "relation": "R02",
+        "direction": "response",
+        "label": "PostSummary[]・nextCursor",
+        "contract": "K14",
+        "detail": ""
+      },
+      {
+        "number": 7,
+        "relation": "R02",
+        "direction": "request",
+        "label": "選んだpostIdの詳細",
+        "contract": "K14",
+        "detail": ""
+      },
+      {
+        "number": 8,
+        "relation": "R06",
+        "direction": "request",
+        "label": "postのvisibilityと所属を再確認",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 9,
+        "relation": "R06",
+        "direction": "response",
+        "label": "安全化snapshotまたは不存在",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 10,
+        "relation": "R02",
+        "direction": "response",
+        "label": "PostDetailまたは404",
+        "contract": "K14",
+        "detail": ""
+      }
+    ],
+    "success": "他人の非公開旅程・投稿はHTMLにもJSONにも含まれない。",
+    "failures": "タイトル・件数・画像URLからの権限漏れも試験する。",
+    "tasks": [
+      "S03",
+      "S05",
+      "T03",
+      "I04"
+    ],
+    "description": ""
+  },
+  {
+    "id": "F07",
+    "title": "他人の旅程をコピー：所有者と日付を変える",
+    "scope": "C4 Dynamic / Container",
+    "actors": [
+      "web-shared",
+      "shared",
+      "db"
+    ],
+    "steps": [
+      {
+        "number": 1,
+        "relation": "R02",
+        "direction": "request",
+        "label": "postId・新しい旅行日を送信",
+        "contract": "K16",
+        "detail": ""
+      },
+      {
+        "number": 2,
+        "relation": "R06",
+        "direction": "request",
+        "label": "投稿の閲覧権限を確認",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 3,
+        "relation": "R06",
+        "direction": "response",
+        "label": "公開snapshotのみ",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 4,
+        "actor": "shared",
+        "label": "新ownerの下書きを構築",
+        "detail": "権限・元owner・非公開情報を引き継がない。新日付では交通を要再検証にする。",
+        "direction": "self",
+        "contract": "K23",
+        "internalInput": "ACL確認済みの公開snapshot、複製する本人ID、新しい旅行日。",
+        "internalOutput": "新しいtripIdとownerIdの非公開下書き。日付変更時はvalidation_state=needs_revalidation。",
+        "internalFailure": "元の私有メモや秘密をコピーしない。アクセス拒否された投稿は複製不可。"
+      },
+      {
+        "number": 5,
+        "relation": "R06",
+        "direction": "request",
+        "label": "新tripとrevision=1を保存",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 6,
+        "relation": "R06",
+        "direction": "response",
+        "label": "新tripId",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 7,
+        "relation": "R02",
+        "direction": "response",
+        "label": "自分の下書き＋要再検証表示",
+        "contract": "K16",
+        "detail": ""
+      }
+    ],
+    "success": "SNS利用者が自分の旅程を作れる。コピー時の自動Claude生成は行わない。",
+    "failures": "閲覧権限がコピー時点で失効していたら404。元旅程への書込みは発生しない。",
+    "tasks": [
+      "S06",
+      "U08",
+      "T03"
+    ],
+    "description": ""
+  },
+  {
+    "id": "F08",
+    "title": "公開解除・group除外：以前のURLでもアクセスを拒否",
+    "scope": "C4 Dynamic / Container",
+    "actors": [
+      "web-shared",
+      "shared",
+      "db"
+    ],
+    "steps": [
+      {
+        "number": 1,
+        "relation": "R02",
+        "direction": "request",
+        "label": "公開範囲をprivateへ／memberを除外",
+        "contract": "K15",
+        "detail": "group除外時はK17。これは管理者操作。"
+      },
+      {
+        "number": 2,
+        "relation": "R06",
+        "direction": "request",
+        "label": "owner/admin確認後に更新",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 3,
+        "relation": "R06",
+        "direction": "response",
+        "label": "新postRevision／除外成功",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 4,
+        "relation": "R02",
+        "direction": "response",
+        "label": "変更成功",
+        "contract": "K15",
+        "detail": ""
+      },
+      {
+        "number": 5,
+        "relation": "R02",
+        "direction": "request",
+        "label": "以前の閲覧者が同じURLを開く",
+        "contract": "K14",
+        "detail": ""
+      },
+      {
+        "number": 6,
+        "relation": "R06",
+        "direction": "request",
+        "label": "現在のvisibility・所属を照合",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 7,
+        "relation": "R06",
+        "direction": "response",
+        "label": "閲覧条件を満たさない",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 8,
+        "relation": "R02",
+        "direction": "response",
+        "label": "404：本文・画像を返さない",
+        "contract": "K14",
+        "detail": ""
+      }
+    ],
+    "success": "次回アクセスからサーバー側で拒否。PDF等の配信も元権限を再確認。",
+    "failures": "既に閲覧者が保存したコピーの消去は保証しない。",
+    "tasks": [
+      "S03",
+      "S05",
+      "T03",
+      "T05"
+    ],
+    "description": ""
+  },
+  {
+    "id": "F09",
+    "title": "Claude失敗・取消：成功として保存しない",
+    "scope": "C4 Dynamic / Container",
+    "actors": [
+      "web-local",
+      "personal",
+      "cli"
+    ],
+    "steps": [
+      {
+        "number": 1,
+        "relation": "R04",
+        "direction": "request",
+        "label": "型付き生成要求を実行",
+        "contract": "K03",
+        "detail": ""
+      },
+      {
+        "number": 2,
+        "relation": "R04",
+        "direction": "response",
+        "label": "上限・認証・非ゼロ終了・不正JSON",
+        "contract": "K03",
+        "detail": ""
+      },
+      {
+        "number": 3,
+        "actor": "personal",
+        "label": "failedを記録",
+        "detail": "code、retryable、requestIdだけを表示用に整形。tokenやCLIの生stderrを公開しない。",
+        "direction": "self",
+        "contract": "K23",
+        "internalInput": "CLIの終了コード、失敗分類、取消要求、実行中jobId。",
+        "internalOutput": "ローカルJobStatus=failed/cancelled、SafeErrorのcode/message/retryable/requestId。",
+        "internalFailure": "生stderr、token、プロンプト全文を公開しない。無限再試行・有料API切替なし。"
+      },
+      {
+        "number": 4,
+        "relation": "R01",
+        "direction": "request",
+        "label": "jobIdを照会",
+        "contract": "K02",
+        "detail": ""
+      },
+      {
+        "number": 5,
+        "relation": "R01",
+        "direction": "response",
+        "label": "failed＋理由＋再試行可否",
+        "contract": "K02",
+        "detail": ""
+      },
+      {
+        "number": 6,
+        "relation": "R01",
+        "direction": "request",
+        "label": "利用者が取消を要求",
+        "contract": "K21",
+        "detail": ""
+      },
+      {
+        "number": 7,
+        "relation": "R01",
+        "direction": "response",
+        "label": "取消／既に終了の応答",
+        "contract": "K21",
+        "detail": ""
+      }
+    ],
+    "success": "有料APIや別アカウントに切り替えない。再実行は利用者の明示操作。",
+    "failures": "保存後の取消は保存済みbatchを表示して説明。未生成データを完成済みとして表示しない。",
+    "tasks": [
+      "A03",
+      "T04",
+      "T05"
+    ],
+    "description": ""
+  },
+  {
+    "id": "F10",
+    "title": "手動編集：2端末の同時更新を保護",
+    "scope": "C4 Dynamic / Container",
+    "actors": [
+      "web-shared",
+      "shared",
+      "db"
+    ],
+    "steps": [
+      {
+        "number": 1,
+        "relation": "R02",
+        "direction": "request",
+        "label": "tripId・expectedRevision=3・差分",
+        "contract": "K10",
+        "detail": ""
+      },
+      {
+        "number": 2,
+        "relation": "R06",
+        "direction": "request",
+        "label": "owner一致かつrevision=3で更新",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 3,
+        "relation": "R06",
+        "direction": "response",
+        "label": "更新0行：現在revision=4",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 4,
+        "relation": "R02",
+        "direction": "response",
+        "label": "409：再読込して差分確認",
+        "contract": "K10",
+        "detail": ""
+      },
+      {
+        "number": 5,
+        "relation": "R02",
+        "direction": "request",
+        "label": "最新tripIdを再読出し",
+        "contract": "K09",
+        "detail": ""
+      },
+      {
+        "number": 6,
+        "relation": "R06",
+        "direction": "request",
+        "label": "現在の旅程を読む",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 7,
+        "relation": "R06",
+        "direction": "response",
+        "label": "Trip revision=4",
+        "contract": "K20",
+        "detail": ""
+      },
+      {
+        "number": 8,
+        "relation": "R02",
+        "direction": "response",
+        "label": "最新旅程＋ユーザーの未保存差分",
+        "contract": "K09",
+        "detail": ""
+      }
+    ],
+    "success": "他端末の変更を消さず、人間に比較させる。",
+    "failures": "自動force保存やrevisionだけ書換えて再送しない。",
+    "tasks": [
+      "S04",
+      "A05",
+      "U06",
+      "I03"
+    ],
+    "description": ""
+  }
+]

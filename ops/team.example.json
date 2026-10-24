@@ -1,0 +1,33 @@
+{
+  "repository": "OWNER/tkb_2627",
+  "defaultBranch": "main",
+  "coordinator": "M1",
+  "demoHost": "M1",
+  "members": {
+    "M1": {
+      "github": "",
+      "role": "基盤・認証・SNS・統合",
+      "claudePlan": "Pro",
+      "device": "未確認"
+    },
+    "M2": {
+      "github": "",
+      "role": "UI・ガイド画面・PDF",
+      "claudePlan": "Pro",
+      "device": "未確認"
+    },
+    "M3": {
+      "github": "",
+      "role": "旅行データ・経路・時刻検証",
+      "claudePlan": "Pro",
+      "device": "未確認"
+    },
+    "M4": {
+      "github": "",
+      "role": "Claude接続・本人用App Server・旅程生成編集",
+      "claudePlan": "Pro",
+      "device": "未確認"
+    }
+  },
+  "note": "実名との対応はセットアップ時に登録する。APIキー、パスワード、Claude認証をここに記録しない。"
+}

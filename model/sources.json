@@ -1,0 +1,100 @@
+[
+  {
+    "id": "S01",
+    "title": "C4の記法・方向付き関係",
+    "url": "https://c4model.com/diagrams/notation",
+    "note": "図の種類、対象範囲、要素の種類、責任、通信方式を記載する。",
+    "checkedAt": "2026-10-23"
+  },
+  {
+    "id": "S02",
+    "title": "C4 Dynamic diagram",
+    "url": "https://c4model.com/diagrams/dynamic",
+    "note": "静的モデルの要素を使い、番号付きの往復をsequence styleで表示する。",
+    "checkedAt": "2026-10-23"
+  },
+  {
+    "id": "S03",
+    "title": "C4 Code diagram",
+    "url": "https://c4model.com/diagrams/code",
+    "note": "重要な1コンポーネントを型・関数・テーブルまで掘り下げる。今回は実装前の設計図。",
+    "checkedAt": "2026-10-23"
+  },
+  {
+    "id": "S04",
+    "title": "C4 Deployment diagram",
+    "url": "https://c4model.com/diagrams/deployment",
+    "note": "実行端末、プロセス、永続データ、公開境界を分ける。",
+    "checkedAt": "2026-10-23"
+  },
+  {
+    "id": "S05",
+    "title": "Claude Code 非対話実行",
+    "url": "https://code.claude.com/docs/en/headless",
+    "note": "公式CLIの-pとJSON出力。通常モードはhooks等を読み得る。bareはサブスク認証を使わない。",
+    "checkedAt": "2026-10-23"
+  },
+  {
+    "id": "S06",
+    "title": "Claude Code CLI reference",
+    "url": "https://code.claude.com/docs/en/cli-reference",
+    "note": "実機のhelpと認証方式を照合して使用可能なフラグを固定する。",
+    "checkedAt": "2026-10-23"
+  },
+  {
+    "id": "S07",
+    "title": "Claude Code 法的条件",
+    "url": "https://code.claude.com/docs/en/legal-and-compliance",
+    "note": "第三者要求を開発者Proへ中継しない。本人利用・製品配布の適用条件を別々に確認する。",
+    "checkedAt": "2026-10-23"
+  },
+  {
+    "id": "S08",
+    "title": "Claude Code Subagents",
+    "url": "https://code.claude.com/docs/en/sub-agents",
+    "note": "Agentごとの文脈と権限。利用枠は同じアカウントで消費する。",
+    "checkedAt": "2026-10-23"
+  },
+  {
+    "id": "S09",
+    "title": "GitHub Issue dependencies",
+    "url": "https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/creating-issue-dependencies",
+    "note": "依存関係の共有。利用可能なghフラグは実機で確認する。",
+    "checkedAt": "2026-10-23"
+  },
+  {
+    "id": "S10",
+    "title": "GitHub Projects",
+    "url": "https://docs.github.com/en/issues/planning-and-tracking-with-projects",
+    "note": "IssueとPRを表示する進捗ビュー。仕様やコードの正本にはしない。",
+    "checkedAt": "2026-10-23"
+  },
+  {
+    "id": "S11",
+    "title": "Git worktree",
+    "url": "https://git-scm.com/docs/git-worktree",
+    "note": "同じ端末内で別ブランチの作業場所を分離する。別PC間の同期機能ではない。",
+    "checkedAt": "2026-10-23"
+  },
+  {
+    "id": "S12",
+    "title": "Google Routes 公共交通",
+    "url": "https://developers.google.com/maps/documentation/routes/transit-route",
+    "note": "取得できる情報と中間地点の制約。区間ごとの出発時刻で検索する。",
+    "checkedAt": "2026-10-23"
+  },
+  {
+    "id": "S13",
+    "title": "Google Places policies",
+    "url": "https://developers.google.com/maps/documentation/places/web-service/policies",
+    "note": "保存、帰属、表示の条件。外部生データの無条件転載をしない。",
+    "checkedAt": "2026-10-23"
+  },
+  {
+    "id": "S14",
+    "title": "Cloudflare Quick Tunnels",
+    "url": "https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/",
+    "note": "一時公開用。公開先を共有サーバーだけに限定。実機の制約を確認する。",
+    "checkedAt": "2026-10-23"
+  }
+]

@@ -1,0 +1,60 @@
+[
+  {
+    "id": "M1",
+    "role": "基盤・SNS・統合",
+    "first": "B01→B02/B03→G01/G02。骨格を早く共有。",
+    "paths": [
+      "packages/contracts/",
+      "packages/db/",
+      "apps/server/src/auth/",
+      "apps/server/src/social/",
+      "apps/server/src/groups/",
+      ".github/"
+    ],
+    "receives": "他3人からcontract変更、PR、blocked、UI承認",
+    "returns": "採用済み仕様版、担当割当、merge SHA、ready通知",
+    "reviewer": "M3がDB/権限、M4が認証・境界を確認",
+    "handoff": "M2へfixtureとschema、M3/M4へ接続契約を先に渡す。"
+  },
+  {
+    "id": "M2",
+    "role": "画面・操作・しおり",
+    "first": "B04→U01。人間が最初に操作できる画面。",
+    "paths": [
+      "apps/web/",
+      "packages/exports/",
+      "docs/ui/"
+    ],
+    "receives": "共通型、API fixture、server返却データ",
+    "returns": "操作できるUI、レビュー結果、必要なデータ項目",
+    "reviewer": "M4が非同期表示、M1が認可表示を確認",
+    "handoff": "U02で人間の判断を記録。UI待ちでbackendを止めない。"
+  },
+  {
+    "id": "M3",
+    "role": "旅行情報・日時・検証",
+    "first": "D01とD05。実データの取得可否と契約を確認。",
+    "paths": [
+      "packages/travel-data/",
+      "packages/planner/"
+    ],
+    "receives": "旅程条件、候補地点、計算APIの契約",
+    "returns": "経路、運賃null、時差計算、検証結果、出典",
+    "reviewer": "M2が表示要件、M4が生成入力の扱いを確認",
+    "handoff": "AI入力可/保存可/表示のみの境界をM4へ明示。"
+  },
+  {
+    "id": "M4",
+    "role": "Claude・本人App Server・旅程",
+    "first": "A01とA02の偽CLI実装を並行。実接続可否は別記録。",
+    "paths": [
+      "apps/ai-local/",
+      "packages/ai/",
+      "apps/server/src/trips/"
+    ],
+    "receives": "型、M3の事実と検証関数、M1の保存/認証",
+    "returns": "ジョブ、Claude候補、保存済み旅程、失敗状態",
+    "reviewer": "M1が秘密境界、M3が旅程の妥当性を確認",
+    "handoff": "K01/K02の状態をM2へ。M1のSNSとTrip型を共有。"
+  }
+]
