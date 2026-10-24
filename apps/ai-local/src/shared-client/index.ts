@@ -1,4 +1,4 @@
-import { ApiError, Id, LoginRequest, LoginResponse, PlanBatchCreated, PlanningContext, type ErrorCode, type PlanBatchCreate, type PlanningContextRequest } from '@tkb/contracts';
+import { ApiError, Capabilities, Id, LoginRequest, LoginResponse, PlanBatchCreated, PlanningContext, type DataMode, type ErrorCode, type PlanBatchCreate, type PlanningContextRequest } from '@tkb/contracts';
 import type { UpstreamSession } from '../auth/session.ts';
 
 /** The only upstream paths this process may call. Clients never choose a URL or path. */
@@ -9,6 +9,9 @@ export const UPSTREAM_PLAN_PATHS = { planBatches: '/api/v1/plan-batches' } as co
 
 /** K05 path (fixed, allowlisted). Its own client so the login proxy and the K07 client keep their small surfaces. */
 export const UPSTREAM_CONTEXT_PATHS = { planningContext: '/api/v1/planning-context' } as const;
+
+/** Public capabilities path of the shared server (fixed, allowlisted; no session needed). */
+export const UPSTREAM_CAPABILITIES_PATHS = { capabilities: '/api/v1/capabilities' } as const;
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -196,4 +199,68 @@ export function createContextClient(opts: { baseUrl: string; fetch?: FetchLike; 
       return { ok: false, code: 'PROVIDER_UNAVAILABLE', retryable: true };
     },
   };
+}
+
+export interface SharedCapabilitiesClient {
+  /** The shared server's real dataMode (cached), or null when it cannot be read (the caller says what it falls back to). */
+  getDataMode(): Promise<DataMode | null>;
+}
+
+/** GET of one fixed public path with manual redirects. Successful answers are cached for `ttlMs` (default 60 s), failures for 10 s; the body is capped at 64 KB. */
+export function createCapabilitiesClient(opts: { baseUrl: string; fetch?: FetchLike; timeoutMs?: number; ttlMs?: number; failureTtlMs?: number; now?: () => number }): SharedCapabilitiesClient {
+  const doFetch: FetchLike = opts.fetch ?? defaultFetch;
+  const base = opts.baseUrl.replace(/\/+$/, '');
+  const now = opts.now ?? Date.now;
+  const ttl = opts.ttlMs ?? 60_000;
+  const failureTtl = opts.failureTtlMs ?? 10_000;
+  let cached: { mode: DataMode; at: number } | null = null;
+  let failedAt: number | null = null;
+  const MAX_BODY = 64 * 1024;
+  const fail = (): null => {
+    failedAt = now();
+    return null;
+  };
+  return {
+    async getDataMode() {
+      if (cached && now() - cached.at < ttl) return cached.mode;
+      // A failure is remembered briefly so an unreachable server is not asked on every capabilities call.
+      if (failedAt !== null && now() - failedAt < failureTtl) return null;
+      try {
+        const res = await doFetch(`${base}${UPSTREAM_CAPABILITIES_PATHS.capabilities}`, {
+          method: 'GET',
+          headers: {},
+          redirect: 'manual',
+          signal: AbortSignal.timeout(opts.timeoutMs ?? 3_000),
+        });
+        if (res.status !== 200 || Number(res.headers.get('content-length') ?? 0) > MAX_BODY) return fail();
+        const text = await readCapped(res, MAX_BODY);
+        if (text === null) return fail();
+        const mode = Capabilities.parse(JSON.parse(text)).dataMode;
+        cached = { mode, at: now() };
+        failedAt = null;
+        return mode;
+      } catch {
+        return fail();
+      }
+    },
+  };
+}
+
+/** Reads at most `max` bytes of the body (cancels the stream beyond that); null when it is larger. */
+async function readCapped(res: Response, max: number): Promise<string | null> {
+  if (!res.body) return null;
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
 }

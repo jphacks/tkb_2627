@@ -22,7 +22,7 @@ import { PairingStore, safeEqual } from './auth/pairing.ts';
 import { SESSION_COOKIE, SessionStore, parseCookies, sessionCookieHeader, type LocalSession } from './auth/session.ts';
 import type { PersonalConfig } from './config.ts';
 import { FileJobStore, JobManager, type GenerationPipeline, type JobManagerOptions, type JobStore } from './jobs/index.ts';
-import { createContextClient, createPlanBatchClient, createSharedClient, type ContextClient, type FetchLike, type PlanBatchClient, type SharedClient } from './shared-client/index.ts';
+import { createCapabilitiesClient, createContextClient, createPlanBatchClient, createSharedClient, type ContextClient, type FetchLike, type SharedCapabilitiesClient, type PlanBatchClient, type SharedClient } from './shared-client/index.ts';
 import { createPipeline } from './generation/pipeline.ts';
 import type { JobMetrics } from './generation/metrics.ts';
 
@@ -41,6 +41,8 @@ export interface BuildAppOptions {
   sharedClient?: SharedClient;
   planClient?: PlanBatchClient;
   contextClient?: ContextClient;
+  /** Reads the shared server's real dataMode for /local/v1/capabilities (cached 60 s). */
+  capabilitiesClient?: SharedCapabilitiesClient;
   /**
    * The A04 generation pipeline (K05 -> model -> assemble -> K07). Default: built from the shared clients. Pass `false`,
    * or give the legacy `allowedPlaceIds` / `save`, to run jobs without it (tests of the job machinery).
@@ -79,6 +81,7 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
   const shared = opts.sharedClient ?? createSharedClient({ baseUrl: config.sharedBaseUrl, fetch: opts.fetch });
   const planClient = opts.planClient ?? createPlanBatchClient({ baseUrl: config.sharedBaseUrl, fetch: opts.fetch });
   const contextClient = opts.contextClient ?? createContextClient({ baseUrl: config.sharedBaseUrl, fetch: opts.fetch });
+  const capabilitiesClient = opts.capabilitiesClient ?? createCapabilitiesClient({ baseUrl: config.sharedBaseUrl, fetch: opts.fetch });
   // Runner: injected one, else whatever the single factory decides at startup (onReady). Until then (and for the
   // fake) jobs use a FakeRunner. Nothing here ever builds a real runner directly (W2).
   let created: CreatedRunner | null = null;
@@ -179,7 +182,8 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
       // available:true only when the factory returned the real runner AND the (cached) preflight is ok.
       aiGeneration: await runnerStatus(),
       storage: 'shared-server',
-      dataMode: 'fixture',
+      // The shared server's real mode; 'fixture' only when it cannot be reached (nothing live is then claimed).
+      dataMode: (await capabilitiesClient.getDataMode()) ?? 'fixture',
       schemaVersion: SCHEMA_VERSION,
     }),
   );

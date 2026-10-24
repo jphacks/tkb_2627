@@ -6,11 +6,14 @@ import type { SharedConfig } from '../../platform/config.ts';
 import { buildPlanningContext } from './context.ts';
 import { createContextSources, type ContextSources } from './sources.ts';
 import { createUserLimiter, dailyPerUserFromEnv, type UserLimiter } from './user-limit.ts';
+import { limitRoutesPerUser, sharedUserRouteBudget, type UserRouteBudget } from './live-route-budget.ts';
 
 export interface PlanningContextDeps {
   sources?: ContextSources;
   limiter?: UserLimiter;
   now?: () => number;
+  /** Per-user daily live Routes call budget (shared with A05). Default: the process-wide one. */
+  routeBudget?: UserRouteBudget;
 }
 
 function fail(reply: FastifyReply, requestId: string, code: ErrorCode, message: string, retryable = false) {
@@ -23,6 +26,7 @@ const POLICY_CODES: ReadonlySet<ErrorCode> = new Set(['VALIDATION_FAILED', 'PROV
 /** K05 POST /api/v1/planning-context. Read-only: no DB write, no cache, no Claude, and request content is never logged. */
 export function registerPlanningContext(app: FastifyInstance, config: SharedConfig, deps: PlanningContextDeps = {}): void {
   const sources = deps.sources ?? createContextSources(config);
+  const routeBudget = deps.routeBudget ?? sharedUserRouteBudget();
   const limiter = deps.limiter ?? createUserLimiter({ perDay: dailyPerUserFromEnv() });
 
   app.post('/api/v1/planning-context', { preHandler: app.authenticate, onSend: async (_req, reply) => void reply.header('cache-control', 'no-store') }, async (req, reply) => {
@@ -39,7 +43,9 @@ export function registerPlanningContext(app: FastifyInstance, config: SharedConf
     };
     reply.raw.on('close', onClose);
     try {
-      const ctx = await buildPlanningContext(body.data, sources, ctl.signal, deps.now);
+      // Live route calls are charged to the user's daily budget; fixture routes cost nothing.
+      const src = sources.routes && sources.mode !== 'fixture' ? { ...sources, routes: limitRoutesPerUser(sources.routes, userId, routeBudget) } : sources;
+      const ctx = await buildPlanningContext(body.data, src, ctl.signal, deps.now);
       return PlanningContext.parse(ctx);
     } catch (e) {
       if (e instanceof PolicyError) {
