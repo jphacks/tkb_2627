@@ -1,4 +1,4 @@
-import { ApiError, Id, LoginRequest, LoginResponse, PlanBatchCreated, PlanningContext, type ErrorCode, type PlanBatchCreate, type PlanningContextRequest } from '@tkb/contracts';
+import { ApiError, Capabilities, Id, LoginRequest, LoginResponse, PlanBatchCreated, PlanningContext, type DataMode, type ErrorCode, type PlanBatchCreate, type PlanningContextRequest } from '@tkb/contracts';
 import type { UpstreamSession } from '../auth/session.ts';
 
 /** The only upstream paths this process may call. Clients never choose a URL or path. */
@@ -9,6 +9,9 @@ export const UPSTREAM_PLAN_PATHS = { planBatches: '/api/v1/plan-batches' } as co
 
 /** K05 path (fixed, allowlisted). Its own client so the login proxy and the K07 client keep their small surfaces. */
 export const UPSTREAM_CONTEXT_PATHS = { planningContext: '/api/v1/planning-context' } as const;
+
+/** Public capabilities path of the shared server (fixed, allowlisted; no session needed). */
+export const UPSTREAM_CAPABILITIES_PATHS = { capabilities: '/api/v1/capabilities' } as const;
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -194,6 +197,39 @@ export function createContextClient(opts: { baseUrl: string; fetch?: FetchLike; 
         return code === 'PROVIDER_RATE_LIMIT' ? { ok: false, code, retryable: false } : { ok: false, code: 'RATE_LIMITED', retryable: true };
       }
       return { ok: false, code: 'PROVIDER_UNAVAILABLE', retryable: true };
+    },
+  };
+}
+
+export interface SharedCapabilitiesClient {
+  /** The shared server's real dataMode (cached), or null when it cannot be read (the caller says what it falls back to). */
+  getDataMode(): Promise<DataMode | null>;
+}
+
+/** GET of one fixed public path with manual redirects. Successful answers are cached for `ttlMs` (default 60 s); failures are not. */
+export function createCapabilitiesClient(opts: { baseUrl: string; fetch?: FetchLike; timeoutMs?: number; ttlMs?: number; now?: () => number }): SharedCapabilitiesClient {
+  const doFetch: FetchLike = opts.fetch ?? defaultFetch;
+  const base = opts.baseUrl.replace(/\/+$/, '');
+  const now = opts.now ?? Date.now;
+  const ttl = opts.ttlMs ?? 60_000;
+  let cached: { mode: DataMode; at: number } | null = null;
+  return {
+    async getDataMode() {
+      if (cached && now() - cached.at < ttl) return cached.mode;
+      try {
+        const res = await doFetch(`${base}${UPSTREAM_CAPABILITIES_PATHS.capabilities}`, {
+          method: 'GET',
+          headers: {},
+          redirect: 'manual',
+          signal: AbortSignal.timeout(opts.timeoutMs ?? 3_000),
+        });
+        if (res.status !== 200) return null;
+        const mode = Capabilities.parse(await res.json()).dataMode;
+        cached = { mode, at: now() };
+        return mode;
+      } catch {
+        return null;
+      }
     },
   };
 }

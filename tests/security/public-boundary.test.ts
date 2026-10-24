@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp as buildLocal } from '../../apps/ai-local/src/app.ts';
 import { loadConfig as loadLocal } from '../../apps/ai-local/src/config.ts';
-import { createContextClient, createPlanBatchClient, createSharedClient, UPSTREAM_CONTEXT_PATHS, UPSTREAM_PATHS } from '../../apps/ai-local/src/shared-client/index.ts';
+import { createCapabilitiesClient, createContextClient, createPlanBatchClient, createSharedClient, UPSTREAM_CAPABILITIES_PATHS, UPSTREAM_CONTEXT_PATHS, UPSTREAM_PATHS } from '../../apps/ai-local/src/shared-client/index.ts';
 import { ApiError } from '@tkb/contracts';
 import { PW, fixtureDist, makeShared, ROOT, read, rel, sourceFiles, type Shared } from './helpers.ts';
 
@@ -203,6 +203,14 @@ describe('T05-2 SSRF: no path lets a client choose an outbound URL', () => {
     const t = read(sourceFiles(['apps/ai-local/src/shared-client'])[0]!);
     expect(t).toContain('`${base}${UPSTREAM_CONTEXT_PATHS.planningContext}`');
     expect(read(join(ROOT, 'apps/ai-local/src/app.ts'))).not.toMatch(/contextClient\.\w+\(/);
+  });
+
+  it('CapabilitiesClient exposes exactly getDataMode, calls one constant public path with manual redirects and no credentials', () => {
+    expect(Object.keys(createCapabilitiesClient({ baseUrl: 'http://127.0.0.1:4310' }))).toEqual(['getDataMode']);
+    expect(Object.values(UPSTREAM_CAPABILITIES_PATHS)).toEqual(['/api/v1/capabilities']);
+    const t = read(sourceFiles(['apps/ai-local/src/shared-client'])[0]!);
+    expect(t).toContain('`${base}${UPSTREAM_CAPABILITIES_PATHS.capabilities}`');
+    expect([...read(join(ROOT, 'apps/ai-local/src/app.ts')).matchAll(/capabilitiesClient\.\w+\(/g)].map(m => m[0])).toEqual(['capabilitiesClient.getDataMode(']);
   });
 
   it('shared client exposes no method other than login (no generic proxy)', () => {
