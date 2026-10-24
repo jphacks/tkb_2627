@@ -160,7 +160,7 @@ describe('trips API', () => {
     const b = await login(app, 'user-b');
     const batch = await createBatch(app, a);
     const apply = (s: Session, p: object) => call(app, s, 'POST', '/api/v1/trips/apply-candidate', p);
-    const base = { batchId: batch.batchId, candidateId: 'c1', tripId: null, expectedRevision: null };
+    const base: { batchId: string; candidateId: string; tripId: string | null; expectedRevision: number | null } = { batchId: batch.batchId, candidateId: 'c1', tripId: null, expectedRevision: null };
 
     expect((await apply(a, { ...base, candidateId: 'c2' })).statusCode).toBe(422);
     const stolen = await apply(b, base);
@@ -178,6 +178,10 @@ describe('trips API', () => {
 
     expect((await apply(b, { ...base, tripId: t.tripId, expectedRevision: 1 })).statusCode).toBe(404);
     expect((await apply(a, { ...base, tripId: t.tripId, expectedRevision: null })).statusCode).toBe(422);
+    // a batch without baseTripId cannot be applied to an existing trip
+    expect((await apply(a, { ...base, tripId: t.tripId, expectedRevision: 1 })).statusCode).toBe(422);
+    const based = await createBatch(app, a, { baseTripId: t.tripId, baseRevision: 1 });
+    base.batchId = based.batchId;
     const stale = await apply(a, { ...base, tripId: t.tripId, expectedRevision: 7 });
     expect(stale.statusCode).toBe(409);
     expect(errOf(stale)).toMatchObject({ code: 'REVISION_CONFLICT', details: { expectedRevision: 7, currentRevision: 1 } });

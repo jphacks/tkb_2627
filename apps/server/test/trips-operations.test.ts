@@ -60,6 +60,13 @@ describe('computeDiff', () => {
     expect(d.unknownCostItems).toEqual(['a2']);
     expect(d.durationDeltaSeconds).toBe(-7200);
   });
+  it('unknownCostItems is the union of before and after (R11)', () => {
+    const leg = { type: 'leg', legId: 'l1', mode: 'transit', fromPlaceId: 'p', toPlaceId: 'p', departure: null, arrival: null, durationSeconds: null, lineName: null, platform: null, transfers: null, fare: null, dataStatus: 'unknown', provenance: null };
+    const withLeg = { ...trip, days: [{ ...trip.days[0]!, items: [...trip.days[0]!.items, leg as never] }, trip.days[1]!] };
+    const after = applyOperations(withLeg, [{ op: 'remove', itemId: 'l1' }]);
+    if (!after.ok) throw new Error('x');
+    expect(computeDiff(withLeg, after.trip).unknownCostItems).toEqual(['a2', 'l1']);
+  });
   it('duration delta is null when nothing is timed, and no cost change gives empty delta', () => {
     const d = computeDiff(trip, trip);
     expect(d.knownCostDelta).toEqual([]);

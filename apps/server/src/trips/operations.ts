@@ -121,11 +121,14 @@ export function computeDiff(before: Trip, after: Trip): TripDiff {
     if (delta !== 0) knownCostDelta.push({ amountMinor: delta, currency: cur });
   }
   // TravelLeg has a single `fare` field for transit and car (tolls); walking is not treated as unknown cost.
+  // Union of before and after, so removing an unknown-cost item is not shown as "no cost change".
   const unknownCostItems: string[] = [];
-  for (const day of after.days) {
-    for (const it of day.items) {
-      if (it.type === 'activity' ? it.cost === null : it.mode !== 'walk' && it.fare === null) {
-        unknownCostItems.push(itemId(it));
+  for (const t of [before, after]) {
+    for (const day of t.days) {
+      for (const it of day.items) {
+        const unknown = it.type === 'activity' ? it.cost === null : it.mode !== 'walk' && it.fare === null;
+        const id = itemId(it);
+        if (unknown && !unknownCostItems.includes(id)) unknownCostItems.push(id);
       }
     }
   }

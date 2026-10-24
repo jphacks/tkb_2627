@@ -120,6 +120,8 @@ function parseListQuery(q: unknown): { limit: number; cursor?: string } | null {
   return { limit, cursor: o.cursor as string | undefined };
 }
 
+// TODO(retention): expired plan_batches are only hidden (410), never deleted; add a cleanup job.
+// TODO(S05): when a trip delete API is added, call hidePostsForTrip in the same transaction as the soft delete.
 /** K07-K10. Owner always comes from the session; other owners' resources are indistinguishable from missing ones. */
 export function registerTrips(app: FastifyInstance, db: Db, _config: SharedConfig): void {
   const pre = { preHandler: app.authenticate };
@@ -231,7 +233,7 @@ export function registerTrips(app: FastifyInstance, db: Db, _config: SharedConfi
       existing = getTripForOwner(db, r.tripId, userId);
       if (!existing) return fail(reply, req.id, 'NOT_FOUND', 'Not found.');
       if (r.expectedRevision === null) return fail(reply, req.id, 'VALIDATION_FAILED', 'expectedRevision is required.');
-      if (batch.baseTripId !== null && batch.baseTripId !== r.tripId) {
+      if (batch.baseTripId !== r.tripId) {
         return fail(reply, req.id, 'VALIDATION_FAILED', 'Candidate was not generated for this trip.');
       }
       if (batch.baseRevision !== null && existing.revision !== batch.baseRevision) {

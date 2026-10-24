@@ -544,7 +544,8 @@ describe('K10 PATCH', () => {
     const emptied = await ok([{ op: 'remove', itemId: 'a1' }, { op: 'remove', itemId: 'a2' }, { op: 'remove', itemId: 'l1' }]);
     expect(emptied.trip.days).toHaveLength(1);
     expect(emptied.trip.days[0]!.items).toEqual([]);
-    expect(emptied.diff.unknownCostItems).toEqual([]);
+    // R11 (M1 review): a removed fare=null leg stays listed so the diff never looks like 'no cost change'.
+    expect(emptied.diff.unknownCostItems).toEqual(['l1']);
     expect(emptied.diff.durationDeltaSeconds).toBeNull(); // after-side untimed -> unknown, not 0
     // add into an empty day
     expect(order(await ok([{ op: 'add', dayIndex: 0, position: 0, item: activity('n1', 5, 10) }]))).toEqual(['n1']);
