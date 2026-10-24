@@ -12,6 +12,7 @@ import { checkConnection, migrate, openDatabase, type Db } from '@tkb/db';
 import { registerAuth } from './auth/index.ts';
 import { registerGroups } from '../social/groups/index.ts';
 import type { SharedConfig } from './config.ts';
+import { createStaticHandler, SECURITY_HEADERS } from './static.ts';
 
 export interface BuildAppOptions {
   config: SharedConfig;
@@ -40,6 +41,15 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     genReqId: () => randomUUID(),
     requestIdHeader: false,
     trustProxy: config.trustProxy,
+    // Malformed URLs (FST_ERR_BAD_URL etc.) also use the K23 error shape.
+    frameworkErrors: (err, req, reply) => {
+      // onSend hooks do not run for these early errors, so set the shared headers here.
+      reply.header('x-request-id', req.id);
+      for (const [k, v] of Object.entries(SECURITY_HEADERS)) reply.header(k, v);
+      if (config.publicOrigin.startsWith('https://')) reply.header('strict-transport-security', 'max-age=15552000');
+      const code = clientErrorCode((err as { statusCode?: number }).statusCode ?? 400);
+      return sendError(reply, req.id, code, code === 'VALIDATION_FAILED' ? 'Invalid request.' : 'Request rejected.');
+    },
   });
 
   let db: Db | null = opts.db ?? null;
@@ -54,6 +64,8 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
   });
   app.addHook('onSend', async (req, reply) => {
     reply.header('x-request-id', req.id);
+    for (const [k, v] of Object.entries(SECURITY_HEADERS)) reply.header(k, v);
+    if (config.publicOrigin.startsWith('https://')) reply.header('strict-transport-security', 'max-age=15552000');
   });
 
   app.setErrorHandler((err: unknown, req: FastifyRequest, reply: FastifyReply) => {
@@ -67,7 +79,11 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     // No stack, message or secret is returned or logged here.
     return sendError(reply, req.id, 'INTERNAL', 'Internal error.', true);
   });
-  app.setNotFoundHandler((req, reply) => sendError(reply, req.id, 'NOT_FOUND', 'Not found.'));
+  const staticHandler = createStaticHandler(config.staticDir);
+  app.setNotFoundHandler(async (req, reply) => {
+    if (staticHandler && (await staticHandler.handle(req, reply))) return reply;
+    return sendError(reply, req.id, 'NOT_FOUND', 'Not found.');
+  });
 
   registerAuth(app, handle, config);
   registerGroups(app, handle, config);

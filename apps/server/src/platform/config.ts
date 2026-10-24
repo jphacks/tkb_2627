@@ -15,6 +15,8 @@ export interface SharedConfig {
   sessionTtlMs: number;
   /** Only 'loopback' (a local tunnel/proxy on this machine) is allowed; `true` would trust spoofed headers. */
   trustProxy: 'loopback' | false;
+  /** Built web app (apps/web/dist) served same-origin. null or a missing directory disables static delivery. */
+  staticDir: string | null;
 }
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -68,5 +70,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): SharedConfig {
     // Relative to the repo root so the server and `npm run db:migrate` share one file.
     databasePath: (p => (p === ':memory:' ? p : resolve(REPO_ROOT, p)))(env.DATABASE_PATH ?? './data/travel.sqlite'),
     providerMode: mode,
+    staticDir: resolve(REPO_ROOT, 'apps/web/dist'),
   };
 }

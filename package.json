@@ -26,6 +26,7 @@
     "dev:web": "npm run dev -w @tkb/web",
     "build": "npm run typecheck && npm run build -w @tkb/web",
     "start:shared": "tsx apps/server/src/main.ts",
+    "serve:demo": "node scripts/serve-demo.mjs",
     "start:local": "tsx apps/ai-local/src/main.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:unit": "vitest run",
