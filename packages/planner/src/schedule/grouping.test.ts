@@ -29,6 +29,8 @@ describe('groupNearby (#32 R4)', () => {
     expect(byId(r.day, 'fx_act_lunch').start).toEqual(byId(flat, 'fx_act_lunch').start);
     const v = validateSchedule({ days: [r.day], places: domesticTrip.places });
     expect(v.issues.map(i => i.code)).not.toContain('child_outside_parent');
+    // Legs into and out of the area still line up with the parent (travel is per parent).
+    expect(v.issues.map(i => i.code).filter(c => c.startsWith('leg_'))).toEqual([]);
     expect(v.issues.map(i => i.code)).not.toContain('meal_after_meal');
   });
 
@@ -78,6 +80,11 @@ describe('meal_after_meal (#32 R4)', () => {
     // Grouping puts the lunch inside the market area: no warning any more.
     const grouped = groupNearby(lunchFirst, domesticTrip.places).day;
     expect(validateSchedule({ days: [grouped], places: domesticTrip.places }).issues.map(i => i.code)).not.toContain('meal_after_meal');
+    // Breakfast then dinner, hours apart, is not consecutive.
+    const T = 'Asia/Tokyo';
+    const meal = (id: string, s: string, e: string): Activity => ({ ...byId(flat, 'fx_act_lunch'), activityId: id, title: id, fixed: false, parentActivityId: null, start: { utc: s, timeZone: T }, end: { utc: e, timeZone: T } });
+    const apart: TripDay = { ...flat, items: [meal('bf', '2026-11-01T23:00:00Z', '2026-11-01T23:45:00Z'), meal('dn', '2026-11-02T09:00:00Z', '2026-11-02T10:00:00Z')] };
+    expect(validateSchedule({ days: [apart], places: domesticTrip.places }).issues.map(i => i.code)).not.toContain('meal_after_meal');
     // The fixture as shipped (lunch inside the market area) has no such warning.
     expect(validateSchedule({ days: domesticTrip.days, places: domesticTrip.places }).issues.map(i => i.code)).not.toContain('meal_after_meal');
   });

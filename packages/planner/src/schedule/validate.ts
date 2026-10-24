@@ -99,6 +99,8 @@ const VIOLATIONS: ReadonlySet<ScheduleIssueCode> = new Set([
   'over_budget',
 ]);
 
+/** A meal and the next food closer than this count as consecutive (#32 R4); breakfast then dinner does not. */
+export const MEAL_GAP_MS = 3 * 3600_000;
 const minutesOf = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
 const plusSeconds = (ms: number | null, seconds: number | null) => (ms === null || seconds === null ? null : ms + seconds * 1000);
 const msOf = (t: ZonedTime | null) => (t === null ? null : parseUtc(t.utc));
@@ -145,8 +147,8 @@ export function validateSchedule(input: ScheduleInput): ScheduleValidation {
     // Last place reached on this day: the start place, then each activity.
     const startPlaceId = dayStart?.placeId ?? null;
     // A parent stands for its children's places too (#32 R4: legs are made per parent).
-    let last: { ref: string; places: Set<string>; title: string; kind: Activity['kind'] | null } | null =
-      startPlaceId === null ? null : { ref: startPlaceId, places: new Set([startPlaceId]), title: places.get(startPlaceId)?.name ?? startPlaceId, kind: null };
+    let last: { ref: string; places: Set<string>; title: string; meal: boolean; endMs: number | null } | null =
+      startPlaceId === null ? null : { ref: startPlaceId, places: new Set([startPlaceId]), title: places.get(startPlaceId)?.name ?? startPlaceId, meal: false, endMs: null };
     let legsSince: TravelLeg[] = [];
 
     const dayActivities = new Map(day.items.flatMap(i => (i.type === 'activity' ? [[i.activityId, i] as const] : [])));
@@ -154,6 +156,7 @@ export function validateSchedule(input: ScheduleInput): ScheduleValidation {
     for (const a of dayActivities.values()) {
       if (a.parentActivityId && a.placeId && a.status !== 'skipped') childPlaces.set(a.parentActivityId, [...(childPlaces.get(a.parentActivityId) ?? []), a.placeId]);
     }
+    const mealParents = new Set([...dayActivities.values()].filter(a => a.parentActivityId && a.kind === 'meal' && a.status !== 'skipped').map(a => a.parentActivityId!));
     const unitPlaces = (a: Activity) => new Set([...(a.placeId ? [a.placeId] : []), ...(childPlaces.get(a.activityId) ?? [])]);
     for (const item of day.items) {
       // A child activity (parentActivityId) happens inside its parent's window: it is not part of the top-level chronology.
@@ -235,11 +238,14 @@ export function validateSchedule(input: ScheduleInput): ScheduleValidation {
       } else if (!lastLeg && last && ![...here].some(id => last!.places.has(id))) {
         add('leg_missing', [last.ref, ref], dayIndex, `「${last.title}」から「${item.title}」への移動が未確認です。`);
       }
-      // #32 R4: no food right after a meal (a meal or an area food walk). Children inside a parent are one unit.
-      if (last?.kind === 'meal' && (item.kind === 'meal' || item.kind === 'free_walk')) {
+      // #32 R4: no food right after a meal (a meal or an area food walk) within MEAL_GAP_MS. Children inside a parent are
+      // one unit; a parent containing a meal counts as a meal.
+      const startMs = msOf(item.start);
+      const soon = last?.endMs == null || startMs === null || startMs - last.endMs < MEAL_GAP_MS;
+      if (last?.meal && soon && (item.kind === 'meal' || item.kind === 'free_walk' || mealParents.has(item.activityId))) {
         add('meal_after_meal', [last.ref, ref], dayIndex, `食事「${last.title}」の直後に「${item.title}」が続いています（食事を連続させない）。`);
       }
-      last = { ref, places: here, title: item.title, kind: item.kind };
+      last = { ref, places: here, title: item.title, meal: item.kind === 'meal' || mealParents.has(item.activityId), endMs: msOf(item.end) };
       legsSince = [];
 
       if (item.start !== null) {

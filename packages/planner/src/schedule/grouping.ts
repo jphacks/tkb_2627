@@ -45,7 +45,8 @@ export function groupNearby(day: TripDay, places: readonly PlaceInfo[], threshol
     return pa !== null && pb !== null && meters(pa, pb) <= thresholdMeters;
   };
 
-  // Runs of consecutive top-level activities, each near some member of the run.
+  // Runs of consecutive top-level activities, each near some member of the run (chained: A-B-C stays one area even if
+  // A and C are farther apart, as a walk through one district).
   const runs: Activity[][] = [];
   for (const a of top) {
     const run = runs.at(-1);
