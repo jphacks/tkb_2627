@@ -15,16 +15,19 @@ const figures=Object.fromEntries(fs.readdirSync(path.join(ROOT,'assets')).filter
 const si=process.argv.indexOf('--snapshot');
 const snapFile=si>0?path.resolve(process.argv[si+1]??''):path.join(ROOT,'.local/github-snapshot.json');
 const data={version:'5.0',modelHash,system:read('model/system.json'),contracts:read('model/contracts.json'),flows:read('model/workflows.json'),dataModel:read('model/data-model.json'),codeModel:read('model/code-model.json'),visibility:read('model/visibility.json'),sources:read('model/sources.json'),tasks:plan.tasks,requirements,runbook:read('ops/runbook.json'),management:read('ops/information-management.json'),roles:read('ops/team-roles.json'),collaboration:read('ops/collaboration-cases.json'),snapshot:null,figures};
-// Tracked HTML never embeds the local GitHub snapshot (it would dirty every checkout);
-// only the git-ignored dashboard/index.html shows it.
+// By default tracked HTML never embeds the local GitHub snapshot (it would dirty every checkout);
+// only the git-ignored dashboard/index.html shows it. `--publish` (npm run progress) embeds it on purpose,
+// so the committed SYSTEM_DESIGN.html / DEVELOPMENT_GUIDE.html show the team's progress on GitHub.
+const PUBLISH=process.argv.includes('--publish');
 const snapshot=fs.existsSync(snapFile)?JSON.parse(fs.readFileSync(snapFile,'utf8')):null;
+if(PUBLISH&&!snapshot)throw new Error('--publish needs a GitHub snapshot. Run node scripts/github-sync.mjs snapshot --repo OWNER/REPO first.');
 const encode=d=>JSON.stringify(d).replace(/</g,'\\u003c');
 const raw=encode(data);
 const rawWithSnapshot=encode({...data,snapshot});
 const template=fs.readFileSync(path.join(ROOT,'templates/guide.html'),'utf8');
 for(const [mode,file,title] of [['system','SYSTEM_DESIGN.html','JPHacks | C4システム設計 v5'],['development','DEVELOPMENT_GUIDE.html','JPHacks | 4人の開発手順 v5']]){
- const html=template.replace('__TITLE__',title).replaceAll('__MODE__',mode).replace('__DATA__',()=>raw);
+ const html=template.replace('__TITLE__',title).replaceAll('__MODE__',mode).replace('__DATA__',()=>PUBLISH?rawWithSnapshot:raw);
  fs.mkdirSync(OUT,{recursive:true});fs.writeFileSync(path.join(OUT,file),html);
- if(mode==='development'){fs.mkdirSync(path.join(OUT,'dashboard'),{recursive:true});fs.writeFileSync(path.join(OUT,'dashboard/index.html'),html.replace(raw,()=>rawWithSnapshot));}
+ if(mode==='development'){fs.mkdirSync(path.join(OUT,'dashboard'),{recursive:true});fs.writeFileSync(path.join(OUT,'dashboard/index.html'),PUBLISH?html:html.replace(raw,()=>rawWithSnapshot));}
  console.log(file+' built from model '+modelHash.slice(0,12));
 }
