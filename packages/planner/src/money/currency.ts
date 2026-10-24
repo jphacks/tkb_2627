@@ -93,7 +93,7 @@ export interface Conversion {
  * Handles minor-unit differences, e.g. EUR cents to JPY yen, and rounds half away from zero.
  */
 export function convertWithRate(money: Money, target: string, rates: readonly ExchangeRate[]): Conversion | null {
-  if (money.currency === target) return { money: { amountMinor: money.amountMinor, currency: target }, rate: null };
+  if (money.currency === target) return { money: { amountMinor: money.amountMinor || 0, currency: target }, rate: null };
   let best: ExchangeRate | null = null;
   for (const r of rates) {
     if (r.from !== money.currency || r.to !== target) continue;
@@ -105,7 +105,7 @@ export function convertWithRate(money: Money, target: string, rates: readonly Ex
   const scale = 10 ** (minorUnitDigits(target) - minorUnitDigits(money.currency));
   const amountMinor = roundHalfAwayFromZero(money.amountMinor * best.rate * scale);
   if (!Number.isSafeInteger(amountMinor)) return null;
-  return { money: { amountMinor, currency: target }, rate: best };
+  return { money: { amountMinor, currency: target }, rate: { ...best } };
 }
 
 /** `convertWithRate` without the rate. Prefer `convertWithRate` when the converted amount is shown to people. */
