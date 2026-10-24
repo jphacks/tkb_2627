@@ -818,6 +818,9 @@ job: queued→running→succeeded/failed/cancelled。succeededは候補の共通
   - 徒歩区間には運賃がないので、費用の項目として扱いません。
   - `durationDeltaSeconds`：旅程全体の開始から終了までの差です（日をまたぐ空き時間も含みます）。時刻が不明な項目が1つでもある場合と、項目が0件の場合はnullにします。
 - **K18の「転載不可の素材」**（E03で決定）：ICS・Maps URL・PDFでは、利用条件で出力できない場所・写真・区間（`mayExport=false`）を除いて出力を続け、除いたものを`withheld`/`omitted`の一覧で返します。422にするのは、出力できる内容が1つもない場合だけです。出発地・帰着地（自宅）の名前は出力しません。
+- **互換の追加（schemaVersion 1のまま）**：
+  - `TripConstraints.transportModeByDate`（R6、日ごとの交通手段。指定のない日は`transportMode`を使う。公開snapshotにも含める）
+  - `TravelLeg.transit`（R05、乗車駅・降車駅・乗換駅の名前。取得できなければ`null`または空配列で、推測しない）
 - **K12/K15**：グループが存在しない場合と非所属の場合は、どちらも422にします（グループの存在を漏らさないため）。K13の確定時に所属を失っていた場合は404です。
 - **K14**：
   - 匿名で読めるのは`scope=public`と公開投稿の詳細だけです。

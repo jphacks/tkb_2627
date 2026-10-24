@@ -82,6 +82,18 @@ export const TravelLeg = z.object({
   fare: NonNegativeMoney.nullable(),
   dataStatus: DataStatus,
   provenance: Provenance.nullable(),
+  /**
+   * Transit stop names when the provider returned them (R05). null / [] when not obtained; never guessed.
+   * Treated like other provider data: only exported where provenance allows it.
+   */
+  transit: z
+    .object({
+      boardingStop: z.string().nullable(),
+      alightingStop: z.string().nullable(),
+      transferStops: z.array(z.string()),
+    })
+    .nullable()
+    .optional(),
 });
 export type TravelLeg = z.infer<typeof TravelLeg>;
 
@@ -140,6 +152,8 @@ const TripConstraintsBase = z.object({
   departure: Endpoint.optional(),
   return: Endpoint.optional(),
   preferences: z.array(z.string().max(200)).max(20).optional(),
+  /** R6: per-day mode; days not listed use `transportMode`. */
+  transportModeByDate: z.record(LocalDate, TransportMode).optional(),
 });
 export const TripConstraints = TripConstraintsBase.refine(c => c.endDate >= c.startDate, {
   message: 'endDate must not be before startDate',
@@ -157,6 +171,7 @@ export const PublicTripConstraints = TripConstraintsBase.pick({
   endDate: true,
   timeZone: true,
   transportMode: true,
+  transportModeByDate: true,
 });
 export type PublicTripConstraints = z.infer<typeof PublicTripConstraints>;
 
