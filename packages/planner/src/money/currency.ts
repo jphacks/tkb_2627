@@ -66,10 +66,15 @@ export function knownCostDelta(before: readonly Money[], after: readonly Money[]
   return toSortedTotals(delta).filter(m => m.amountMinor !== 0);
 }
 
-/** Rounds half away from zero, after dropping binary float noise (e.g. 2.4999999999999996 -> 2.5 -> 3). */
+/**
+ * Rounds half away from zero, tolerating binary float noise just below .5 (e.g. 2.4999999999999996 -> 3).
+ * Exact integers keep every digit, and zero is always +0.
+ */
 function roundHalfAwayFromZero(value: number): number {
-  const abs = Number(Math.abs(value).toPrecision(12));
-  return Math.sign(value) * Math.floor(abs + 0.5);
+  const abs = Math.abs(value);
+  const floor = Math.floor(abs);
+  const rounded = abs - floor >= 0.5 - 1e-9 ? floor + 1 : floor;
+  return rounded === 0 ? 0 : Math.sign(value) * rounded;
 }
 
 /**
@@ -84,7 +89,8 @@ export function convert(money: Money, target: string, rates: readonly ExchangeRa
   for (const r of rates) {
     if (r.from !== money.currency || r.to !== target) continue;
     if (!Number.isFinite(r.rate) || r.rate <= 0) continue;
-    if (best === null || parseUtc(r.asOf) > parseUtc(best.asOf)) best = r;
+    const asOf = parseUtc(r.asOf);
+    if (best === null || asOf > parseUtc(best.asOf)) best = r;
   }
   if (best === null) return null;
   const scale = 10 ** (minorUnitDigits(target) - minorUnitDigits(money.currency));

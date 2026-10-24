@@ -132,7 +132,8 @@ export function fromLocal(date: LocalDate, time: string, timeZone: TimeZone): Lo
 
 /** Absolute seconds from `a` to `b` (negative when `b` is earlier). Independent of either zone. */
 export function elapsedSeconds(a: ZonedTime, b: ZonedTime): number {
-  return Math.round((parseUtc(b.utc) - parseUtc(a.utc)) / 1000);
+  const seconds = Math.round((parseUtc(b.utc) - parseUtc(a.utc)) / 1000);
+  return seconds === 0 ? 0 : seconds;
 }
 
 /** How many local calendar days `end` is after `start`, each read in its own zone (overnight Tokyo to Paris flight: 0 or 1). */
