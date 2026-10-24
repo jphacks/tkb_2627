@@ -63,9 +63,16 @@ describe('accepted shapes', () => {
     expect(job.batchId).toBe('batch-1');
     expect(saved).toHaveLength(1);
   });
-  it('extra unknown keys inside structured_output are tolerated or rejected, never crash', () => {
-    const r = parseBlueprint(envelope({ structured_output: { ...goodBlueprint(), extra: 1 } }), placeIds);
-    expect(typeof r.ok).toBe('boolean');
+  // Pinned: PlanBlueprint / CandidateBlueprint are plain z.object (non-strict), so unknown keys are accepted and stripped.
+  it('extra unknown keys inside structured_output are accepted and stripped (PlanBlueprint is not strict)', () => {
+    const bp = goodBlueprint() as Record<string, unknown>;
+    (bp.candidates as Record<string, unknown>[])[0]!.rogue = 'x';
+    const r = parseBlueprint(envelope({ structured_output: { ...bp, extra: 1 } }), placeIds);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.blueprint).not.toHaveProperty('extra');
+      expect(r.blueprint.candidates[0]).not.toHaveProperty('rogue');
+    }
   });
   it('1-3 candidates are accepted', () => {
     const b = goodBlueprint();
@@ -81,7 +88,10 @@ describe('envelope status fields (spec: all of type/is_error/subtype must be suc
     ['subtype error_max_turns with structured_output present', { subtype: 'error_max_turns' }],
     ['subtype error_during_execution', { subtype: 'error_during_execution' }],
     ["type is not 'result'", { type: 'system' }],
-    ['stop_reason max_tokens / api_error_status 529', { api_error_status: 529, is_error: true }],
+    ['api_error_status 529 together with is_error:true', { api_error_status: 529, is_error: true }],
+    ['api_error_status alone', { api_error_status: 529 }],
+    ['is_error missing', { is_error: undefined }],
+    ['subtype missing', { subtype: undefined }],
   ];
   for (const [name, over] of bad) {
     it(`BUG-T04-1 (fixed): ${name} must not succeed`, async () => {

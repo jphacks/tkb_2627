@@ -48,15 +48,19 @@ describe('key mixing (キー混入)', () => {
       expect(calls).toHaveLength(0);
     });
   }
-  it('same fields smuggled inside constraints are rejected or dropped before the runner', async () => {
+  // Pinned to the contract: GenerateRequest is a strictObject (unknown body keys -> 422), but TripConstraints is a
+  // plain z.object, so unknown keys INSIDE constraints are accepted and stripped by zod before the runner.
+  it('secret-looking fields smuggled inside constraints are stripped (TripConstraints is not strict) and never reach the runner', async () => {
     const { runner, calls } = runnerOf(async () => ok(envelope()));
     const c = make({ env: KEYS, app: { runner } });
     const { h } = await session(c);
     const r = await gen(c, h, 'key-12345678', { constraints: { ...constraints, apiKey: 'sk-ant-LEAK1', model: 'claude-opus-LEAK' } });
-    if (r.statusCode === 202) {
-      await settle(c, h, (r.json() as { jobId: string }).jobId);
-      expect(JSON.stringify(calls.map(x => x.input))).not.toContain('LEAK');
-    } else expect(r.statusCode).toBe(422);
+    expect(r.statusCode).toBe(202);
+    await settle(c, h, (r.json() as { jobId: string }).jobId);
+    expect(calls).toHaveLength(1);
+    expect(JSON.stringify(calls[0]!.input)).not.toContain('LEAK');
+    expect(calls[0]!.input.constraints).not.toHaveProperty('apiKey');
+    expect(calls[0]!.input.constraints).not.toHaveProperty('model');
   });
   it('GenerationInput given to the runner has no secret, cookie, csrf, or billing value', async () => {
     const { runner, calls } = runnerOf(async () => ok(envelope()));

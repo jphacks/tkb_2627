@@ -70,7 +70,7 @@ describe('model stop / hang / crash', () => {
     expect((await settle(c, h, a)).error?.code).toBe('CLI_TIMEOUT');
     expect((await settle(c, h, b)).state).toBe('succeeded');
   });
-  it('a queued job waiting behind a hung one times out CLI_TIMEOUT without ever calling the runner', async () => {
+  it('a job queued behind a hung one also ends CLI_TIMEOUT and any runner invocation it got is aborted', async () => {
     const { runner, calls } = hang();
     const c = make({ config: { aiTimeoutMs: 100 }, app: { runner } });
     const { h } = await session(c);
@@ -78,7 +78,11 @@ describe('model stop / hang / crash', () => {
     const q = await submit(c, h, 'key-bbbbbbbb');
     const job = await settle(c, h, q);
     expect(job.error?.code).toBe('CLI_TIMEOUT');
-    expect(calls.length).toBeLessThanOrEqual(2);
+    // Deadlines are per job from submit with one shared timeout, so B can never expire while A still occupies the
+    // runner: A's deadline aborts A first, the pump then starts B a few ms before B's own deadline, and B is aborted.
+    // So "the runner is never called for B" is not a property of the implementation; assert what is.
+    expect(calls).toHaveLength(2);
+    expect(calls.every(x => x.signal.aborted)).toBe(true);
   });
   it('save failure leaks nothing and is UNAVAILABLE', async () => {
     const { runner } = runnerOf(async () => ok(envelope()));
@@ -103,11 +107,11 @@ describe('limits', () => {
     const job = await settle(c, h, id);
     expect(job.error?.code).toBe('CLI_LIMIT');
     expect(job.error?.message).toBe('Usage limit reached.');
-    await sleep(100);
     expect(calls).toHaveLength(1);
     const again = await gen(c, h);
     expect((again.json() as { jobId: string }).jobId).toBe(id);
-    await sleep(50);
+    expect((await settle(c, h, id)).error?.code).toBe('CLI_LIMIT'); // terminal before the negative check
+    await sleep(30); // a retry would start asynchronously
     expect(calls).toHaveLength(1);
   });
   it('queue full -> 429 QUEUE_FULL retryable, and capacity frees after cancel', async () => {
@@ -140,10 +144,11 @@ describe('duplicates', () => {
     const { runner, calls } = hang();
     const c = make({ app: { runner } });
     const { h } = await session(c);
-    await submit(c, h, 'key-conflict1');
+    const first = await submit(c, h, 'key-conflict1');
     const r = await gen(c, h, 'key-conflict1', { constraints: { area: 'Osaka', startDate: '2026-11-01', endDate: '2026-11-02', timeZone: 'Asia/Tokyo', transportMode: 'transit' } });
     expect(r.statusCode).toBe(409);
     expect(codeOf(r)).toBe('IDEMPOTENCY_CONFLICT');
+    expect(JobStatus.parse((await getJob(c, h, first)).json()).state).toBe('running');
     await sleep(30);
     expect(calls).toHaveLength(1);
   });
@@ -155,7 +160,8 @@ describe('duplicates', () => {
     expect((await settle(c, h, id)).state).toBe('succeeded');
     const r = await gen(c, h, 'key-complete1');
     expect((r.json() as { jobId: string }).jobId).toBe(id);
-    await sleep(50);
+    expect((await settle(c, h, id)).state).toBe('succeeded');
+    await sleep(30);
     expect(calls).toHaveLength(1);
   });
   it('invalid Idempotency-Key values are rejected 422 before any job', async () => {
@@ -194,6 +200,7 @@ describe('cancel', () => {
     await until(() => calls.length === 1);
     const r = await cancel(c, h, a);
     expect(r.statusCode).toBe(202);
+    // relies on cancel() aborting the controller synchronously before the HTTP response
     expect(calls[0]!.signal.aborted).toBe(true);
     const st = JobStatus.parse((await getJob(c, h, a)).json());
     expect(st.state).toBe('cancelled');
