@@ -203,7 +203,7 @@
       "parent": "personal",
       "path": "apps/ai-local/src/jobs/",
       "owner": "M4",
-      "detail": "再起動時の未完了ジョブはWORKER_RESTARTED。旅程候補は共有DBに保存後のみ成功とする。",
+      "detail": "再起動時の未完了ジョブはWORKER_RESTARTED。旅程候補は共有DBに保存後のみ成功とする。生成パイプライン（K05取得→Claude→planner検証→K07保存）はapps/ai-local/src/generation/。runner（fake／claude-code）の選択と実行可否のgateはapp.ts。",
       "inputs": "validated request",
       "outputs": "jobId / state / batchId",
       "children": []
@@ -275,7 +275,7 @@
       "parent": "shared",
       "path": "apps/server/src/trips/",
       "owner": "M4",
-      "detail": "",
+      "detail": "生成用の旅行情報取得（K05）はapps/server/src/trips/generation/。",
       "inputs": "Trip / batch / expectedRevision",
       "outputs": "tripId + revision / conflict",
       "children": []

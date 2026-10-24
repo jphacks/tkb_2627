@@ -86,7 +86,7 @@ npm run user:create -- --login demo-a --name "デモA"
 **本人用App Server（:4311）**：
 1. `.env.ai-local`の`PERSONAL_OWNER_USER_ID`に、自分のアプリ利用者ID（`user_…`）を設定します。
 2. 起動時に端末へ表示される一度限りのペアリングコードで、ブラウザと対応づけます（`POST /local/v1/pair`）。
-3. 実際のClaude実行は`ALLOW_CLAUDE_EXECUTION=false`のままにします（A01の確認とA04まで）。
+3. 実際のClaude実行は、本人のPCで本人だけが行います（A01の結論、#25）。既定は`ALLOW_CLAUDE_EXECUTION=false`で、`true`にするには`CLAUDE_TERMS_ACK=true`も必要です。
 
 **実装状況（2026-10-24時点）**：画面はfixtureの旅程ビューアと接続状態の表示だけです（UIはU01以降）。各機能のAPIの状態は次のとおりです。
 
@@ -96,10 +96,10 @@ npm run user:create -- --login demo-a --name "デモA"
 | グループ（S03） | 統合済み |
 | SNS投稿・フィード（S05） | 統合済み |
 | 共有入口の公開準備（O01） | 統合済み |
-| 本人用の入口とジョブ（A02、A03） | 統合済み（fake runnerのみ） |
+| 本人用の入口とジョブ（A02、A03） | 統合済み |
 | 旅程API（S04） | 統合済み |
 | 複製（S06） | 統合済み |
-| Claudeによる実生成 | 未実装 |
-| 旅行APIへの実接続 | 未実装 |
+| Claudeによる実生成（A04） | 統合済み。fixtureとmixed（地点fixture・経路live Routes）で実機確認済み |
+| 旅行APIへの実接続（D03、D04） | 統合済み。`PROVIDER_MODE=mixed`/`live`はサーバーキーが必要 |
 
 詳細は`ops/tasks.json`とGitHub Issueで追跡しています。公開の手順は`docs/deployment.md`にあります。
