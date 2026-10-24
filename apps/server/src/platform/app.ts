@@ -16,6 +16,7 @@ import { registerCopy } from '../social/copy/index.ts';
 import { registerPosts } from '../social/posts/index.ts';
 import { registerTrips } from '../trips/index.ts';
 import { registerGuides } from '../guides/index.ts';
+import { registerSpotGuides, type SpotGuideDeps } from '../guides/spots.ts';
 import type { AmenitiesProvider } from '@tkb/travel-data';
 import type { SharedConfig } from './config.ts';
 import { createStaticHandler, SECURITY_HEADERS } from './static.ts';
@@ -28,6 +29,8 @@ export interface BuildAppOptions {
   exports?: ExportsDeps;
   /** U07 amenities provider (tests); defaults to the D08 fixture provider. */
   amenities?: AmenitiesProvider;
+  /** K19 spot guides (tests inject a source / clock). */
+  guides?: SpotGuideDeps;
 }
 
 function sendError(reply: FastifyReply, requestId: string, code: ErrorCode, message: string, retryable = false) {
@@ -105,6 +108,7 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
   registerCopy(app, handle);
   registerExports(app, handle, opts.exports); // E02 (K18 PDF)
   registerGuides(app, opts.amenities); // U07 (K19 amenities)
+  registerSpotGuides(app, config.providerMode, opts.guides); // K19 guides
 
   app.get('/api/v1/health', async (req, reply) => {
     if (!checkConnection(handle)) {

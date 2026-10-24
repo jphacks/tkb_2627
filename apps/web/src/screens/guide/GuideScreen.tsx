@@ -13,8 +13,8 @@ import { mapPoints, unlocatedPlaces } from '../itinerary/model.ts';
 import type { GeoLike } from '../travel/geo.ts';
 import {
   AMENITY_KIND_LABEL, EMPTY_TEXT, LOCATION_CONSENT_TEXT, SHELTER_WARNING, UNSUPPORTED_TEXT,
-  chooseArea, currentDayIndex, displayName, fetchAmenities, filterKinds, hazardText, isFictional, mockAmenities,
-  spotDetail, warningFor, type AmenitiesLoad, type AmenityItem, type AmenityKind, type SpotDetail,
+  chooseArea, currentDayIndex, displayName, fetchAmenities, fetchGuide, filterKinds, hazardText, isFictional, mergeGuide, mockAmenities,
+  spotDetail, warningFor, type AmenitiesLoad, type AmenityItem, type AmenityKind, type GuideLoad, type SpotDetail,
 } from './model.ts';
 import type { GuideRoute } from './route.ts';
 import '../../components/u01.css';
@@ -85,6 +85,14 @@ export function GuideView({ trip, mock, geo, today }: { trip: Trip; mock: boolea
     const p = points.find(x => x.placeId === selected);
     return p ? spotDetail(p, trip.places) : null;
   }, [points, selected, trip.places]);
+  const [guide, setGuide] = useState<{ placeId: string; load: GuideLoad } | null>(null);
+  useEffect(() => {
+    setGuide(null);
+    if (!selected || mock) return undefined; // mock mode: no network, Trip.places only
+    const ctrl = new AbortController();
+    fetchGuide(selected, { signal: ctrl.signal }).then(load => setGuide({ placeId: selected, load }), () => { /* aborted */ });
+    return () => ctrl.abort();
+  }, [selected, mock]);
   const toggle = (k: AmenityKind) => setEnabled(s => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const pick = (id: string) => setSelected(s => (s === id ? null : id));
 
@@ -117,7 +125,7 @@ export function GuideView({ trip, mock, geo, today }: { trip: Trip; mock: boolea
             {day && unlocatedPlaces(day, trip.places).length > 0 && <p className="meta">位置不明: {unlocatedPlaces(day, trip.places).map(u => u.name).join('、')}</p>}
           </>
         )}
-        <SpotPanel detail={detail} />
+        <SpotPanel detail={detail} guide={guide && guide.placeId === selected ? guide.load : null} />
       </section>
 
       <section aria-label="近くのトイレ・避難場所" className="gd-sec">
@@ -137,19 +145,27 @@ export function GuideView({ trip, mock, geo, today }: { trip: Trip; mock: boolea
   );
 }
 
-export function SpotPanel({ detail }: { detail: SpotDetail | null }) {
+/** `guide` is null while loading (or in mock mode): the trip's own description is shown meanwhile. */
+export function SpotPanel({ detail, guide = null }: { detail: SpotDetail | null; guide?: GuideLoad | null }) {
   if (!detail) return <p className="meta">地点を選ぶと解説を表示します。</p>;
+  const view = mergeGuide(detail, guide);
   return (
-    <article className="gd-detail" aria-label={`地点${detail.number}の解説`}>
-      <h3><span className="it-num">{detail.number}</span> {detail.name}</h3>
-      <p className={detail.hasDescription ? '' : 'u1-unknown'}>{detail.description}</p>
-      {detail.photo && (
+    <article className="gd-detail" aria-label={`地点${view.number}の解説`}>
+      <h3><span className="it-num">{view.number}</span> {view.name}</h3>
+      <p className={view.hasDescription ? '' : 'u1-unknown'}>{view.description}</p>
+      {view.photo && (
         <figure>
-          <img src={detail.photo.url} alt={`${detail.name}の写真`} loading="lazy" />
-          <figcaption>写真: {detail.photo.attribution}{detail.photo.license ? `（${detail.photo.license}）` : ''}</figcaption>
+          <img src={view.photo.url} alt={`${view.name}の写真`} loading="lazy" referrerPolicy="no-referrer" />
+          <figcaption>
+            写真: {view.photo.attribution}（{view.photo.license}） 出典:{' '}
+            <a href={view.photo.url} target="_blank" rel="noopener noreferrer">{view.photo.sourceLabel}</a>
+          </figcaption>
         </figure>
       )}
-      <p className="meta">出典: {detail.source}{detail.fictional ? '（架空のfixtureデータ）' : ''}</p>
+      <p className="meta">
+        出典: {view.textAttribution ?? view.source}{view.fictional ? '（架空のfixtureデータ）' : ''}
+        {guide?.state === 'error' && '（詳しい解説は取得できなかったため、旅程のデータを表示しています）'}
+      </p>
     </article>
   );
 }

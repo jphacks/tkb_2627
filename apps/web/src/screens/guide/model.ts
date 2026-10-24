@@ -4,7 +4,7 @@
  * browser storage); the fallback area comes from the trip's current-day places.
  */
 import { z } from 'zod';
-import { AmenityKind as AmenityKindSchema, ApiError, DataStatus, LatLng, Provenance, UtcInstant, type PlaceInfo, type Trip, type TripDay } from '@tkb/contracts';
+import { AmenityKind as AmenityKindSchema, ApiError, DataStatus, GuideResponse, LatLng, Provenance, UtcInstant, type GuideItem, type PlaceInfo, type Trip, type TripDay } from '@tkb/contracts';
 import { requestLocation, type GeoLike } from '../travel/geo.ts';
 import { mapPoints, type MapPoint } from '../itinerary/model.ts';
 
@@ -202,4 +202,75 @@ export function hazardText(i: AmenityItem): string {
 
 export function filterKinds(items: AmenityItem[], enabled: ReadonlySet<AmenityKind>): AmenityItem[] {
   return items.filter(i => enabled.has(i.kind));
+}
+
+// ---------- K19 GET /api/v1/guides (D07: description + licensed photo) ----------
+
+export type GuideLoad =
+  | { state: 'ok'; item: GuideItem; dataStatus: DataStatus }
+  | { state: 'empty'; reason: string | null }
+  | { state: 'error'; message: string };
+
+export const guidesUrl = (placeId: string, lang = 'ja'): string => `/api/v1/guides?placeId=${encodeURIComponent(placeId)}&lang=${encodeURIComponent(lang)}`;
+
+/** Fetches the guide of one selected spot. Failure is `error`, never `empty` (K19): the caller falls back to Trip.places. */
+export async function fetchGuide(placeId: string, options: { lang?: string; fetch?: FetchLike; signal?: AbortSignal } = {}): Promise<GuideLoad> {
+  const doFetch: FetchLike = options.fetch ?? ((i, init) => fetch(i, init));
+  try {
+    const res = await doFetch(guidesUrl(placeId, options.lang), {
+      credentials: 'same-origin', cache: 'no-store', headers: { accept: 'application/json' },
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+    const body: unknown = await res.json().catch(() => null);
+    if (!res.ok) {
+      const err = ApiError.safeParse(body);
+      return { state: 'error', message: err.success ? err.data.message : `HTTP ${res.status}` };
+    }
+    const parsed = GuideResponse.safeParse(body);
+    if (!parsed.success) return { state: 'error', message: '応答が契約(K19)と一致しません' };
+    const r = parsed.data;
+    if (r.dataStatus === 'unavailable') return { state: 'error', message: r.reason ?? '解説を取得できません。' };
+    const item = r.items.find(i => i.placeId === placeId) ?? null;
+    if (!item || !item.description?.trim()) return { state: 'empty', reason: r.reason };
+    return { state: 'ok', item, dataStatus: r.dataStatus };
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') throw e;
+    return { state: 'error', message: e instanceof Error ? e.message : '通信に失敗しました' };
+  }
+}
+
+export interface SpotPhoto { url: string; attribution: string; license: string; sourceLabel: string }
+
+/** A photo is shown only with an author, a licence and an https URL (CC BY-SA attribution); the server also limits hosts. */
+export function displayablePhoto(photo: { url: string; attribution: string; license: string | null } | null | undefined): SpotPhoto | null {
+  if (!photo) return null;
+  const license = photo.license?.trim();
+  const author = photo.attribution?.trim();
+  if (!license || !author) return null;
+  let u: URL;
+  try { u = new URL(photo.url); } catch { return null; }
+  if (u.protocol !== 'https:') return null;
+  return { url: u.href, attribution: author, license, sourceLabel: u.hostname.endsWith('wikimedia.org') ? 'Wikimedia Commons' : u.hostname };
+}
+
+export interface SpotView extends Omit<SpotDetail, 'photo'> {
+  photo: SpotPhoto | null;
+  /** Where the shown text came from: the guide API, the trip's own place data, or nothing. */
+  textFrom: 'guide' | 'trip' | 'none';
+  /** Text attribution (e.g. Wikipedia CC BY-SA) when the text came from the guide API. */
+  textAttribution: string | null;
+}
+
+/** Guide text and photo win; otherwise Trip.places; otherwise 「解説なし」. A photo without licence/author is dropped. */
+export function mergeGuide(detail: SpotDetail, guide: GuideLoad | null): SpotView {
+  if (guide?.state === 'ok') {
+    const g = guide.item;
+    const photo = displayablePhoto(g.photo) ?? (g.photo ? null : displayablePhoto(detail.photo));
+    return {
+      ...detail, description: g.description!.trim(), hasDescription: true, photo, textFrom: 'guide',
+      source: g.provenance.source, dataStatus: guide.dataStatus, fictional: guide.dataStatus === 'fixture',
+      textAttribution: g.provenance.attribution,
+    };
+  }
+  return { ...detail, photo: displayablePhoto(detail.photo), textFrom: detail.hasDescription ? 'trip' : 'none', textAttribution: null };
 }
