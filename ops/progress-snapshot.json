@@ -1,6 +1,6 @@
 {
   "repository": "jphacks/tkb_2627",
-  "fetchedAt": "2026-10-24T17:13:34.148Z",
+  "fetchedAt": "2026-10-24T17:30:49.851Z",
   "warnings": [],
   "tasks": {
     "B01": {
@@ -154,7 +154,7 @@
       }
     },
     "D07": {
-      "status": "doing",
+      "status": "review",
       "issue": {
         "number": 17,
         "url": "https://github.com/jphacks/tkb_2627/issues/17",
@@ -341,7 +341,7 @@
       }
     },
     "U07": {
-      "status": "doing",
+      "status": "review",
       "issue": {
         "number": 35,
         "url": "https://github.com/jphacks/tkb_2627/issues/35",
@@ -363,7 +363,7 @@
       }
     },
     "E01": {
-      "status": "doing",
+      "status": "review",
       "issue": {
         "number": 37,
         "url": "https://github.com/jphacks/tkb_2627/issues/37",
@@ -496,11 +496,12 @@
       }
     },
     "I05": {
-      "status": "todo",
+      "status": "doing",
       "issue": {
         "number": 50,
         "url": "https://github.com/jphacks/tkb_2627/issues/50",
         "assignees": [
+          "KatTanaka",
           "murataka-csl"
         ]
       }
@@ -516,7 +517,7 @@
       }
     },
     "T06": {
-      "status": "todo",
+      "status": "review",
       "issue": {
         "number": 52,
         "url": "https://github.com/jphacks/tkb_2627/issues/52",
