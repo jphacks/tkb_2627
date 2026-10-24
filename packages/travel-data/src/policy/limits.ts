@@ -11,6 +11,8 @@ export const SKU = {
   placesNearbyEnterprise: 'places.nearby_search.enterprise',
   routesDrive: 'routes.compute_routes.drive',
   routesTransit: 'routes.compute_routes.transit',
+  /** Wikipedia / Wikimedia Commons APIs (D07): free, but kept polite and bounded. */
+  wikimedia: 'wikimedia.api',
 } as const;
 export type Sku = (typeof SKU)[keyof typeof SKU];
 
@@ -37,6 +39,7 @@ export const SAFE_DEFAULT_LIMITS: UsageLimits = {
     [SKU.placesNearbyEnterprise]: 20,
     [SKU.routesDrive]: 60,
     [SKU.routesTransit]: 60,
+    [SKU.wikimedia]: 60,
   },
   maxCallsPerInput: 8,
   maxConcurrent: 2,

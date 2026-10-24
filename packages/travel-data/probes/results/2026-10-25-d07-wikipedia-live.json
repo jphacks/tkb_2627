@@ -1,0 +1,23 @@
+{
+  "note": "D07 live check of WikipediaGuideSource (Wikipedia summary + Commons imageinfo; free, not Google). Shape only; no provider text.",
+  "fetchedAt": "2026-10-24T17:06:40.719Z",
+  "calls": 2,
+  "endpoints": [
+    "https://ja.wikipedia.org/api/rest_v1/page/summary/%E5%85%BC%E5%85%AD%E5%9C%92",
+    "https://commons.wikimedia.org/w/api.php"
+  ],
+  "statuses": [
+    200,
+    200
+  ],
+  "reason": null,
+  "hasDescription": true,
+  "descriptionLength": 94,
+  "descriptionHasTags": false,
+  "photo": {
+    "hostAllowed": true,
+    "license": "CC BY 2.5",
+    "hasAttribution": true
+  },
+  "photoRejected": null
+}

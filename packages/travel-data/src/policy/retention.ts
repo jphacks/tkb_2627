@@ -38,6 +38,26 @@ export const DEFAULT_SOURCE_POLICIES: Readonly<Record<string, SourcePolicy>> = {
     mayExport: false,
     displayTtlSeconds: 0,
   },
+  // D07: text CC BY-SA 4.0, images under their own Commons licence. Reuse needs attribution (and share-alike), so it
+  // may be stored and exported with the credit; not sent to the model until M1 decides (docs/08).
+  wikipedia: {
+    source: 'wikipedia',
+    attribution: 'Wikipedia (CC BY-SA 4.0)',
+    storableFields: { '*': null },
+    mayStore: true,
+    maySendToModel: false,
+    mayExport: true,
+    displayTtlSeconds: 0,
+  },
+  wikimedia_commons: {
+    source: 'wikimedia_commons',
+    attribution: 'Wikimedia Commons',
+    storableFields: { '*': null },
+    mayStore: true,
+    maySendToModel: false,
+    mayExport: true,
+    displayTtlSeconds: 0,
+  },
   fixture: {
     source: 'fixture',
     attribution: 'tkb_2627 fixture',
