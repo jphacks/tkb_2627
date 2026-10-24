@@ -10,10 +10,10 @@
 node packages/travel-data/probes/maps-probe.mjs          # 計画の表示だけ（通信なし・キー不要）
 ```
 
-- `--live` は実際に API を呼びます。2026-10-24 に1回実施済みです。**再実行する場合は、理由を Issue #11 に書いて M1 の了承を得てから**にしてください。
+- `--live` は実際に API を呼びます。2026-10-24 に2回実施済みです（計画全体の7回と、`--only=kanazawa-tokyo-transit` の1回）。**再実行する場合は、理由を Issue #11 に書いて M1 の了承を得てから**にしてください。
 - 呼出し回数は**全体で `APPROVED_TOTAL = 20` 回まで**です。回数は実行をまたいで数えます。
   - コミット済みの実行分は `ALREADY_USED`（現在8）に記録しています。新しい実行をコミットするときは、`ALREADY_USED` を増やし、同じ回数を数えているローカルの台帳を消します。
-  - `--only=label` を付けると、指定した項目だけを実行します。
+  - `--only=label[,label]` を付けると、指定した項目だけを実行します（カンマ区切りで複数可）。上限と台帳にも、絞り込んだ件数で数えます。知らない引数、`=` のない `--only`、空の `--only=` は、1回も呼ばずに拒否します（打ち間違いで全件を実行しないため）。
   - それ以降の実行分は、Git 管理外の `.local/provider-probe/calls.json` に記録します。
   - 計画した回数が残りを超える場合、`--live` は1回も呼ばずに拒否します。
 - 再試行はしません。タイムアウトは15秒です。429 や `RESOURCE_EXHAUSTED` が返ったら、それを記録してその場で止めます。
@@ -60,13 +60,13 @@ field mask は最小限にしています。料金ランク（SKU）は field ma
 | kanazawa-transit | 2026-10-24T07:56:36Z | 金沢（JP） | 2026-10-25T01:00Z（10:00 JST） | 料金表で確認 | 200 | **0** | — | **経路なし**（duration, distanceMeters, steps.travelMode, steps.transitDetails, travelAdvisory.transitFare） |
 | paris-drive | 2026-10-24T07:56:36Z | パリ（FR） | — | Compute Routes Essentials | 200 | 1 | duration, distanceMeters | — |
 | paris-transit | 2026-10-24T07:56:36Z | パリ（FR） | 2026-10-25T09:00Z（10:00 CET） | 料金表で確認 | 200 | 1 | duration, distanceMeters, steps.travelMode, steps.transitDetails, travelAdvisory.transitFare | — |
-| kanazawa-tokyo-transit | 2026-10-24T09:18:32Z | 金沢→東京（JP、約300km） | 2026-10-25T01:00Z（10:00 JST） | 料金表で確認 | 200 | **0** | — | **経路なし**（kanazawa-transit と同じ5項目） |
+| kanazawa-tokyo-transit | 2026-10-24T09:18:32Z | 金沢→東京（JP、直線で約300km） | 2026-10-25T01:00Z（10:00 JST） | 料金表で確認 | 200 | **0** | — | **経路なし**（kanazawa-transit と同じ5項目） |
 
 わかったこと：
 
 - **日本の公共交通（R05）：Routes API では取得できない場合がある**（M1 の判断に従った記録。R05 と T06 の制約）
-  - 金沢駅→兼六園（約2km）も、**金沢駅→東京駅（約300km、新幹線が通る区間）も**、エラーにならず**経路0件**でした（どちらも翌日10:00 JST）。
-  - 長距離でも0件だったので、「短距離だから徒歩が適切だった」という説明は当てはまりません。ただし確かめたのは2区間・1時刻だけで、国内全体で非対応だと公式資料で確認できたわけではありません（資料には「地域によって異なる」としか書かれていません）。
+  - 金沢駅→兼六園（約2km）も、**金沢駅→東京駅（直線で約300km、新幹線が通る区間）も**、エラーにならず**経路0件**でした（どちらも翌日10:00 JST）。
+  - 長距離でも0件だったので、短距離だけが原因とは言えません。ただし確かめたのは2区間・1時刻だけで、国内全体で非対応だと公式資料で確認できたわけではありません（資料には「地域によって異なる」としか書かれていません）。
   - D04 は、国内の公共交通が返らないときは `unsupported_region` / `null` として返します。路線・時刻・運賃・乗り場を AI で補完しません。
   - 国内の公共交通を別の provider で取るかどうかは、M1 とチームが判断します。
 - **パリの公共交通**：路線の詳細（`transitDetails`）と運賃（`transitFare`）が返りました。ただし `transitFare` は全区間の運賃がわかる場合にだけ返るので、常にあるとは限りません。
@@ -77,10 +77,11 @@ field mask は最小限にしています。料金ランク（SKU）は field ma
 
 ## 保存・AI入力・出力の条件（M1 が最終判断）
 
-**M1 の判断（2026-10-24、Issue #11）**：Service Specific Terms を確認できるまでは、保守的な既定にします。D02（#88）の `DEFAULT_SOURCE_POLICIES` はこの内容と同じです。
+**M1 の判断（2026-10-24、Issue #11）**：Service Specific Terms を確認できるまでは、保守的な既定にします。D02（#88）の `DEFAULT_SOURCE_POLICIES` は、この判断に沿った設定です。
 
 - **保存**：`place_id` だけを保存してよい。それ以外の地点データ・経路データは、その場で取得して表示するだけにし、DB にも snapshot にも保存しない。
 - **AIへの入力**：不可。A04 で Claude に渡すのは、利用者の入力、`place_id`、プログラムが計算した事実だけ。
+  - D02 での扱い：`place_id` は `GenerationInput.allowedPlaceIds` で渡ります。`factsForModel` は、`maySendToModel=false` の地点（名前・座標・営業時間など）を、`facts` から丸ごと除きます。
 - **PDF・SNSへの転載**：不可。provider の名前・住所・写真を載せない。
 - **表示**：Google の地図の上に表示するか、地図なしで表示する場合は Google のロゴと帰属表示を付ける（M2 の U04・U07 で対応）。
 - **実際に課金された SKU**：M1 が Cloud Console で確認して、Issue #11 に追記する。

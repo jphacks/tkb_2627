@@ -12,7 +12,10 @@ import { fileURLToPath } from 'node:url';
 
 const LIVE = process.argv.includes('--live');
 /** `--only=a,b` runs just those labels (e.g. one extra check M1 approved) instead of the whole plan. */
-const ONLY = process.argv.find(a => a.startsWith('--only='))?.slice('--only='.length).split(',').filter(Boolean) ?? null;
+const ONLY_ARG = process.argv.find(a => a === '--only' || a.startsWith('--only='));
+const ONLY = ONLY_ARG === undefined ? null : [...new Set(ONLY_ARG.slice('--only='.length).split(',').filter(Boolean))];
+/** Anything not understood stops the run: a typo must never widen it to the whole plan. */
+const UNKNOWN_ARGS = process.argv.slice(2).filter(a => a !== '--live' && !a.startsWith('--only='));
 /** Calls M1 approved for D01 in total. Raising it needs M1's approval (Issue #11). */
 const APPROVED_TOTAL = 20;
 /**
@@ -155,6 +158,11 @@ async function call(req, key) {
 async function main() {
   const used = ALREADY_USED + ledgerCalls();
   const remaining = APPROVED_TOTAL - used;
+  if (UNKNOWN_ARGS.length > 0 || (ONLY !== null && ONLY.length === 0)) {
+    const bad = [...new Set([...UNKNOWN_ARGS, ...(ONLY?.length === 0 ? [ONLY_ARG] : [])])];
+    console.error(`Unknown or empty arguments: ${bad.join(' ')}. Use --only=label[,label] and/or --live.`);
+    return 2;
+  }
   const selected = ONLY ? PLAN.filter(r => ONLY.includes(r.label)) : PLAN;
   if (ONLY && selected.length !== ONLY.length) {
     console.error(`Unknown label in --only: ${ONLY.filter(l => !PLAN.some(r => r.label === l)).join(', ')}`);
