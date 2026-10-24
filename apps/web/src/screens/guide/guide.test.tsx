@@ -8,7 +8,9 @@ import { AmenitiesPanel, SpotPanel } from './GuideScreen.tsx';
 import {
   EMPTY_TEXT, SHELTER_WARNING, UNSUPPORTED_TEXT, amenitiesUrl, bboxAround, chooseArea, classifyAmenities, currentDayIndex,
   displayName, fallbackBbox, type AmenityKind, fetchAmenities, mockAmenities, spotDetail, type AmenitiesLoad, type AmenityResponse,
+  fetchGuide, guidesUrl, mergeGuide, type GuideLoad,
 } from './model.ts';
+import type { GuideItem } from '@tkb/contracts';
 import { guideHash, parseGuideHash } from './route.ts';
 
 const render = (el: ReactElement): string => renderRaw(el).replace(/<!-- -->/g, '');
@@ -136,5 +138,56 @@ describe('spots', () => {
     expect(html).toContain('解説本文');
     expect(html).toContain('撮影者X');
     expect(html).toContain('出典');
+  });
+});
+
+describe('K19 guides (description + licensed photo)', () => {
+  const pt = mapPoints(day, trip.places)[0]!;
+  const base = (over: object = {}) => spotDetail(pt, trip.places.map(p => ({ ...p, description: null, photo: null, ...over })));
+  const gprov = { ...prov, source: 'wikipedia', attribution: 'Wikipedia「兼六園」(ja.wikipedia.org), CC BY-SA 4.0（抜粋・HTML除去）' };
+  const gitem = (over: object = {}): GuideItem => ({
+    number: 1, placeId: pt.placeId, name: pt.name, kind: 'spot', location: null, description: 'Wikipedia本文',
+    photo: { url: 'https://upload.wikimedia.org/a.jpg', attribution: '撮影者Y', license: 'CC BY-SA 4.0' }, provenance: gprov, ...over,
+  });
+  const okLoad = (over: object = {}): GuideLoad => ({ state: 'ok', item: gitem(over), dataStatus: 'verified' });
+
+  it('shows guide text, photo with author, licence and source link', () => {
+    const html = render(<SpotPanel detail={base({ description: 'trip本文' })} guide={okLoad()} />);
+    expect(html).toContain('Wikipedia本文');
+    expect(html).not.toContain('trip本文');
+    expect(html).toContain('撮影者Y');
+    expect(html).toContain('CC BY-SA 4.0');
+    expect(html).toContain('href="https://upload.wikimedia.org/a.jpg"');
+    expect(html).toContain('ja.wikipedia.org');
+  });
+  it('never renders a photo lacking licence or author', () => {
+    for (const photo of [{ url: 'https://upload.wikimedia.org/a.jpg', attribution: '撮影者', license: null }, { url: 'https://upload.wikimedia.org/a.jpg', attribution: '  ', license: 'CC BY' }, { url: 'http://upload.wikimedia.org/a.jpg', attribution: 'x', license: 'CC BY' }]) {
+      expect(render(<SpotPanel detail={base()} guide={okLoad({ photo })} />)).not.toContain('<img');
+    }
+    // a photo-less guide item does not fall back to a trip photo that is itself unlicensed
+    expect(render(<SpotPanel detail={base({ photo: { url: 'https://example.com/x.jpg', attribution: 'a', license: null } })} guide={okLoad({ photo: null })} />)).not.toContain('<img');
+  });
+  it('falls back to Trip.places on empty/error/loading, and to 解説なし when neither', () => {
+    for (const g of [null, { state: 'empty', reason: null } as GuideLoad, { state: 'error', message: 'x' } as GuideLoad]) {
+      expect(render(<SpotPanel detail={base({ description: 'trip本文' })} guide={g} />)).toContain('trip本文');
+      expect(render(<SpotPanel detail={base()} guide={g} />)).toContain('解説なし');
+    }
+    expect(mergeGuide(spotDetail(pt, trip.places), { state: 'error', message: 'x' }).textFrom).not.toBe('guide');
+  });
+  it('fetchGuide: ok / empty / 503 / invalid body / network error, and no-store request', async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const f = (res: Response | Error) => async (url: string, init?: RequestInit) => { calls.push({ url, ...(init ? { init } : {}) }); if (res instanceof Error) throw res; return res; };
+    const resp = (items: GuideItem[], dataStatus = 'verified', reason: string | null = null) => json(200, { items, dataStatus, reason, fetchedAt: '2026-10-24T00:00:00Z' });
+    expect((await fetchGuide(pt.placeId, { fetch: f(resp([gitem()])) })).state).toBe('ok');
+    expect(calls[0]!.url).toBe(guidesUrl(pt.placeId));
+    expect(calls[0]!.init?.cache).toBe('no-store');
+    expect(await fetchGuide(pt.placeId, { fetch: f(resp([], 'unknown', '該当なし')) })).toEqual({ state: 'empty', reason: '該当なし' });
+    expect(await fetchGuide(pt.placeId, { fetch: f(resp([], 'unavailable', '失敗')) })).toEqual({ state: 'error', message: '失敗' });
+    expect((await fetchGuide(pt.placeId, { fetch: f(json(503, { code: 'UNAVAILABLE', message: '混雑', retryable: true, requestId: 'r' })) })).state).toBe('error');
+    expect((await fetchGuide(pt.placeId, { fetch: f(json(200, { items: 'x' })) })).state).toBe('error');
+    expect((await fetchGuide(pt.placeId, { fetch: f(new Error('net')) })).state).toBe('error');
+  });
+  it('guidesUrl encodes the placeId', () => {
+    expect(guidesUrl('a b&c')).toBe('/api/v1/guides?placeId=a%20b%26c&lang=ja');
   });
 });
