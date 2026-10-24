@@ -116,6 +116,10 @@ describe('TravelView', () => {
     expect(html).toContain('現在地を使わずに再計画');
     expect(html).toContain('座標は保存せず');
     expect(html).toContain('完了にする');
+    expect(html).toContain('aria-label="行程表"');
+    expect(html).not.toContain('上へ');
+    expect(html).not.toContain('下へ');
+    expect(html).not.toContain('class="it-handle"');
     expect(html).toContain(`#/trips/${base.tripId}/map`);
   });
   it('shows conflicts, untimed items, unknown costs, and a disabled apply when operations are null', () => {

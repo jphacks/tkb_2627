@@ -7,8 +7,9 @@ import { createMockApi } from '../../mocks/index.ts';
 import { createLiveTripEditApi, createMockTripEditApi, describeEditError, mockDiff } from './api.ts';
 import { DiffView, EditError } from './DiffView.tsx';
 import { AlternativeCard, EditView } from './EditScreen.tsx';
-import { applyOperations, describeDiff, itemIdOf, localToZoned, moveStepOp, newFreeActivity, signedMoney } from './ops.ts';
+import { applyOperations, describeDiff, itemIdOf, localToZoned, newFreeActivity, reorderOps, signedMoney } from './ops.ts';
 import { initialPending, MAX_PENDING, pendingReducer, type PendingState } from './pending.ts';
+import { tableRows, type StayRow } from '../itinerary/table.ts';
 import { parseTripScreenHash, tripScreenHash } from './route.ts';
 
 const render = (el: ReactElement): string => renderRaw(el).replace(/<!-- -->/g, '');
@@ -73,19 +74,27 @@ describe('operations', () => {
     const dup = applyOperations(base, [{ op: 'add', dayIndex: 0, position: 0, item: { ...act, activityId: firstActivityId(base) } }]);
     expect(dup.ok).toBe(false);
   });
-  it('moveStepOp skips legs and stops at the edges', () => {
+  it('a drag plan (reorderOps) is a list of K10 move operations; a parent moves together with its nested children', () => {
     const base = trip();
-    const acts = base.days[0]!.items.filter(i => i.type === 'activity');
-    const first = itemIdOf(acts[0]!);
-    expect(moveStepOp(base, first, 0, -1)).toBeNull();
-    const down = moveStepOp(base, first, 0, 1);
-    expect(down).toMatchObject({ op: 'move', itemId: first });
-    const r = applyOperations(base, [down!]);
+    const rows = tableRows(base.days[0]!, base.places).filter((r): r is StayRow => r.kind === 'stay');
+    const parent = rows.find(r => r.children.length > 0)!;
+    const target = rows[rows.length - 1]!;
+    const ops = reorderOps(base, 0, parent.key, null);
+    expect(ops.length).toBeGreaterThan(0);
+    for (const op of ops) expect(op).toMatchObject({ op: 'move', toDayIndex: 0 });
+    const moved = new Set(ops.map(o => (o.op === 'move' ? o.itemId : '')));
+    expect(moved.has(parent.key)).toBe(true);
+    for (const c of parent.children) expect(moved.has(c.key)).toBe(true);
+    const r = applyOperations(base, ops);
     expect(r.ok).toBe(true);
     if (r.ok) {
-      const order = r.trip.days[0]!.items.filter(i => i.type === 'activity').map(itemIdOf);
-      expect(order.indexOf(first)).toBe(1);
+      const order = r.trip.days[0]!.items.map(itemIdOf);
+      const at = order.indexOf(parent.key);
+      parent.children.forEach(c => expect(order.indexOf(c.key)).toBeGreaterThan(at));
+      expect(at).toBeGreaterThan(order.indexOf(target.key));
     }
+    expect(reorderOps(base, 0, rows[0]!.key, rows[0]!.key)).toEqual([]);
+    expect(reorderOps(base, 9, rows[0]!.key, null)).toEqual([]);
   });
   it('validates new activity input', () => {
     const d = { date: '2026-11-01', timeZone: 'Asia/Tokyo' };
@@ -200,15 +209,19 @@ describe('live client: strict bodies and CSRF', () => {
 describe('views', () => {
   const base = trip();
   const props = {
-    trip: base, working: base, pending: [] as TripOperation[], dayIndex: 0, onDay() {}, onAdd() {}, onRemove() {}, onMove() {}, onUndo() {}, onClear() {}, onPreview() {},
+    trip: base, working: base, pending: [] as TripOperation[], dayIndex: 0, onDay() {}, onAdd() {}, onRemove() {}, onUndo() {}, onClear() {}, onPreview() {},
     alt: { state: 'idle' } as const, onApply() {}, saved: null, error: null as ApiError | null, onReload() {}, onDismissError() {}, busy: false,
     route: { mode: 'mock', tripId: base.tripId } as const,
   };
-  it('renders move/remove buttons, keyboard shortcuts, undo disabled when nothing is pending', () => {
+  it('renders the n x 2 table with drag handles and remove buttons (no 上へ/下へ), undo disabled when nothing is pending', () => {
     const html = render(<EditView {...props} />);
-    expect(html).toContain('を上へ');
+    expect(html).not.toContain('上へ');
+    expect(html).not.toContain('下へ');
+    expect(html).not.toContain('Alt+');
+    expect(html).toContain('aria-label="行程表"');
+    expect(html).toContain('class="it-handle"');
+    expect(html).toContain('出発 ');
     expect(html).toContain('を削除');
-    expect(html).toContain('aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"');
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>直前の編集を取り消す/);
     expect(html).toContain(`#/mock/trips/${base.tripId}/map`);
   });
