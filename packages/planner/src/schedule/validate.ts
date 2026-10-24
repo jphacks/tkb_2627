@@ -38,6 +38,7 @@ export type ScheduleIssueCode =
   | 'time_unknown'
   | 'travel_time_unknown'
   | 'leg_missing'
+  | 'meal_after_meal'
   | 'opening_hours_unknown'
   | 'day_mismatch'
   | 'budget_unverified'
@@ -143,11 +144,17 @@ export function validateSchedule(input: ScheduleInput): ScheduleValidation {
     if (startMs !== null && (cursor === null || startMs > cursor.ms)) cursor = { ms: startMs, ref: dayStart?.placeId ?? day.date, leg: false };
     // Last place reached on this day: the start place, then each activity.
     const startPlaceId = dayStart?.placeId ?? null;
-    let last: { ref: string; placeId: string | null; title: string } | null =
-      startPlaceId === null ? null : { ref: startPlaceId, placeId: startPlaceId, title: places.get(startPlaceId)?.name ?? startPlaceId };
+    // A parent stands for its children's places too (#32 R4: legs are made per parent).
+    let last: { ref: string; places: Set<string>; title: string; kind: Activity['kind'] | null } | null =
+      startPlaceId === null ? null : { ref: startPlaceId, places: new Set([startPlaceId]), title: places.get(startPlaceId)?.name ?? startPlaceId, kind: null };
     let legsSince: TravelLeg[] = [];
 
     const dayActivities = new Map(day.items.flatMap(i => (i.type === 'activity' ? [[i.activityId, i] as const] : [])));
+    const childPlaces = new Map<string, string[]>();
+    for (const a of dayActivities.values()) {
+      if (a.parentActivityId && a.placeId && a.status !== 'skipped') childPlaces.set(a.parentActivityId, [...(childPlaces.get(a.parentActivityId) ?? []), a.placeId]);
+    }
+    const unitPlaces = (a: Activity) => new Set([...(a.placeId ? [a.placeId] : []), ...(childPlaces.get(a.activityId) ?? [])]);
     for (const item of day.items) {
       // A child activity (parentActivityId) happens inside its parent's window: it is not part of the top-level chronology.
       const parent = item.type === 'activity' && item.parentActivityId ? dayActivities.get(item.parentActivityId) : undefined;
@@ -209,7 +216,7 @@ export function validateSchedule(input: ScheduleInput): ScheduleValidation {
         usePlace(item.fromPlaceId, ref, dayIndex);
         usePlace(item.toPlaceId, ref, dayIndex);
         const prev = legsSince.at(-1);
-        if (prev ? prev.toPlaceId !== item.fromPlaceId : last?.placeId != null && last.placeId !== item.fromPlaceId) {
+        if (prev ? prev.toPlaceId !== item.fromPlaceId : last !== null && last.places.size > 0 && !last.places.has(item.fromPlaceId)) {
           add('leg_endpoint_mismatch', [prev?.legId ?? last!.ref, ref], dayIndex, `区間 ${ref} の出発地が直前の地点と一致しません。`);
         }
         legsSince.push(item);
@@ -221,13 +228,18 @@ export function validateSchedule(input: ScheduleInput): ScheduleValidation {
       if (item.kind === 'free_walk' && !item.areaName) add('free_walk_without_area', [ref], dayIndex, `自由散策「${item.title}」にエリアが指定されていません。`);
       const place = item.placeId === null ? undefined : usePlace(item.placeId, ref, dayIndex);
 
+      const here = unitPlaces(item);
       const lastLeg = legsSince.at(-1);
-      if (lastLeg && item.placeId !== null && lastLeg.toPlaceId !== item.placeId) {
+      if (lastLeg && here.size > 0 && !here.has(lastLeg.toPlaceId)) {
         add('leg_endpoint_mismatch', [lastLeg.legId, ref], dayIndex, `区間 ${lastLeg.legId} の到着地が「${item.title}」の地点と一致しません。`);
-      } else if (!lastLeg && last && !(item.placeId !== null && item.placeId === last.placeId)) {
+      } else if (!lastLeg && last && ![...here].some(id => last!.places.has(id))) {
         add('leg_missing', [last.ref, ref], dayIndex, `「${last.title}」から「${item.title}」への移動が未確認です。`);
       }
-      last = { ref, placeId: item.placeId, title: item.title };
+      // #32 R4: no food right after a meal (a meal or an area food walk). Children inside a parent are one unit.
+      if (last?.kind === 'meal' && (item.kind === 'meal' || item.kind === 'free_walk')) {
+        add('meal_after_meal', [last.ref, ref], dayIndex, `食事「${last.title}」の直後に「${item.title}」が続いています（食事を連続させない）。`);
+      }
+      last = { ref, places: here, title: item.title, kind: item.kind };
       legsSince = [];
 
       if (item.start !== null) {
