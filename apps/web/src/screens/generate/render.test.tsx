@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import { renderToString as renderRaw } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { JobStatus, PlanBatch } from '@tkb/contracts';
-import { CompareView, ProgressView, SummaryCard, type ProgressViewProps } from './GenerateScreens.tsx';
+import { CompareView, LiveBanner, ModeChip, ProgressView, SummaryCard, type ProgressViewProps } from './GenerateScreens.tsx';
 import { initialPoll, pollReducer, summarizeCandidate } from './model.ts';
 
 const html = (el: ReactElement) => renderRaw(el).replace(/<!-- -->/g, '');
@@ -73,5 +73,34 @@ describe('candidate rendering', () => {
     const done = html(<CompareView load={{ status: 'done', result: { ok: true, source: 'mock', data: batch } }} busyId={null} applyError={null} applied={{ tripId: 'trip_9', revision: 1, warnings: [], trip: {} as never }} mapHref="#/mock/trips/trip_9/map" onAdopt={noop} onReload={noop} onBack={noop} />);
     expect(done).toContain('trip_9');
     expect(done).toContain('href="#/mock/trips/trip_9/map"');
+  });
+});
+
+describe('LiveBanner / ModeChip', () => {
+  const done = (dataMode: 'fixture' | 'mixed' | 'live', available = true, reason: string | null = null) =>
+    ({ status: 'done', dataMode, ai: { available, reason } }) as const;
+  it('shows the real data mode', () => {
+    expect(html(<LiveBanner state={done('fixture')} />)).toContain('fixtureデータ（実在の情報ではありません）');
+    expect(html(<LiveBanner state={done('mixed')} />)).toContain('場所はfixture、経路は実データ');
+    const live = html(<LiveBanner state={done('live')} />);
+    expect(live).toContain('実データ');
+    expect(live).toContain('role="status"');
+  });
+  it('AI unavailable shows the Japanese reason and does not promise generation', () => {
+    const out = html(<LiveBanner state={done('live', false, 'CLI_NOT_AUTHENTICATED')} />);
+    expect(out).toContain('ログインしていません');
+    expect(out).toContain('生成は実行できません');
+    expect(out).not.toContain('生成ジョブが作られ');
+    expect(html(<LiveBanner state={done('live', false, 'SOMETHING_NEW')} />)).toContain('未知の理由');
+  });
+  it('loading and error are neutral (never LIVE or real data)', () => {
+    const l = html(<LiveBanner state={{ status: 'loading' }} />);
+    const e = html(<LiveBanner state={{ status: 'error' }} />);
+    expect(l).toContain('接続状態を確認中');
+    expect(e).toContain('接続状態を取得できません');
+    for (const o of [l, e]) { expect(o).not.toContain('LIVE'); expect(o).not.toContain('実データ'); }
+  });
+  it('chip repeats the mode label', () => {
+    expect(html(<ModeChip state={done('mixed')} />)).toContain('場所はfixture、経路は実データ');
   });
 });

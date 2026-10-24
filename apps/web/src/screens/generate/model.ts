@@ -121,6 +121,46 @@ export function freshIdempotencyKey(random: () => string = () => crypto.randomUU
   return `u05_${random().replace(/[^A-Za-z0-9_-]/g, '')}`.slice(0, 128);
 }
 
+/**
+ * One Idempotency-Key per retry attempt: acquire() returns the same key until done() is called
+ * (a job id was obtained), so a lost response followed by another press never creates a second job.
+ */
+export function createRetryKeys(random?: () => string): { acquire: () => string; done: () => void } {
+  let current: string | null = null;
+  return {
+    acquire: () => (current ??= freshIdempotencyKey(random)),
+    done: () => { current = null; },
+  };
+}
+
+export type ModeCapState =
+  | { status: 'loading' }
+  | { status: 'error' }
+  | { status: 'done'; dataMode: 'fixture' | 'mixed' | 'live'; ai: { available: boolean; reason: string | null } };
+
+export const DATA_MODE_LABEL: Record<'fixture' | 'mixed' | 'live', string> = {
+  fixture: 'fixtureデータ（実在の情報ではありません）',
+  mixed: '場所はfixture、経路は実データ',
+  live: '実データ',
+};
+
+const AI_REASON_JA: Record<string, string> = {
+  SHARED_ENTRY_NO_PERSONAL_CLAUDE: '共有入口からは生成できません（本人用アプリから操作してください）。',
+  CLAUDE_EXECUTION_DISABLED: '本人用アプリでClaude実行が無効になっています。',
+  CLI_NOT_FOUND: 'Claude Code CLI が見つかりません。',
+  CLI_NOT_AUTHENTICATED: 'Claude Code CLI にログインしていません。',
+  TERMS_NOT_CONFIRMED: '利用条件の確認が済んでいません。',
+};
+export const aiReasonMessage = (reason: string | null): string =>
+  reason === null ? 'AI生成は現在利用できません（理由は不明です）。' : (AI_REASON_JA[reason] ?? 'AI生成は現在利用できません（未知の理由です）。');
+
+/** Short mode label for the chip on progress/compare. Never claims real data until capabilities say so. */
+export function modeChipLabel(s: ModeCapState): string {
+  if (s.status === 'loading') return '接続状態を確認中';
+  if (s.status === 'error') return '接続状態を取得できません';
+  return DATA_MODE_LABEL[s.dataMode];
+}
+
 /** NOT adoptable states: the main API refuses them with 422. */
 export const NOT_ADOPTABLE: readonly ValidationState[] = ['invalid', 'needs_revalidation'];
 
