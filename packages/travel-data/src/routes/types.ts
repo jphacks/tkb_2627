@@ -4,8 +4,8 @@ import type { CallBudget } from '../policy/budget.ts';
 /**
  * Why no leg (or no detail) came back. Never filled in by guessing (docs/01_SPEC.md):
  * - `no_route`: the provider returned no route (e.g. after the last service of the day, or no connection).
- * - `unsupported_region`: no transit route in a region where the provider is known not to return transit
- *   (Japan, docs/provider-probe.md).
+ * - `unsupported_region`: no transit route where the provider returned none in D01 (Japan: Kanazawa 2 km and
+ *   Kanazawa-Tokyo, docs/provider-probe.md: "Routes API may not return Japanese public transit").
  * - `out_of_date_range`: the departure is outside what the provider accepts (transit: 7 days back to 100 days ahead).
  * - `missing_location`: a place has no coordinates to route from or to.
  * - `rate_limited` / `provider_unavailable`: our limit or the provider stopped the call (D02).

@@ -11,7 +11,13 @@ const TRANSIT_PAST_MS = 7 * DAY_MS;
 const TRANSIT_FUTURE_MS = 100 * DAY_MS;
 
 const BASE_FIELDS = ['routes.duration', 'routes.distanceMeters'];
-const TRANSIT_FIELDS = [...BASE_FIELDS, 'routes.legs.steps.travelMode', 'routes.legs.steps.transitDetails', 'routes.travelAdvisory.transitFare'];
+const TRANSIT_FIELDS = [
+  ...BASE_FIELDS,
+  'routes.legs.steps.travelMode',
+  'routes.legs.steps.staticDuration',
+  'routes.legs.steps.transitDetails',
+  'routes.travelAdvisory.transitFare',
+];
 const TRAVEL_MODE = { transit: 'TRANSIT', car: 'DRIVE', walk: 'WALK' } as const;
 
 /** Time zones where the provider returned no transit at all in D01 (Kanazawa 2 km and Kanazawa-Tokyo, #84/#89). */
@@ -32,6 +38,7 @@ interface GTransitDetails {
 }
 interface GStep {
   travelMode?: string;
+  staticDuration?: string;
   transitDetails?: GTransitDetails;
 }
 interface GRoute {
@@ -56,9 +63,13 @@ function toUtc(value: string | undefined): UtcInstant | null {
   return Number.isNaN(ms) ? null : new Date(ms).toISOString().replace(/\.000Z$/, 'Z');
 }
 
-/** google.type.Money → minor units of its currency; null when absent, malformed or negative. */
+/**
+ * google.type.Money → minor units of its currency; null when absent, malformed or negative. Minor-unit digits come
+ * from Intl (CLDR), as in apps/web; for a few currencies (IQD, HUF, IDR) that differs from ISO 4217.
+ */
 export function toMoney(fare: GMoney | undefined): Money | null {
   if (!fare?.currencyCode || !/^[A-Z]{3}$/.test(fare.currencyCode)) return null;
+  if (typeof fare.units === 'string' && !/^\d+$/.test(fare.units)) return null;
   const units = Number(fare.units ?? 0);
   const nanos = fare.nanos ?? 0;
   if (!Number.isSafeInteger(units) || !Number.isInteger(nanos) || units < 0 || nanos < 0) return null;
@@ -98,6 +109,7 @@ export class GoogleRoutesProvider implements RouteProvider {
     const { from, to, mode } = request;
     if (!from.location || !to.location) return { leg: null, reason: 'missing_location' };
     const departureMs = Date.parse(request.departureUtc);
+    if (Number.isNaN(departureMs)) throw new PolicyError('VALIDATION_FAILED', 'departureUtc is not a valid instant', false);
     const now = this.now();
     if (mode === 'transit' && !(departureMs >= now - TRANSIT_PAST_MS && departureMs <= now + TRANSIT_FUTURE_MS)) {
       return { leg: null, reason: 'out_of_date_range' };
@@ -117,7 +129,9 @@ export class GoogleRoutesProvider implements RouteProvider {
 
     let json: GResponse;
     try {
-      json = await budget.run(sku, `${legIdFor(request)}`, async signal => {
+      // Driving and walking are not timed, so requests differing only in departure share one call.
+      const key = mode === 'transit' ? legIdFor(request) : `${from.placeId}|${to.placeId}|${mode}`;
+      json = await budget.run(sku, key, async signal => {
         let res: Response;
         try {
           res = await this.fetchFn(ENDPOINT, {
@@ -132,7 +146,12 @@ export class GoogleRoutesProvider implements RouteProvider {
           throw providerError(null);
         }
         if (!res.ok) throw providerError(res.status);
-        return ((await res.json().catch(() => ({}))) ?? {}) as GResponse;
+        const parsed: unknown = await res.json().catch(() => undefined);
+        // An unreadable 200 is a provider fault, not "no route" (K06 UNAVAILABLE).
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+          throw new PolicyError('PROVIDER_UNAVAILABLE', 'unreadable provider response', false);
+        }
+        return parsed as GResponse;
       });
     } catch (e) {
       if (e instanceof PolicyError && e.code === 'PROVIDER_RATE_LIMIT') return { leg: null, reason: 'rate_limited' };
@@ -148,21 +167,38 @@ export class GoogleRoutesProvider implements RouteProvider {
     return { leg: this.toLeg(request, route), reason: null };
   }
 
+  /**
+   * The leg runs from place to place, so its times are too: boarding time minus the provider's durations of the
+   * steps before the first transit step, alighting time plus those after the last one. If any of those is missing,
+   * both times stay null (never guessed) and only durationSeconds is kept.
+   */
   private toLeg(request: RouteRequest, route: GRoute): TravelLeg {
-    const transit = (route.legs ?? []).flatMap(l => l.steps ?? []).filter(s => s.travelMode === 'TRANSIT' && s.transitDetails);
-    const zoned = (utc: UtcInstant | null, timeZone: string): ZonedTime | null => (utc === null ? null : { utc, timeZone });
-    const first = transit[0]?.transitDetails?.stopDetails;
-    const last = transit.at(-1)?.transitDetails?.stopDetails;
-    const lines = transit.map(s => s.transitDetails?.transitLine?.nameShort || s.transitDetails?.transitLine?.name).filter((n): n is string => Boolean(n));
+    const steps = (route.legs ?? []).flatMap(l => l.steps ?? []);
+    const isTransitStep = (s: GStep) => s.travelMode === 'TRANSIT' && Boolean(s.transitDetails);
+    const transit = steps.filter(isTransitStep);
+    const firstIdx = steps.findIndex(isTransitStep);
+    const lastIdx = steps.findLastIndex(isTransitStep);
+    const sumSeconds = (list: GStep[]) => list.reduce<number | null>((acc, s) => (acc === null ? null : (d => (d === null ? null : acc + d))(parseDuration(s.staticDuration))), 0);
+    const before = firstIdx < 0 ? null : sumSeconds(steps.slice(0, firstIdx));
+    const after = lastIdx < 0 ? null : sumSeconds(steps.slice(lastIdx + 1));
+    const board = toUtc(transit[0]?.transitDetails?.stopDetails?.departureTime);
+    const alight = toUtc(transit.at(-1)?.transitDetails?.stopDetails?.arrivalTime);
+    const shift = (utc: UtcInstant | null, seconds: number | null): UtcInstant | null =>
+      utc === null || seconds === null ? null : new Date(Date.parse(utc) + seconds * 1000).toISOString().replace(/\.000Z$/, 'Z');
     const isTransit = request.mode === 'transit';
+    const depUtc = shift(board, before === null ? null : -before);
+    const arrUtc = shift(alight, after);
+    const timed = isTransit && depUtc !== null && arrUtc !== null;
+    const zoned = (utc: UtcInstant | null, timeZone: string): ZonedTime | null => (utc === null ? null : { utc, timeZone });
+    const lines = transit.map(s => s.transitDetails?.transitLine?.nameShort || s.transitDetails?.transitLine?.name).filter((n): n is string => Boolean(n));
     return {
       type: 'leg',
       legId: legIdFor(request),
       mode: request.mode,
       fromPlaceId: request.from.placeId,
       toPlaceId: request.to.placeId,
-      departure: isTransit ? zoned(toUtc(first?.departureTime), request.from.timeZone) : null,
-      arrival: isTransit ? zoned(toUtc(last?.arrivalTime), request.to.timeZone) : null,
+      departure: timed ? zoned(depUtc, request.from.timeZone) : null,
+      arrival: timed ? zoned(arrUtc, request.to.timeZone) : null,
       durationSeconds: parseDuration(route.duration),
       lineName: lines.length > 0 ? lines.join(' → ') : null,
       platform: null,

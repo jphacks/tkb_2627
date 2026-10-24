@@ -35,7 +35,7 @@ const transitRoute = {
       legs: [
         {
           steps: [
-            { travelMode: 'WALK' },
+            { travelMode: 'WALK', staticDuration: '240s' },
             {
               travelMode: 'TRANSIT',
               transitDetails: {
@@ -50,7 +50,7 @@ const transitRoute = {
                 transitLine: { name: 'Métro ligne 12', nameShort: '12' },
               },
             },
-            { travelMode: 'WALK' },
+            { travelMode: 'WALK', staticDuration: '300s' },
           ],
         },
       ],
@@ -60,7 +60,7 @@ const transitRoute = {
 };
 
 describe('GoogleRoutesProvider', () => {
-  it('maps a transit route with a transfer: times, lines, transfers and fare as returned; platform stays null', async () => {
+  it('maps a transit route with a transfer: place-to-place times, lines, transfers and fare as returned; platform stays null', async () => {
     const { p, fetchMock } = provider(() => json(transitRoute));
     const r = await p.route(req(), budget());
     expect(r.reason).toBeNull();
@@ -69,8 +69,9 @@ describe('GoogleRoutesProvider', () => {
       mode: 'transit',
       fromPlaceId: 'fx_louvre',
       toPlaceId: 'fx_orsay',
-      departure: { utc: '2026-10-25T09:04:00Z', timeZone: 'Europe/Paris' },
-      arrival: { utc: '2026-10-25T09:16:00Z', timeZone: 'Europe/Paris' },
+      // Boarding 09:04 minus the 4 min walk before it; alighting 09:16 plus the 5 min walk after it.
+      departure: { utc: '2026-10-25T09:00:00Z', timeZone: 'Europe/Paris' },
+      arrival: { utc: '2026-10-25T09:21:00Z', timeZone: 'Europe/Paris' },
       durationSeconds: 1260,
       lineName: '1 → 12',
       transfers: 1,
@@ -83,8 +84,29 @@ describe('GoogleRoutesProvider', () => {
 
     const init = fetchMock.mock.calls[0]![1]!;
     const headers = init.headers as Record<string, string>;
-    expect(headers['X-Goog-FieldMask']).toBe('routes.duration,routes.distanceMeters,routes.legs.steps.travelMode,routes.legs.steps.transitDetails,routes.travelAdvisory.transitFare');
+    expect(headers['X-Goog-FieldMask']).toBe(
+      'routes.duration,routes.distanceMeters,routes.legs.steps.travelMode,routes.legs.steps.staticDuration,routes.legs.steps.transitDetails,routes.travelAdvisory.transitFare',
+    );
+    // Place-to-place times agree with the route duration (09:00 + 1260 s = 09:21), as D06 relies on.
+    expect((Date.parse(r.leg!.arrival!.utc) - Date.parse(r.leg!.departure!.utc)) / 1000).toBe(r.leg!.durationSeconds);
     expect(JSON.parse(init.body as string)).toMatchObject({ travelMode: 'TRANSIT', departureTime: '2026-10-25T09:00:00Z', origin: { location: { latLng: { latitude: 48.861, longitude: 2.336 } } } });
+  });
+
+  it('leaves both times null when a walking step has no duration, rather than guessing the walk', async () => {
+    const noWalk = structuredClone(transitRoute);
+    delete (noWalk.routes[0]!.legs[0]!.steps[3] as { staticDuration?: string }).staticDuration;
+    const r = await provider(() => json(noWalk)).p.route(req(), budget());
+    expect(r.leg).toMatchObject({ departure: null, arrival: null, durationSeconds: 1260, lineName: '1 → 12' });
+  });
+
+  it('treats an unreadable 200 as a provider fault, not as "no route" or "unsupported region"', async () => {
+    for (const body of ['<html>oops</html>', 'null', '[]', '']) {
+      for (const [from, to] of [[louvre, orsay], [station, kenrokuen]] as const) {
+        const { p, fetchMock } = provider(() => new Response(body, { status: 200 }));
+        expect(await p.route(req({ from, to }), budget()), body).toEqual({ leg: null, reason: 'provider_unavailable' });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      }
+    }
   });
 
   it('keeps the fare null when the provider gives none (運賃なし), never 0', async () => {
@@ -104,6 +126,8 @@ describe('GoogleRoutesProvider', () => {
   it('marks Japanese transit without a route as unsupported_region (対応外地域, D01) but driving there as normal', async () => {
     const r = await provider(() => json({})).p.route(req({ from: station, to: kenrokuen }), budget());
     expect(r).toEqual({ leg: null, reason: 'unsupported_region' });
+    // Only one end in Japan: not claimed as unsupported.
+    expect(await provider(() => json({})).p.route(req({ from: station, to: orsay }), budget())).toEqual({ leg: null, reason: 'no_route' });
 
     const drive = await provider(() => json({ routes: [{ duration: '600s', distanceMeters: 2500 }] })).p.route(req({ from: station, to: kenrokuen, mode: 'car' }), budget());
     // Driving is not timed here: no invented departure/arrival, only the returned duration.
@@ -117,6 +141,12 @@ describe('GoogleRoutesProvider', () => {
     expect(await p.route(req({ departureUtc: '2026-10-10T00:00:00Z' }), b)).toEqual({ leg: null, reason: 'out_of_date_range' }); // > 7 days ago
     expect(fetchMock).not.toHaveBeenCalled();
     expect(b.callsUsed).toBe(0);
+    // Exactly at the window edges is still accepted.
+    const edge = provider(() => json(transitRoute));
+    for (const at of [NOW + 100 * 86_400_000, NOW - 7 * 86_400_000]) {
+      expect((await edge.p.route(req({ departureUtc: new Date(at).toISOString().replace('.000Z', 'Z') }), budget())).reason).toBeNull();
+    }
+    await expect(p.route(req({ departureUtc: 'not-a-time' }), b)).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
     // Driving has no departure window: it is not timed.
     const car = await provider(() => json({ routes: [{ duration: '60s' }] })).p.route(req({ mode: 'car', departureUtc: '2027-03-01T00:00:00Z' }), budget());
     expect(car.reason).toBeNull();
@@ -151,12 +181,27 @@ describe('GoogleRoutesProvider', () => {
     await expect(provider(() => json(transitRoute)).p.route(req(), cancelled)).rejects.toMatchObject({ code: 'CANCELLED' });
   });
 
+  it('charges the SKU of the travel mode and shares one untimed car call across departures', async () => {
+    const q = new DailyQuota({ [SKU.routesTransit]: 0, [SKU.routesDrive]: 5 }, () => NOW);
+    const b = budget({ quota: q });
+    expect(await provider(() => json(transitRoute)).p.route(req(), b)).toEqual({ leg: null, reason: 'rate_limited' });
+    const car = provider(() => json({ routes: [{ duration: '600s' }] }));
+    const results = await Promise.all(
+      ['2026-10-25T09:00:00Z', '2026-10-25T10:00:00Z', '2026-10-25T11:00:00Z'].map(d => car.p.route(req({ mode: 'car', departureUtc: d }), b)),
+    );
+    expect(results.every(r => r.leg?.durationSeconds === 600)).toBe(true);
+    expect(car.fetchMock).toHaveBeenCalledTimes(1);
+    expect(q.remaining(SKU.routesDrive)).toBe(4);
+  });
+
   it('does not leak the API key through errors', async () => {
     const offline = provider(() => {
       throw new TypeError('fetch failed: header X-Goog-Api-Key=test-key');
     });
     const r = await offline.p.route(req(), budget({ maxAttempts: 1 }));
     expect(JSON.stringify(r)).not.toContain('test-key');
+    const echoed = await provider(() => json({ error: { message: 'bad key test-key' } }, 403)).p.route(req(), budget());
+    expect(JSON.stringify(echoed)).not.toContain('test-key');
     expect(() => new GoogleRoutesProvider({ apiKey: '' })).toThrow();
   });
 });
@@ -170,7 +215,7 @@ describe('parsing helpers', () => {
     expect(toMoney({ currencyCode: 'JPY', units: '210' })).toEqual({ amountMinor: 210, currency: 'JPY' });
     expect(toMoney({ currencyCode: 'EUR', units: 2, nanos: 150_000_000 })).toEqual({ amountMinor: 215, currency: 'EUR' });
     expect(toMoney({ currencyCode: 'KWD', units: '1', nanos: 234_000_000 })).toEqual({ amountMinor: 1234, currency: 'KWD' });
-    for (const bad of [undefined, {}, { currencyCode: 'eur', units: '1' }, { currencyCode: 'EUR', units: '-1' }, { currencyCode: 'EUR', units: 'x' }, { currencyCode: 'XYZ1' }]) {
+    for (const bad of [undefined, {}, { currencyCode: 'eur', units: '1' }, { currencyCode: 'EUR', units: '-1' }, { currencyCode: 'EUR', units: 'x' }, { currencyCode: 'EUR', units: '1e3' }, { currencyCode: 'EUR', units: '' }, { currencyCode: 'XYZ1' }]) {
       expect(toMoney(bad as never), JSON.stringify(bad)).toBeNull();
     }
   });

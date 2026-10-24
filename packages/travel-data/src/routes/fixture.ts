@@ -8,6 +8,7 @@ const FIXTURE_LEGS: readonly TravelLeg[] = [domesticTrip, overseasTrip].flatMap(
 /**
  * PROVIDER_MODE=fixture: legs from the B04 fixtures for the same segment and mode, labelled as fixture data.
  * No provider call, so the budget is not charged. Anything else is `no_route`; nothing is made up.
+ * The fixture's own times are returned whatever departure was asked for: they are sample data, not a timetable.
  */
 export class FixtureRouteProvider implements RouteProvider {
   constructor(private readonly legs: readonly TravelLeg[] = FIXTURE_LEGS) {}
