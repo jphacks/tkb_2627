@@ -11,10 +11,15 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const LIVE = process.argv.includes('--live');
+/** `--only=a,b` runs just those labels (e.g. one extra check M1 approved) instead of the whole plan. */
+const ONLY = process.argv.find(a => a.startsWith('--only='))?.slice('--only='.length).split(',').filter(Boolean) ?? null;
 /** Calls M1 approved for D01 in total. Raising it needs M1's approval (Issue #11). */
 const APPROVED_TOTAL = 20;
-/** Calls already made by committed runs (2026-10-24: 7, see probes/results/). Update when committing a new run. */
-const ALREADY_USED = 7;
+/**
+ * Calls already made by committed runs (see probes/results/). When committing a new run, add its calls here and
+ * delete the local ledger, which counted the same calls until then.
+ */
+const ALREADY_USED = 8;
 const TIMEOUT_MS = 15_000;
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const LEDGER = join(ROOT, '.local', 'provider-probe', 'calls.json');
@@ -25,6 +30,7 @@ const ROUTES_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 // Coordinates from the B04 fixtures (approximate, illustrative).
 const KANAZAWA_STATION = { latitude: 36.578, longitude: 136.648 };
 const KENROKUEN = { latitude: 36.562, longitude: 136.662 };
+const TOKYO_STATION = { latitude: 35.681, longitude: 139.767 };
 const LOUVRE = { latitude: 48.861, longitude: 2.336 };
 const ORSAY = { latitude: 48.86, longitude: 2.326 };
 
@@ -71,6 +77,10 @@ export const PLAN = [
     departureTime: tomorrowAtUtcHour(1),
   }),
   route('paris-drive', LOUVRE, ORSAY, 'DRIVE', ['routes.duration', 'routes.distanceMeters'], 'Compute Routes Essentials'),
+  // M1 approved one extra call (Issue #11): a long domestic segment, to tell "no transit in Japan" from "too short".
+  route('kanazawa-tokyo-transit', KANAZAWA_STATION, TOKYO_STATION, 'TRANSIT', TRANSIT_FIELDS, 'Compute Routes (transit; tier per pricing page)', {
+    departureTime: tomorrowAtUtcHour(1),
+  }),
   route('paris-transit', LOUVRE, ORSAY, 'TRANSIT', TRANSIT_FIELDS, 'Compute Routes (transit; tier per pricing page)', {
     departureTime: tomorrowAtUtcHour(9),
   }),
@@ -145,13 +155,18 @@ async function call(req, key) {
 async function main() {
   const used = ALREADY_USED + ledgerCalls();
   const remaining = APPROVED_TOTAL - used;
-  const plan = PLAN.map(({ label, api, sku, fieldMask, body }) => ({ label, api, sku, fieldMask, body }));
+  const selected = ONLY ? PLAN.filter(r => ONLY.includes(r.label)) : PLAN;
+  if (ONLY && selected.length !== ONLY.length) {
+    console.error(`Unknown label in --only: ${ONLY.filter(l => !PLAN.some(r => r.label === l)).join(', ')}`);
+    return 2;
+  }
+  const plan = selected.map(({ label, api, sku, fieldMask, body }) => ({ label, api, sku, fieldMask, body }));
   if (!LIVE) {
-    console.log(JSON.stringify({ mode: 'dry-run', calls: PLAN.length, approvedTotal: APPROVED_TOTAL, used, remaining, plan }, null, 2));
+    console.log(JSON.stringify({ mode: 'dry-run', calls: selected.length, approvedTotal: APPROVED_TOTAL, used, remaining, plan }, null, 2));
     return 0;
   }
-  if (PLAN.length > remaining) {
-    console.error(`Refused: ${PLAN.length} calls planned but only ${remaining} of the ${APPROVED_TOTAL} approved remain. Ask M1 (Issue #11).`);
+  if (selected.length > remaining) {
+    console.error(`Refused: ${selected.length} calls planned but only ${remaining} of the ${APPROVED_TOTAL} approved remain. Ask M1 (Issue #11).`);
     return 3;
   }
   const key = serverKey();
@@ -161,9 +176,9 @@ async function main() {
   }
   // Count the calls before sending them, so a crash cannot hide spent calls.
   mkdirSync(dirname(LEDGER), { recursive: true });
-  writeFileSync(LEDGER, JSON.stringify({ calls: ledgerCalls() + PLAN.length, updatedAt: new Date().toISOString() }) + '\n');
+  writeFileSync(LEDGER, JSON.stringify({ calls: ledgerCalls() + selected.length, updatedAt: new Date().toISOString() }) + '\n');
   const results = [];
-  for (const req of PLAN) {
+  for (const req of selected) {
     const r = await call(req, key);
     results.push(r);
     // A quota/budget error means the limit worked: record it and stop (M1: no retries).

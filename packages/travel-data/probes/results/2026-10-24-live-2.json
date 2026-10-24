@@ -1,0 +1,25 @@
+{
+  "note": "D01 extra check approved by M1 on #11: one long domestic transit segment. Metadata only (no provider content). Printed by maps-probe.mjs --live --only=kanazawa-tokyo-transit on 2026-10-24.",
+  "approvedTotal": 20,
+  "mode": "live",
+  "calls": 1,
+  "usedBefore": 7,
+  "results": [
+    {
+      "label": "kanazawa-tokyo-transit",
+      "fetchedAt": "2026-10-24T09:18:32.647Z",
+      "httpStatus": 200,
+      "errorStatus": null,
+      "errorMessage": null,
+      "resultCount": 0,
+      "returnedFields": [],
+      "missingFields": [
+        "routes.duration",
+        "routes.distanceMeters",
+        "routes.legs.steps.travelMode",
+        "routes.legs.steps.transitDetails",
+        "routes.travelAdvisory.transitFare"
+      ]
+    }
+  ]
+}
