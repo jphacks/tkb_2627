@@ -66,6 +66,17 @@ export type Activity = z.infer<typeof Activity>;
 
 export const LegMode = z.enum(['transit', 'car', 'walk']);
 
+/**
+ * K06 (R05): stops of a transit leg as the provider named them. Unknown names are null, never guessed; the
+ * transfer stations are listed in order (empty when there is no transfer or they are unknown).
+ */
+export const TransitStops = z.object({
+  boardingStop: z.string().nullable(),
+  alightingStop: z.string().nullable(),
+  transferStops: z.array(z.string()),
+});
+export type TransitStops = z.infer<typeof TransitStops>;
+
 /** K06: a travel segment. Fare, platform and times stay null unless a provider returned them. */
 export const TravelLeg = z.object({
   type: z.literal('leg'),
@@ -82,6 +93,8 @@ export const TravelLeg = z.object({
   fare: NonNegativeMoney.nullable(),
   dataStatus: DataStatus,
   provenance: Provenance.nullable(),
+  /** Optional, additive (schema version unchanged): transit stops when the provider returned them; null otherwise. */
+  transit: TransitStops.nullable().optional(),
 });
 export type TravelLeg = z.infer<typeof TravelLeg>;
 
