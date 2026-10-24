@@ -1,4 +1,5 @@
-import { chmodSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, statSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn as nodeSpawn, type SpawnOptions } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -39,10 +40,18 @@ process.stdin.on('end', () => {
     case 'limit': out({ type: 'result', subtype: 'success', is_error: true, api_error_status: 429, result: 'RAWTEXT usage limit' }); return process.exit(1);
     case 'auth': out({ type: 'result', is_error: true, api_error_status: 401, result: 'RAWTEXT' }); return process.exit(1);
     case 'overloaded': out({ type: 'result', is_error: true, api_error_status: 529, result: 'RAWTEXT' }); return process.exit(1);
+    case 'textlimit': out({ type: 'result', is_error: true, api_error_status: 500, num_turns: 3, result: 'usage limit' }); return process.exit(1);
+    case 'textlimit_notturns': out({ type: 'result', is_error: true, num_turns: 0, result: 'usage limit reached' }); return process.exit(1);
     case 'nonjson': return process.stdout.write('RAWTEXT not json');
     case 'exit2': process.stderr.write('RAWSTDERR'); return process.exit(2);
     case 'big': { const b = 'x'.repeat(4096); const t = setInterval(() => process.stdout.write(b), 1); return t; }
     case 'hang': process.on('SIGTERM', () => {}); return setInterval(() => {}, 1000);
+    case 'grandchild': {
+      const gc = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: ['ignore', 'inherit', 'inherit'], detached: true });
+      gc.unref();
+      fs.writeFileSync(process.env.FAKE_REC + '.gc', String(gc.pid));
+      return process.exit(0);
+    }
     case 'hang_term': return setInterval(() => {}, 1000);
   }
 });
@@ -97,6 +106,98 @@ describe.skipIf(process.platform === 'win32')('ClaudeCodeRunner', () => {
   it('buildPrompt contains only the input fields', () => {
     const body = JSON.parse(buildPrompt(input).split('INPUT:\n')[1]!);
     expect(Object.keys(body).sort()).toEqual(['allowedPlaceIds', 'constraints', 'facts', 'fixedActivities', 'instructions']);
+  });
+
+  it('spawn receives the filtered env, no shell, detached group', async () => {
+    const seen: { env?: NodeJS.ProcessEnv; shell?: unknown; detached?: unknown } = {};
+    const spawnImpl = ((b: string, a: string[], o: SpawnOptions) => {
+      seen.env = o.env;
+      seen.shell = o.shell;
+      seen.detached = o.detached;
+      return nodeSpawn(b, a, o);
+    }) as typeof nodeSpawn;
+    await run('success', { spawnImpl, env: env('success', { HOME: '/h', LANG: 'C', claude_config_x: '1' }) });
+    expect(seen.env).toEqual(buildChildEnv(env('success', { HOME: '/h', LANG: 'C', claude_config_x: '1' })));
+    expect(seen.env).toMatchObject({ HOME: '/h', LANG: 'C', FAKE_MODE: 'success' });
+    expect(seen.shell).toBe(false);
+    expect(seen.detached).toBe(true);
+  });
+
+  it('billing and config keys are matched case-insensitively', async () => {
+    expect(buildChildEnv({ anthropic_api_key: 'x', Claude_Code_Use_Vertex: '1', claude_config_dir: '/c', A: '1' })).toEqual({ A: '1' });
+    const r = await run('success', { env: env('success', { anthropic_api_key: '' }) });
+    expect(r.error?.message).toBe('API billing environment detected; refusing to run.');
+    rmSync(rec, { force: true });
+    const c = await run('success', { env: env('success', { CLAUDE_CONFIG_DIR: '/x' }) });
+    expect(c.error?.code).toBe('CLI_NOT_AUTHENTICATED');
+    expect(c.error?.message).toBe('Alternate Claude config detected; refusing to run.');
+    expect(existsSync(rec)).toBe(false);
+  });
+
+  it('abort during mkdtemp: no spawn, temp dir removed', async () => {
+    rmSync(rec, { force: true });
+    let spawned = false;
+    const spawnImpl = ((...a: Parameters<typeof nodeSpawn>) => {
+      spawned = true;
+      return nodeSpawn(...a);
+    }) as typeof nodeSpawn;
+    const ac = new AbortController();
+    const p = runner('success', { spawnImpl }).run(input, ac.signal);
+    ac.abort();
+    await expect(p).rejects.toMatchObject({ name: 'AbortError' });
+    expect(spawned).toBe(false);
+    expect(existsSync(rec)).toBe(false);
+    expect(readdirSync(dir).filter(f => f.startsWith('tkb-claude-'))).toEqual([]);
+  });
+
+  it('a grandchild holding stdout cannot hang run()', async () => {
+    const t = Date.now();
+    const r = await run('grandchild', { timeoutMs: 300, exitGraceMs: 200, killGraceMs: 200 });
+    const gc = Number(readFileSync(rec + '.gc', 'utf8'));
+    try {
+      expect(r.error?.code).toBe('CLI_TIMEOUT');
+      expect(Date.now() - t).toBeLessThan(5000);
+    } finally {
+      try { process.kill(gc, 'SIGKILL'); } catch { /* gone */ }
+    }
+  });
+
+  it('refuses an unsafe tmpRoot and fails with a path-free error when mkdtemp fails', async () => {
+    const open = join(dir, 'open');
+    mkdirSync(open);
+    chmodSync(open, 0o777);
+    const r = await run('success', { tmpRoot: open });
+    expect(r.error).toMatchObject({ code: 'CLI_EXIT', message: 'The generator could not be started.' });
+    const sticky = join(dir, 'sticky');
+    mkdirSync(sticky);
+    chmodSync(sticky, 0o1777);
+    expect((await run('success', { tmpRoot: sticky })).error).toBeUndefined();
+    const m = await run('success', { tmpRoot: join(dir, 'missing') });
+    expect(m.error?.message).toBe('The generator could not be started.');
+    expect(JSON.stringify(m)).not.toContain(dir);
+  });
+
+  it('default tmpRoot is an owner-only directory', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'tkb-home-'));
+    const old = process.env.HOME;
+    process.env.HOME = home;
+    try {
+      const r = await run('success', { tmpRoot: undefined });
+      expect(r.error).toBeUndefined();
+      const root = join(home, '.cache', 'tkb-claude');
+      expect(statSync(root).mode & 0o777).toBe(0o700);
+      expect(readdirSync(root)).toEqual([]);
+    } finally {
+      process.env.HOME = old;
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it('free-text classification is ignored when api_error_status exists or turns ran', async () => {
+    const r = await run('textlimit');
+    expect(r.error?.code).toBe('CLI_EXIT');
+    const r2 = await run('textlimit_notturns');
+    expect(r2.error?.code).toBe('CLI_LIMIT');
   });
 
   it('buildChildEnv strips billing variables and the child sees none', async () => {
@@ -175,7 +276,7 @@ describe.skipIf(process.platform === 'win32')('ClaudeCodeRunner', () => {
 
   it('validates bin and model at construction', () => {
     const base = { model: 'sonnet', timeoutMs: 1000 };
-    for (const b of ['claude; rm -rf', '../x', 'a b', '', './claude', '/a/../b', '-x', '$(id)', '/a b/c'])
+    for (const b of ['claude; rm -rf', '../x', 'a b', '', './claude', '/a/../b', '-x', '$(id)', '/a b/c', 'claude.cmd', '/x/claude.BAT'])
       expect(() => new ClaudeCodeRunner({ ...base, bin: b }), b).toThrow();
     for (const b of ['claude', '/usr/local/bin/claude']) expect(() => new ClaudeCodeRunner({ ...base, bin: b })).not.toThrow();
     for (const m of ['gpt-4', '--bare', 'sonnet;x', 'claude-', 'Claude-x', ''])
@@ -187,6 +288,26 @@ describe.skipIf(process.platform === 'win32')('ClaudeCodeRunner', () => {
 describe('PLAN_BLUEPRINT_JSON_SCHEMA', () => {
   it('sample blueprint satisfies PlanBlueprint', () => {
     expect(PlanBlueprint.safeParse(samplePlanBlueprint).success).toBe(true);
+  });
+  it('edge cases are rejected by zod and declared in the JSON schema', () => {
+    const c = samplePlanBlueprint.candidates[0]!;
+    const bad = (b: unknown) => expect(PlanBlueprint.safeParse(b).success).toBe(false);
+    bad({ schemaVersion: 1, candidates: [c, c, c, c] });
+    bad({ schemaVersion: 1, candidates: [] });
+    bad({ schemaVersion: 1, candidates: [{ ...c, activityOrder: [] }] });
+    bad({ schemaVersion: 1, candidates: [{ ...c, activityOrder: ['a', 'a'] }] });
+    bad({ schemaVersion: 1, candidates: [{ ...c, candidateId: 'bad id!' }] });
+    bad({ schemaVersion: 1, candidates: [{ ...c, candidateId: 'x'.repeat(129) }] });
+    bad({ schemaVersion: 2, candidates: [c] });
+    const s = PLAN_BLUEPRINT_JSON_SCHEMA;
+    const cand = s.properties.candidates.items;
+    expect(s.properties.candidates.maxItems).toBe(3);
+    expect(s.properties.candidates.minItems).toBe(1);
+    expect(cand.properties.activityOrder.minItems).toBe(1);
+    expect(cand.properties.activityOrder.uniqueItems).toBe(true);
+    expect(s.properties.schemaVersion.const).toBe(1);
+    expect(cand.properties.candidateId).toMatchObject({ pattern: '^[A-Za-z0-9_-]+$', maxLength: 128, minLength: 1 });
+    expect(cand.properties.activityOrder.items).toMatchObject({ pattern: '^[A-Za-z0-9_-]+$', maxLength: 128 });
   });
   it('key sets mirror the zod shapes', () => {
     const s = PLAN_BLUEPRINT_JSON_SCHEMA;

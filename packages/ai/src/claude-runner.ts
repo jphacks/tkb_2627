@@ -1,7 +1,7 @@
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { chmod, mkdir, mkdtemp, rm, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { GenerationInput } from '@tkb/contracts';
 import type { Runner, RunnerResult, SafeError } from './runner.ts';
@@ -57,13 +57,20 @@ export function buildPrompt(input: GenerationInput): string {
   return PROMPT_HEADER + JSON.stringify({ constraints, allowedPlaceIds, facts, fixedActivities, instructions });
 }
 
-const isBillingKey = (k: string): boolean =>
-  k.startsWith('ANTHROPIC_') || k.startsWith('CLAUDE_CODE_USE_') || k === 'CLAUDE_CODE_OAUTH_TOKEN';
+const isBillingKey = (k: string): boolean => {
+  const u = k.toUpperCase();
+  return u.startsWith('ANTHROPIC_') || u.startsWith('CLAUDE_CODE_USE_') || u === 'CLAUDE_CODE_OAUTH_TOKEN';
+};
+const isConfigKey = (k: string): boolean => k.toUpperCase() === 'CLAUDE_CONFIG_DIR';
 
-/** Child environment: parent env minus every variable that could switch auth/billing away from claude.ai login. */
+/**
+ * Child environment: parent env minus every variable that could switch auth/billing away from claude.ai login
+ * (case-insensitive) and CLAUDE_CONFIG_DIR. HTTP(S)_PROXY / NODE_OPTIONS etc. are controlled by the machine's
+ * owner (the same person who runs the app) and are deliberately left as they are.
+ */
 export function buildChildEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
-  for (const [k, v] of Object.entries(env)) if (!isBillingKey(k)) out[k] = v;
+  for (const [k, v] of Object.entries(env)) if (!isBillingKey(k) && !isConfigKey(k)) out[k] = v;
   return out;
 }
 
@@ -73,6 +80,7 @@ const BARE_BIN = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
 const ABS_BIN = /^\/[A-Za-z0-9_@+.\-/]+$/;
 
 function validateBin(bin: string): void {
+  if (/\.(cmd|bat)$/i.test(bin)) throw new Error('Invalid Claude CLI executable.');
   const abs = bin.startsWith('/');
   const ok = abs ? ABS_BIN.test(bin) && !bin.split('/').includes('..') : BARE_BIN.test(bin) && bin !== '.' && bin !== '..';
   if (!ok) throw new Error('Invalid Claude CLI executable.');
@@ -85,10 +93,12 @@ export interface ClaudeCodeRunnerOptions {
   /** Default 1 MiB. */
   maxOutputBytes?: number;
   spawnImpl?: typeof nodeSpawn;
-  /** Parent of the per-run empty cwd. Default os.tmpdir(). */
+  /** Parent of the per-run empty cwd. Default ~/.cache/tkb-claude (owner-only, 0700). */
   tmpRoot?: string;
   /** Delay between SIGTERM and SIGKILL. Default 5000. */
   killGraceMs?: number;
+  /** After the child process exits following a kill, wait this long for pipes to close before destroying them. Default 1000. */
+  exitGraceMs?: number;
   /** Environment source (default process.env); injectable for tests. */
   env?: NodeJS.ProcessEnv;
 }
@@ -101,6 +111,7 @@ const mk = (code: SafeError['code'], message: string, retryable: boolean): SafeE
 });
 
 /**
+ * POSIX / WSL only (process groups, mode bits); Windows is unsupported.
  * Runs the unmodified official Claude Code CLI (docs/claude-connection-check.md). Real use stays disabled by
  * the caller until the A01 terms acknowledgement; this class never reads or stores credentials and never
  * falls back to API billing. All SafeError messages are fixed strings: stdout/stderr text is never returned.
@@ -108,7 +119,8 @@ const mk = (code: SafeError['code'], message: string, retryable: boolean): SafeE
 export class ClaudeCodeRunner implements Runner {
   private readonly o: Required<Omit<ClaudeCodeRunnerOptions, 'spawnImpl' | 'tmpRoot' | 'env'>> & {
     spawnImpl: typeof nodeSpawn;
-    tmpRoot: string;
+    exitGraceMs: number;
+    tmpRoot: string | null;
     env: NodeJS.ProcessEnv;
   };
 
@@ -123,7 +135,8 @@ export class ClaudeCodeRunner implements Runner {
       maxOutputBytes: opts.maxOutputBytes ?? 1024 * 1024,
       killGraceMs: opts.killGraceMs ?? 5000,
       spawnImpl: opts.spawnImpl ?? nodeSpawn,
-      tmpRoot: opts.tmpRoot ?? tmpdir(),
+      tmpRoot: opts.tmpRoot ?? null,
+      exitGraceMs: opts.exitGraceMs ?? 1000,
       env: opts.env ?? process.env,
     };
   }
@@ -143,6 +156,14 @@ export class ClaudeCodeRunner implements Runner {
       });
     }
 
+    if (Object.keys(this.o.env).some(isConfigKey)) {
+      return done({
+        exitCode: -1,
+        envelope: null,
+        error: mk('CLI_NOT_AUTHENTICATED', 'Alternate Claude config detected; refusing to run.', false),
+      });
+    }
+
     const args = [
       '-p',
       '--output-format',
@@ -157,8 +178,20 @@ export class ClaudeCodeRunner implements Runner {
       this.o.model,
     ];
     const prompt = buildPrompt(input);
-    const cwd = await mkdtemp(join(this.o.tmpRoot, 'tkb-claude-'));
+    const startFail = (): Omit<RunnerResult, 'durationMs'> => ({
+      exitCode: -1,
+      envelope: null,
+      error: mk('CLI_EXIT', 'The generator could not be started.', false),
+    });
+    let cwd: string;
     try {
+      const root = await this.prepareRoot();
+      cwd = await mkdtemp(join(root, 'tkb-claude-'));
+    } catch {
+      return done(startFail());
+    }
+    try {
+      if (signal.aborted) throw new DOMException('aborted', 'AbortError');
       const out = await this.exec(args, prompt, cwd, signal);
       if (out.kind === 'aborted') throw new DOMException('aborted', 'AbortError');
       return done(classify(out));
@@ -167,10 +200,25 @@ export class ClaudeCodeRunner implements Runner {
     }
   }
 
+  /** Owner-only parent for per-run cwds. Rejects a world-writable dir without the sticky bit. */
+  private async prepareRoot(): Promise<string> {
+    const custom = this.o.tmpRoot;
+    const root = custom ?? join(homedir(), '.cache', 'tkb-claude');
+    if (!custom) {
+      await mkdir(root, { recursive: true, mode: 0o700 });
+      await chmod(root, 0o700);
+    }
+    const st = await stat(root);
+    if (!st.isDirectory() || ((st.mode & 0o002) !== 0 && (st.mode & 0o1000) === 0)) throw new Error('unsafe tmp root');
+    return root;
+  }
+
   private exec(args: string[], prompt: string, cwd: string, signal: AbortSignal): Promise<Exec> {
     return new Promise<Exec>(resolve => {
+      if (signal.aborted) return resolve({ kind: 'aborted' });
       const opts: SpawnOptions = {
         shell: false,
+        detached: true, // own process group so the whole tree can be killed
         cwd,
         env: buildChildEnv(this.o.env),
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -191,16 +239,51 @@ export class ClaudeCodeRunner implements Runner {
       let settled = false;
       let killTimer: NodeJS.Timeout | undefined;
 
+      let exitTimer: NodeJS.Timeout | undefined;
+      let exitCode: number | null = null;
+      let killIssued = false;
+      const signalTree = (sig: NodeJS.Signals): void => {
+        try {
+          if (typeof child.pid === 'number') process.kill(-child.pid, sig);
+          else child.kill(sig);
+        } catch {
+          try {
+            child.kill(sig);
+          } catch {
+            /* already gone */
+          }
+        }
+      };
+      let exited = false;
+      const startExitTimer = (): void => {
+        if (exitTimer || settled) return;
+        // A grandchild may still hold the pipes: stop waiting for them after a short grace period.
+        exitTimer = setTimeout(() => {
+          signalTree('SIGKILL');
+          child.stdout?.destroy();
+          child.stderr?.destroy();
+          finish(outcome());
+        }, this.o.exitGraceMs);
+      };
       const kill = (): void => {
-        if (killTimer || child.exitCode !== null || child.signalCode !== null) return;
-        child.kill('SIGTERM');
-        killTimer = setTimeout(() => child.kill('SIGKILL'), this.o.killGraceMs);
+        if (killIssued) return;
+        killIssued = true;
+        if (exited) return startExitTimer();
+        signalTree('SIGTERM');
+        killTimer = setTimeout(() => signalTree('SIGKILL'), this.o.killGraceMs);
+      };
+      const outcome = (): Exec => {
+        if (aborted) return { kind: 'aborted' };
+        if (timedOut) return { kind: 'timeout', code: exitCode };
+        if (oversize) return { kind: 'oversize', code: exitCode };
+        return { kind: 'exited', code: exitCode, stdout: Buffer.concat(chunks).toString('utf8') };
       };
       const finish = (e: Exec): void => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         if (killTimer) clearTimeout(killTimer);
+        if (exitTimer) clearTimeout(exitTimer);
         signal.removeEventListener('abort', onAbort);
         resolve(e);
       };
@@ -233,12 +316,15 @@ export class ClaudeCodeRunner implements Runner {
         if (aborted) return finish({ kind: 'aborted' });
         finish({ kind: 'spawn_error', notFound: err.code === 'ENOENT' });
       });
+      child.on('exit', (code: number | null) => {
+        exitCode = code;
+        exited = true;
+        if (killIssued) startExitTimer();
+      });
       child.on('close', (code: number | null) => {
         void stderrBytes;
-        if (aborted) return finish({ kind: 'aborted' });
-        if (timedOut) return finish({ kind: 'timeout', code });
-        if (oversize) return finish({ kind: 'oversize', code });
-        finish({ kind: 'exited', code, stdout: Buffer.concat(chunks).toString('utf8') });
+        exitCode = code;
+        finish(outcome());
       });
       child.stdin?.end(prompt);
     });
@@ -286,7 +372,12 @@ function classify(out: Exclude<Exec, { kind: 'aborted' }>): Omit<RunnerResult, '
     return fail(0, mk('INVALID_OUTPUT', 'The generator output has no structured result.', true));
   }
   const status = typeof e.api_error_status === 'number' ? e.api_error_status : null;
-  const text = `${typeof e.result === 'string' ? e.result : ''} ${typeof e.subtype === 'string' ? e.subtype : ''}`;
+  // api_error_status is authoritative; free text is consulted only when it is absent and no model turn ran.
+  const turns = typeof e.num_turns === 'number' ? e.num_turns : 0;
+  const text =
+    status === null && turns === 0
+      ? `${typeof e.result === 'string' ? e.result : ''} ${typeof e.subtype === 'string' ? e.subtype : ''}`
+      : '';
   if (status === 429 || LIMIT_RE.test(text)) return fail(code, mk('CLI_LIMIT', 'The Claude usage limit was reached.', false));
   if (status === 401 || status === 403 || AUTH_RE.test(text)) {
     return fail(code, mk('CLI_NOT_AUTHENTICATED', 'Claude Code is not logged in.', false));
