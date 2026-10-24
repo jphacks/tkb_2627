@@ -117,9 +117,10 @@ describe('condition form', () => {
     expect(after).toContain('aria-invalid="true"');
   });
 
-  it('offers the budget as 不明 (default) or an amount, and a complete sample passes', () => {
+  it('offers the budget as 予算を決めていない (default) or an amount, and a complete sample passes', () => {
     const html = view(sampleForm, true);
-    expect(html).toContain('不明');
+    expect(html).toContain('予算を決めていない');
+    expect(html).not.toContain('不明');
     expect(html).toContain('入力済み：地域');
     expect(html).not.toContain('role="alert"');
   });
@@ -184,7 +185,7 @@ describe('candidate comparison', () => {
     const nothingKnown = renderToString(
       <CandidateCard candidate={{ ...first, totalKnownCost: [], hasUnknownCost: true }} index={0} busy={false} onAdopt={noop} />,
     );
-    expect(nothingKnown).toContain('不明');
+    expect(nothingKnown).toContain('未取得');
     expect(nothingKnown).toContain('u1-unknown');
     expect(withoutDisclaimers(nothingKnown)).not.toMatch(SHOWN_AS_ZERO);
   });
@@ -200,11 +201,11 @@ describe('candidate comparison', () => {
 });
 
 describe('detail, edit, guide, share, feed', () => {
-  it('renders the diff with unknown duration as 不明 and unknown-cost items listed, not zero', async () => {
+  it('renders the diff with unknown duration as 未取得 and unknown-cost items listed, not zero', async () => {
     const trip = await firstTrip('budgetUnknown');
     const firstId = trip.days.flatMap(d => d.items).map(i => (i.type === 'activity' ? i.activityId : i.legId))[0] ?? 'x';
     const html = renderToString(<DiffView trip={trip} diff={{ durationDeltaSeconds: null, knownCostDelta: [], unknownCostItems: [firstId] }} />);
-    expect(html).toContain('不明（所要時間が不明の予定を含むため算出できません）');
+    expect(html).toContain('未取得（所要時間が未取得の予定を含むため算出できません）');
     expect(html).toContain('0円として扱っていません');
     expect(withoutDisclaimers(html)).not.toMatch(SHOWN_AS_ZERO);
     const known = renderToString(<DiffView trip={trip} diff={{ durationDeltaSeconds: -1800, knownCostDelta: [{ currency: 'JPY', amountMinor: -500 }], unknownCostItems: [] }} />);

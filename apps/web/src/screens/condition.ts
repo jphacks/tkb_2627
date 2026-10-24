@@ -156,7 +156,7 @@ export function validateCondition(form: ConditionForm): ConditionResult {
   let budget: Money | null = null;
   if (form.budgetMode === 'amount') {
     budget = parseBudget(form.budgetAmount, form.budgetCurrency);
-    if (isEmpty(form.budgetAmount)) errors.budget = '予算の金額を入力するか、「不明」を選んでください。';
+    if (isEmpty(form.budgetAmount)) errors.budget = '予算の金額を入力するか、「予算を決めていない」を選んでください。';
     else if (!budget) errors.budget = '予算は0以上の数値で入力してください（通貨の小数桁を超える指定は不可）。';
   }
 

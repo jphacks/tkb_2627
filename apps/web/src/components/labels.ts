@@ -2,7 +2,7 @@ import type { JobStage, JobState, ValidationState, Visibility } from '@tkb/contr
 import type { MockScenario } from '../mocks/index.ts';
 
 /** Shown instead of a value that is null/unknown. Never 0 (R11). */
-export const UNKNOWN_LABEL = '不明';
+export const UNKNOWN_LABEL = '未取得';
 
 export const VALIDATION_LABEL: Record<ValidationState, string> = {
   valid: '検証済み',
@@ -42,7 +42,7 @@ export const SCENARIO_LABEL: Record<MockScenario, string> = {
   empty: '空（旅程なし）',
   error: 'エラー',
   slow: '低速',
-  budgetUnknown: '予算不明',
+  budgetUnknown: '予算なし・費用未取得',
 };
 
 export const SCENARIOS: readonly MockScenario[] = ['normal', 'empty', 'error', 'slow', 'budgetUnknown'];

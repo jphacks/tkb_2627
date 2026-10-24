@@ -94,16 +94,16 @@ describe('candidates: cost display (R11)', () => {
     expect(t).toMatch(/3,000/);
     expect(t).toMatch(/12\.50/);
     expect(t).not.toContain('4,250');
-    expect(t).not.toContain('費用が不明の項目を含みます');
+    expect(t).not.toContain('費用が未取得の項目を含みます');
   });
 
   it('known total plus unknown items: the unknown part is stated, not folded into the number', () => {
     const html = renderToString(<CandidateCard candidate={{ ...firstCandidate(), totalKnownCost: [{ amountMinor: 4520, currency: 'JPY' }], hasUnknownCost: true }} index={0} busy={false} onAdopt={noop} />);
-    expect(textOf(html)).toContain('費用が不明の項目を含みます');
+    expect(textOf(html)).toContain('費用が未取得の項目を含みます');
     expect(html).toContain('上の金額には含まれておらず');
   });
 
-  it('every candidate of the budgetUnknown batch shows 不明 for the known cost and no zero amount', () => {
+  it('every candidate of the budgetUnknown batch shows 未取得 for the known cost and no zero amount', () => {
     const html = renderToString(<CompareView state={done(createBudgetUnknownPlanBatch())} busyId={null} applyError={null} onAdopt={noop} onRetry={noop} />);
     expect(withoutDisclaimers(html)).not.toMatch(SHOWN_AS_ZERO);
     expect((html.match(/u1-unknown/g) ?? []).length).toBeGreaterThanOrEqual(3);
@@ -152,7 +152,7 @@ describe('R08: itinerary items map to named places in the edit panel', () => {
   const panel = (trip: Trip, props: Partial<{ saving: boolean; titleDraft: string }> = {}) =>
     renderToString(<EditPanel trip={trip} saving={props.saving ?? false} titleDraft={props.titleDraft ?? trip.title} onTitleDraft={noop} onPatch={noop} />);
 
-  it.each(fixtureTrips.map(t => [t.tripId, t] as const))('%s: every leg shows the names of both places, none is 不明', (_id, trip) => {
+  it.each(fixtureTrips.map(t => [t.tripId, t] as const))('%s: every leg shows the names of both places, none is 未取得', (_id, trip) => {
     const html = panel(trip);
     for (const leg of trip.days.flatMap(d => d.items).filter(i => i.type === 'leg')) {
       if (leg.type !== 'leg') continue;
@@ -165,10 +165,10 @@ describe('R08: itinerary items map to named places in the edit panel', () => {
     expect(html).not.toContain('undefined');
   });
 
-  it('a leg that points to a place missing from the trip shows 不明 instead of an id, "undefined" or a crash', () => {
+  it('a leg that points to a place missing from the trip shows 未取得 instead of an id, "undefined" or a crash', () => {
     const trip: Trip = { ...domesticTrip, places: [] };
     const html = panel(trip);
-    expect(html).toContain('移動: 不明 → 不明');
+    expect(html).toContain('移動: 未取得 → 未取得');
     expect(html).not.toContain('undefined');
     expect(html).not.toContain('fx_kenrokuen');
   });
@@ -240,7 +240,7 @@ describe('diff view (R11)', () => {
   const trip = domesticTrip;
   const ids = trip.days.flatMap(d => d.items).map(i => (i.type === 'activity' ? i.activityId : i.legId));
 
-  it('duration delta: 0 is "変化なし", positive has +, negative has -, null is 不明', () => {
+  it('duration delta: 0 is "変化なし", positive has +, negative has -, null is 未取得', () => {
     /** Only the duration part of the diff (the cost part legitimately says 変化なし too). */
     const d = (durationDeltaSeconds: number | null) => {
       const t = textOf(renderToString(<DiffView trip={trip} diff={{ durationDeltaSeconds, knownCostDelta: [], unknownCostItems: [] }} />));
@@ -250,7 +250,7 @@ describe('diff view (R11)', () => {
     expect(d(900)).toContain('+15分');
     expect(d(-3600)).toContain('-1時間0分');
     expect(d(-5400)).toContain('-1時間30分');
-    expect(d(null)).toContain('不明（所要時間が不明の予定を含むため算出できません）');
+    expect(d(null)).toContain('未取得（所要時間が未取得の予定を含むため算出できません）');
     expect(d(null)).not.toContain('変化なし');
   });
 
@@ -320,14 +320,13 @@ describe('budgetUnknown trips on detail-adjacent screens: unknown stays unknown'
     const day = trip.days[0]?.date ?? '2026-11-01';
     const guide = renderToString(<GuideView trip={trip} now={new Date(`${day}T03:00:00Z`)} />);
     expect(withoutDisclaimers(guide)).not.toMatch(SHOWN_AS_ZERO);
-    expect(guide).toContain('費用 <span class="u1-unknown">不明</span>');
+    expect(guide).toContain('費用 <span class="u1-unknown">未取得</span>');
 
     const viewer = renderToString(<TripViewer trips={[trip]} />);
     expect(withoutDisclaimers(viewer)).not.toMatch(SHOWN_AS_ZERO);
   });
 
-  it('the trip viewer and the U01 screens use different words for unknown (未取得 vs 不明), but neither is a number', () => {
-    // Observation recorded as a test: both are non-numeric; the wording is not unified yet.
+  it('the trip viewer and the U01 screens use the same word for a value that was not obtained (未取得), and it is not a number', () => {
     const viewer = textOf(renderToString(<TripViewer trips={[createBudgetUnknownTrip()]} />));
     expect(viewer).toContain('費用 未取得');
     expect(viewer).not.toContain('費用 不明');
@@ -355,7 +354,7 @@ describe('guide view states', () => {
   it('does not invent opening hours, and shows the data source of a place', () => {
     const noHours: Trip = { ...trip, places: trip.places.map(p => ({ ...p, openingHours: null })) };
     const html = textOf(renderToString(<GuideView trip={noHours} now={new Date('2026-11-01T01:00:00Z')} />));
-    expect(html).toContain('営業時間: 不明');
+    expect(html).toContain('営業時間: 未取得');
     expect(html).toMatch(/出典: fixture/);
   });
 
@@ -447,13 +446,20 @@ describe('progress view details', () => {
     }
   });
 
+  it('a running job says that leaving does not stop it (R28) and offers only the explicit 取消', () => {
+    const html = textOf(view({ state: 'running', stage: 'generating' }));
+    expect(html).toContain('他の画面へ移っても生成は止まりません');
+    expect(html).not.toContain('生成を取り消します');
+    expect(html).toContain('取消');
+  });
+
   it('success without a batch id does not show the compare button (no link to nothing)', () => {
     expect(view({ state: 'succeeded', stage: 'saved', batchId: null })).not.toContain('候補を比較する');
   });
 
-  it('a failure without error details says the cause is unknown instead of inventing one', () => {
+  it('a failure without error details says the cause is not obtained instead of inventing one', () => {
     const html = view({ state: 'failed', stage: 'validating', jobError: null });
-    expect(html).toContain('原因は不明です。');
+    expect(html).toContain('原因を取得できませんでした。');
     expect(html).not.toContain('undefined');
   });
 

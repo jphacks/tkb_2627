@@ -20,7 +20,7 @@ function itemLabel(item: ItineraryItem, trip: Trip): string {
   return `移動: ${name(item.fromPlaceId)} → ${name(item.toPlaceId)}`;
 }
 
-/** Result of K10: duration delta null is 不明, unknown-cost items are listed and never counted as 0. */
+/** Result of K10: duration delta null is 未取得, unknown-cost items are listed and never counted as 0. */
 export function DiffView({ diff, trip, before }: { diff: TripDiff; trip: Trip; /** The trip before the patch, to name removed items. */ before?: Trip }) {
   const labels = (t: Trip) => new Map(t.days.flatMap(d => d.items).map(i => [itemIdOf(i), itemLabel(i, t)]));
   const afterLabels = labels(trip);
@@ -39,7 +39,7 @@ export function DiffView({ diff, trip, before }: { diff: TripDiff; trip: Trip; /
         <dt>所要時間の変化</dt>
         <dd>
           {d === null
-            ? `${UNKNOWN_LABEL}（所要時間が不明の予定を含むため算出できません）`
+            ? `${UNKNOWN_LABEL}（所要時間が未取得の予定を含むため算出できません）`
             : d === 0
               ? '変化なし'
               : `${d > 0 ? '+' : '-'}${formatDuration(Math.abs(d))}`}

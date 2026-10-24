@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { TransportMode } from '@tkb/contracts';
 import { ErrorBox, type ErrorInfo } from '../components/ErrorBox.tsx';
 import { ScreenHeader } from '../components/ScreenHeader.tsx';
-import { UNKNOWN_LABEL } from '../components/labels.ts';
 import type { MockApi } from '../mocks/index.ts';
 import type { JobAccepted } from '@tkb/contracts';
 import {
@@ -118,7 +117,7 @@ export function ConditionFormView({ form, onChange, onSubmit, submitted, busy, s
         <legend>予算（任意）</legend>
         <label className="u1-choice">
           <input type="radio" name="c-budget" checked={form.budgetMode === 'unknown'} onChange={() => set('budgetMode', 'unknown')} />
-          {UNKNOWN_LABEL}（予算なしで候補を作る。0円としては扱いません）
+          予算を決めていない（予算なしで候補を作る。0円としては扱いません）
         </label>
         <label className="u1-choice">
           <input type="radio" name="c-budget" checked={form.budgetMode === 'amount'} onChange={() => set('budgetMode', 'amount')} />
@@ -176,7 +175,7 @@ export function ConditionInput({ api, form, onFormChange, onStarted }: {
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState<ErrorInfo | null>(null);
   const [focusToken, setFocusToken] = useState(0);
-  // False once the screen is left (tab switch). StrictMode's simulated remount sets it back to true.
+  // False once the screen is left (tab switch): local state is no longer updated. StrictMode's simulated remount sets it back to true.
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -196,13 +195,10 @@ export function ConditionInput({ api, form, onFormChange, onStarted }: {
     setBusy(true);
     try {
       const result = await api.generate(request);
-      if (!mounted.current) {
-        // The user left while generate was in flight: do not leave the new job running unseen.
-        if (result.ok) void api.cancelJob(result.data.jobId).catch(() => undefined);
-        return;
-      }
+      // An accepted job is always handed to the flow, even if the user already left this screen: it keeps
+      // running in the background and is found again from the 新規作成 tab (R28). Only local state is guarded.
       if (result.ok) onStarted(result.data);
-      else setSubmitError(result.error);
+      else if (mounted.current) setSubmitError(result.error);
     } catch (e) {
       if (!mounted.current) return;
       setSubmitError({ message: e instanceof Error ? e.message : '予期しないエラーが発生しました。', code: 'INTERNAL' });

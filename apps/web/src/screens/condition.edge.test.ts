@@ -214,6 +214,13 @@ describe('R01 / R11 budget', () => {
     expect(validateCondition(sampleForm).request?.constraints.budget).toBeNull();
   });
 
+  it('an empty amount asks for an amount or the choice 予算を決めていない (a choice, not a value that was not obtained)', () => {
+    const r = validateCondition(withBudget(''));
+    expect(r.request).toBeNull();
+    expect(r.errors.budget).toContain('予算を決めていない');
+    expect(r.errors.budget).not.toContain('不明');
+  });
+
   it.each(['-1', '-0.5', '+5', '1e3', '1,000', '１２３', '12 000', '.5', '5.', '0x10', 'NaN', 'Infinity', '--1', '１０.５', ' - 1'])('rejects the non-amount %j with a budget error', text => {
     const r = validateCondition(withBudget(text));
     expect(r.request).toBeNull();

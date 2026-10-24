@@ -1,6 +1,6 @@
 /**
  * U01 independent tests: shared components rendered with tricky data (renderToString, node env).
- * R11: an unknown amount is shown as 不明, never as 0, and different currencies are never added together.
+ * R11: an unknown amount is shown as 未取得, never as 0, and different currencies are never added together.
  */
 import type { ReactElement } from 'react';
 import { renderToString as renderRaw } from 'react-dom/server';
@@ -25,12 +25,12 @@ const SHOWN_AS_ZERO = /[¥￥€$]\s?0(?:\.0+)?(?![\d,.]?\d)|(?<![\d,.])0円/;
 describe('the zero detector used below', () => {
   it('matches a zero shown as money and nothing else', () => {
     for (const zero of ['￥0', '¥0', '€0.00', '$ 0', '0円', '合計 0円', '￥0 / €1.00']) expect(zero, zero).toMatch(SHOWN_AS_ZERO);
-    for (const other of ['￥30', '￥1,000', '€10.05', '€0.05', '$0.50', '10円', '100円', '不明', '1,000円']) expect(other, other).not.toMatch(SHOWN_AS_ZERO);
+    for (const other of ['￥30', '￥1,000', '€10.05', '€0.05', '$0.50', '10円', '100円', '未取得', '1,000円']) expect(other, other).not.toMatch(SHOWN_AS_ZERO);
   });
 });
 
 describe('MoneyText (R11)', () => {
-  it('null is 不明 with the unknown class, and contains no digit and no currency symbol', () => {
+  it('null is 未取得 with the unknown class, and contains no digit and no currency symbol', () => {
     const html = renderToString(<MoneyText money={null} />);
     expect(html).toContain('u1-unknown');
     expect(textOf(html)).toBe(UNKNOWN_LABEL);
@@ -60,7 +60,7 @@ describe('MoneyText (R11)', () => {
 });
 
 describe('MoneyTotals (R11)', () => {
-  it('an empty list means nothing is known: 不明, never a zero amount', () => {
+  it('an empty list means nothing is known: 未取得, never a zero amount', () => {
     const html = renderToString(<MoneyTotals totals={[]} />);
     expect(textOf(html)).toBe(UNKNOWN_LABEL);
     expect(html).toContain('u1-unknown');
@@ -172,8 +172,8 @@ describe('ErrorBox', () => {
   });
 
   it('works with only a message (no code, no request id) and prints no "undefined"', () => {
-    const html = renderToString(<ErrorBox error={{ message: '原因は不明です。' }} />);
-    expect(html).toContain('原因は不明です。');
+    const html = renderToString(<ErrorBox error={{ message: '原因を取得できませんでした。' }} />);
+    expect(html).toContain('原因を取得できませんでした。');
     expect(html).not.toContain('undefined');
     expect(html).not.toContain('コード');
     expect(html).not.toContain('リクエストID');
@@ -210,8 +210,8 @@ describe('labels cover every contract value (no "undefined" on screen)', () => {
     for (const o of options) expect(record[o]).toBeTruthy();
   });
 
-  it('the unknown label is 不明 and not a number', () => {
-    expect(UNKNOWN_LABEL).toBe('不明');
+  it('the unknown label is 未取得 and not a number', () => {
+    expect(UNKNOWN_LABEL).toBe('未取得');
     expect(Number.isNaN(Number(UNKNOWN_LABEL))).toBe(true);
   });
 });

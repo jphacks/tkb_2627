@@ -140,7 +140,7 @@ describe('journey: normal scenario, 条件入力 -> 比較 -> 編集 -> ガイ�
       }
     }
     const editHtml = renderToString(<EditPanel trip={before} saving={false} titleDraft={before.title} onTitleDraft={noop} onPatch={noop} />);
-    expect(editHtml).not.toContain('不明');
+    expect(editHtml).not.toContain('移動: 未取得');
     for (const name of ['金沢駅', '兼六園', '金沢21世紀美術館']) expect(editHtml).toContain(name);
 
     const unknownItem = before.days.flatMap(d => d.items).find(i => i.type === 'activity' && i.cost === null);
@@ -258,7 +258,7 @@ describe('journey: cancel, failure and retry', () => {
     expect(c.flow.screen.name).toBe('compare');
   });
 
-  it('leaving a running job (tab switch) and cancelling it as the component does leaves it cancelled, saved nothing, and a new run is independent', async () => {
+  it('leaving a running job (tab switch) does not cancel it: the flow keeps it, the tab resumes it by jobId, and it finishes into the comparison', async () => {
     const c = createController('normal');
     c.dispatch({ type: 'selectTab', tab: 'new' });
     const sent = await c.submit(sampleForm);
@@ -267,21 +267,65 @@ describe('journey: cancel, failure and retry', () => {
     must(await c.api.getJob(jobId)); // queued
     expect(must(await c.api.getJob(jobId)).state).toBe('running');
 
-    // the user leaves; the flow forgets the job, so the unmount effect must cancel it with the id it holds
+    // the user leaves: nothing calls cancelJob, and the flow still knows the job
     c.dispatch({ type: 'selectTab', tab: 'feed' });
-    expect(JSON.stringify(c.flow)).not.toContain(jobId);
-    const cancelled = must(await c.api.cancelJob(jobId));
-    expect(cancelled.state).toBe('cancelled');
-    expect(cancelled.batchId).toBeNull();
-    expect(must(await c.api.getJob(jobId)).state).toBe('cancelled');
-    expect(must(await c.api.listTrips()).items.length).toBe(3);
+    expect(c.flow.activeJob).toEqual({ jobId, pollAfterMs: sent.result.data.pollAfterMs });
+    expect(must(await c.api.getJob(jobId)).state).toBe('running');
+    c.dispatch({ type: 'selectTab', tab: 'trips' });
+    expect(c.flow.activeJob?.jobId).toBe(jobId);
 
-    const { jobId: next } = await toCompare(c);
-    expect(next).not.toBe(jobId);
-    expect(must(await c.api.getJob(jobId)).state).toBe('cancelled'); // the old job stays cancelled
+    // coming back to 新規作成 shows the progress screen of the same job and polling continues from there
+    c.dispatch({ type: 'selectTab', tab: 'new' });
+    expect(c.flow.screen).toMatchObject({ name: 'progress', jobId });
+    const statuses = await c.pollToEnd(jobId);
+    const last = statuses[statuses.length - 1] as JobStatus;
+    expect(last.state).toBe('succeeded');
+    if (!last.batchId) throw new Error('batch id');
+    c.dispatch({ type: 'generationSucceeded', batchId: last.batchId });
+    expect(c.flow.screen).toMatchObject({ name: 'compare', batchId: last.batchId });
+    expect(must(await c.api.listTrips()).items.length).toBe(3); // nothing was saved by the generation itself
   });
 
-  it('a generate result that arrives after the user left the condition screen: the job is cancelled, the flow does not move', async () => {
+  it('a job that finished while the user was away is shown as a result on return, and stays reachable until a candidate is adopted', async () => {
+    const c = createController('normal');
+    c.dispatch({ type: 'selectTab', tab: 'new' });
+    const sent = await c.submit(sampleForm);
+    if (!sent.sent || !sent.result.ok) throw new Error('submit');
+    const jobId = sent.result.data.jobId;
+    c.dispatch({ type: 'selectTab', tab: 'feed' });
+    const statuses = await c.pollToEnd(jobId); // finishes in the background
+    expect((statuses[statuses.length - 1] as JobStatus).state).toBe('succeeded');
+
+    c.dispatch({ type: 'selectTab', tab: 'new' });
+    expect(c.flow.screen).toMatchObject({ name: 'progress', jobId });
+    const again = must(await c.api.getJob(jobId)); // the resumed screen's first poll
+    expect(again.state).toBe('succeeded');
+    const html = renderToString(
+      <ProgressView state={again.state} stage={again.stage} batchId={again.batchId} jobError={null} pollError={null} note={null} cancelError={null}
+        cancelling={false} polls={1} onCancel={noop} onResume={noop} onOpenCandidates={noop} onBackToConditions={noop} />,
+    );
+    expect(html).toContain('候補を比較する');
+    expect(html).not.toContain('生成を取り消します');
+  });
+
+  it('only the 取消 button cancels: the cancelled job is forgotten by the flow once the progress screen reports it', async () => {
+    const c = createController('normal');
+    c.dispatch({ type: 'selectTab', tab: 'new' });
+    const sent = await c.submit(sampleForm);
+    if (!sent.sent || !sent.result.ok) throw new Error('submit');
+    const jobId = sent.result.data.jobId;
+    const cancelled = must(await c.api.cancelJob(jobId));
+    expect(cancelled.state).toBe('cancelled');
+    c.dispatch({ type: 'generationEnded', jobId }); // GenerationProgress.onSettled
+    expect(c.flow.activeJob).toBeNull();
+    expect(c.flow.screen).toMatchObject({ name: 'progress', jobId }); // the "取り消しました" message stays visible
+    c.dispatch({ type: 'selectTab', tab: 'feed' });
+    c.dispatch({ type: 'selectTab', tab: 'new' });
+    expect(c.flow.screen).toEqual({ name: 'condition' });
+    expect(must(await c.api.getJob(jobId)).state).toBe('cancelled');
+  });
+
+  it('a generate result that arrives after the user left the condition screen is recorded as the active job, not cancelled or dropped', async () => {
     const c = createController('normal');
     c.dispatch({ type: 'selectTab', tab: 'new' });
     const { request } = validateCondition(sampleForm);
@@ -289,16 +333,14 @@ describe('journey: cancel, failure and retry', () => {
     const pending = c.api.generate(request); // request in flight
     c.dispatch({ type: 'selectTab', tab: 'feed' }); // user leaves
     const accepted = must(await pending);
-    // ConditionInput sees it is unmounted and cancels instead of dispatching generationStarted
-    const before = c.flow;
-    const cancelled = must(await c.api.cancelJob(accepted.jobId));
-    expect(cancelled.state).toBe('cancelled');
-    expect(c.flow).toBe(before);
-    expect(c.flow.screen).toEqual({ name: 'feed' });
-    expect(must(await c.api.getJob(accepted.jobId)).state).toBe('cancelled');
-    // and if the late result were dispatched anyway the reducer still ignores it
+    // ConditionInput always hands the accepted job to the flow, even after unmount
     c.dispatch({ type: 'generationStarted', jobId: accepted.jobId, pollAfterMs: accepted.pollAfterMs });
-    expect(c.flow).toBe(before);
+    expect(c.flow.screen).toEqual({ name: 'feed' }); // the user is not moved
+    expect(c.flow.activeJob).toEqual({ jobId: accepted.jobId, pollAfterMs: accepted.pollAfterMs });
+    expect(must(await c.api.getJob(accepted.jobId)).state).not.toBe('cancelled');
+    // and it is found again from the tab
+    c.dispatch({ type: 'selectTab', tab: 'new' });
+    expect(c.flow.screen).toMatchObject({ name: 'progress', jobId: accepted.jobId });
   });
 
   it('error scenario: the job fails visibly, the flow never reaches compare, and a retry starts a new job', async () => {

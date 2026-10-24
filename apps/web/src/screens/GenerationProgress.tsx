@@ -65,7 +65,7 @@ export function ProgressView(p: ProgressViewProps) {
       )}
       {p.state === 'failed' && (
         <>
-          <ErrorBox title="生成に失敗しました" error={p.jobError ?? { message: '原因は不明です。' }} />
+          <ErrorBox title="生成に失敗しました" error={p.jobError ?? { message: '原因を取得できませんでした。' }} />
           <button type="button" className="btn u1-primary" onClick={p.onBackToConditions}>条件を直して再試行</button>
         </>
       )}
@@ -80,19 +80,21 @@ export function ProgressView(p: ProgressViewProps) {
           <button type="button" className="btn" onClick={p.onCancel} disabled={p.cancelling}>
             {p.cancelling ? '取消中…' : '取消'}
           </button>
-          <p className="meta">この画面を離れると（戻る・タブの切替）、生成を取り消します。</p>
+          <p className="meta">他の画面へ移っても生成は止まりません。「新規作成」タブに戻ると続きを確認できます。止めるときは「取消」を押してください。</p>
         </>
       )}
     </>
   );
 }
 
-export function GenerationProgress({ api, jobId, pollAfterMs, onSucceeded, onBack }: {
+export function GenerationProgress({ api, jobId, pollAfterMs, onSucceeded, onBack, onSettled }: {
   api: MockApi;
   jobId: string;
   pollAfterMs: number;
   onSucceeded: (batchId: string) => void;
   onBack: () => void;
+  /** The job was observed failed or cancelled, so there is nothing left to resume (the flow forgets it). */
+  onSettled?: (() => void) | undefined;
 }) {
   const [status, setStatus] = useState<JobStatus | null>(null);
   const [pollError, setPollError] = useState<ApiError | null>(null);
@@ -104,24 +106,6 @@ export function GenerationProgress({ api, jobId, pollAfterMs, onSucceeded, onBac
   const [note, setNote] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<ApiError | null>(null);
   const stopped = useRef(false);
-  // Last known: the job may still be queued/running. Cleared once it is observed finished or cancelled.
-  const active = useRef(true);
-  const leaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  // Leaving this screen (戻る, tab switch, restart) must not orphan a queued/running job: cancel it.
-  // The cancel is deferred one tick and cleared on re-mount, so React StrictMode's simulated
-  // unmount/mount does not cancel a job that is still being watched. Finished jobs are never cancelled.
-  useEffect(() => {
-    if (leaveTimer.current !== undefined) clearTimeout(leaveTimer.current);
-    return () => {
-      leaveTimer.current = setTimeout(() => {
-        if (active.current) {
-          active.current = false;
-          void api.cancelJob(jobId).catch(() => undefined); // the result is intentionally not shown
-        }
-      }, 0);
-    };
-  }, [api, jobId]);
 
   useEffect(() => {
     let live = true;
@@ -134,8 +118,6 @@ export function GenerationProgress({ api, jobId, pollAfterMs, onSucceeded, onBac
         if (live) setPollError(thrownToError(e));
         return;
       }
-      // Track the job's state even when this poll arrives after the screen was left.
-      if (r.ok && TERMINAL_JOB_STATES.includes(r.data.state)) active.current = false;
       if (!live) return;
       setPolls(n => n + 1);
       if (!r.ok) {
@@ -162,7 +144,6 @@ export function GenerationProgress({ api, jobId, pollAfterMs, onSucceeded, onBac
       const r = await api.cancelJob(jobId);
       if (r.ok) {
         // 200 (already finished) and 202 (cancel accepted) are both success responses.
-        if (TERMINAL_JOB_STATES.includes(r.data.state)) active.current = false;
         if (r.data.state === 'cancelled' || (r.data.state === 'succeeded' && r.data.batchId !== null)) {
           stopped.current = true;
           setCancelOutcome(r.data);
@@ -187,6 +168,10 @@ export function GenerationProgress({ api, jobId, pollAfterMs, onSucceeded, onBac
   };
 
   const state: JobState = cancelOutcome?.state === 'cancelled' || cancelOutcome?.state === 'succeeded' ? cancelOutcome.state : (status?.state ?? 'queued');
+  useEffect(() => {
+    if (state === 'failed' || state === 'cancelled') onSettled?.();
+  }, [state, onSettled]);
+
   return (
     <section aria-label="生成の進行状況">
       <ScreenHeader title="候補を生成しています" onBack={onBack} />

@@ -80,7 +80,8 @@ function Screen({ api, flow, dispatch, form, setForm }: {
     case 'progress':
       return (
         <GenerationProgress key={s.jobId} api={api} jobId={s.jobId} pollAfterMs={s.pollAfterMs} onBack={back}
-          onSucceeded={batchId => dispatch({ type: 'generationSucceeded', batchId })} />
+          onSucceeded={batchId => dispatch({ type: 'generationSucceeded', batchId })}
+          onSettled={() => dispatch({ type: 'generationEnded', jobId: s.jobId })} />
       );
     case 'compare':
       return <CandidateCompare api={api} batchId={s.batchId} onBack={back} onApplied={tripId => dispatch({ type: 'candidateApplied', tripId })} />;

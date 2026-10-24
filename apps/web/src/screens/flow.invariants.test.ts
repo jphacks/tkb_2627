@@ -27,6 +27,7 @@ const ACTIONS: FlowAction[] = [
   { type: 'generationStarted', jobId: 'j1', pollAfterMs: 700 },
   { type: 'generationStarted', jobId: 'j2', pollAfterMs: 700 },
   { type: 'generationSucceeded', batchId: 'b1' },
+  { type: 'generationEnded', jobId: 'j1' },
   { type: 'candidateApplied', tripId: 't1' },
   { type: 'openTrip', tripId: 't1' },
   { type: 'openTrip', tripId: 't2' },
@@ -36,9 +37,11 @@ const ACTIONS: FlowAction[] = [
   { type: 'restart' },
 ];
 
-/** Which screen each guarded action requires. Actions not listed here are accepted anywhere. */
+/**
+ * Which screen each guarded action requires. Actions not listed here are accepted anywhere. generationStarted is
+ * deliberately not guarded: a result that arrives after the user left the condition screen is recorded as the active job.
+ */
 const REQUIRED_SCREEN: Partial<Record<FlowAction['type'], Screen['name']>> = {
-  generationStarted: 'condition',
   generationSucceeded: 'progress',
   candidateApplied: 'compare',
   openGuide: 'detail',
@@ -134,19 +137,25 @@ describe('flow reducer: exhaustive invariants', () => {
     }
   });
 
-  it('selectTab goes to that tab root with an empty history regardless of the current state', () => {
+  it('selectTab goes to that tab root with an empty history regardless of the current state (新規作成 resumes the active job)', () => {
     for (const { state, path } of STATES) {
       for (const tab of TABS) {
         const next = flowReducer(state, { type: 'selectTab', tab });
-        expect(next, describePath(path)).toEqual({ tab, screen: TAB_ROOT[tab], history: [] });
-        expect(isRoot(next)).toBe(true);
+        if (tab === 'new' && state.activeJob) {
+          // The one exception: 新規作成 resumes the active job (戻る from there goes to the conditions).
+          const { jobId, pollAfterMs } = state.activeJob;
+          expect(next, describePath(path)).toEqual({ tab, screen: { name: 'progress', jobId, pollAfterMs }, history: [TAB_ROOT.new], activeJob: state.activeJob });
+        } else {
+          expect(next, describePath(path)).toEqual({ tab, screen: TAB_ROOT[tab], history: [], activeJob: state.activeJob });
+          expect(isRoot(next)).toBe(true);
+        }
       }
     }
   });
 
   it('restart always lands on a fresh condition screen', () => {
     for (const { state, path } of STATES) {
-      expect(flowReducer(state, { type: 'restart' }), describePath(path)).toEqual({ tab: 'new', screen: { name: 'condition' }, history: [] });
+      expect(flowReducer(state, { type: 'restart' }), describePath(path)).toEqual({ tab: 'new', screen: { name: 'condition' }, history: [], activeJob: null });
     }
   });
 
@@ -184,6 +193,24 @@ describe('flow reducer: exhaustive invariants', () => {
   it('is deterministic: the same state and action always give an equal result', () => {
     for (const { state } of STATES) {
       for (const action of ACTIONS) expect(flowReducer(state, action)).toEqual(flowReducer(structuredClone(state), structuredClone(action)));
+    }
+  });
+});
+
+describe('flow reducer: active job invariants', () => {
+  it('the active job is only ever changed by generationStarted, generationEnded, candidateApplied and restart', () => {
+    const changing = new Set<FlowAction['type']>(['generationStarted', 'generationEnded', 'candidateApplied', 'restart']);
+    for (const { state, path } of STATES) {
+      for (const action of ACTIONS) {
+        if (changing.has(action.type)) continue;
+        expect(flowReducer(state, action).activeJob, `${describePath(path)} + ${action.type}`).toEqual(state.activeJob);
+      }
+    }
+  });
+
+  it('the active job id is never invented: it is always one that was started', () => {
+    for (const { state, path } of STATES) {
+      if (state.activeJob) expect(['j1', 'j2'], describePath(path)).toContain(state.activeJob.jobId);
     }
   });
 });
@@ -238,17 +265,22 @@ describe('flow reducer: stale and late actions', () => {
   });
 
   /**
-   * Characterization (by design): the reducer forgets the jobId as soon as the progress screen is left (tab,
-   * 戻る or restart). It does not keep the job reachable, so cancelling must happen in the component:
-   * GenerationProgress cancels a queued/running job on unmount, and ConditionInput cancels a job whose
-   * generate result arrives after it unmounted (checked in the browser; not testable in the node env).
-   * The controller-level test in journey.test.tsx covers "leave + cancelJob leaves the job cancelled".
+   * R28 / U05: leaving the progress screen (tab, 戻る) must not cancel or forget the job. The flow state keeps the
+   * active job reachable; only an explicit restart, an adopted candidate, a new generation, or a failed/cancelled
+   * job observed by the progress screen clears it.
    */
-  it('leaving the progress screen by tab, back or restart drops the jobId from the flow state (cancel is the component job)', () => {
-    for (const action of [{ type: 'selectTab', tab: 'feed' }, { type: 'back' }, { type: 'restart' }] as const) {
+  it('leaving the progress screen by tab or 戻る keeps the active job reachable, and 新規作成 resumes it', () => {
+    for (const action of [{ type: 'selectTab', tab: 'feed' }, { type: 'selectTab', tab: 'trips' }, { type: 'back' }] as const) {
       const left = flowReducer(toProgress('job_running'), action);
-      expect(JSON.stringify(left), action.type).not.toContain('job_running');
-      expect(left.screen.name).not.toBe('progress');
+      expect(left.screen.name, action.type).not.toBe('progress');
+      expect(left.activeJob, action.type).toEqual({ jobId: 'job_running', pollAfterMs: 700 });
+      expect(flowReducer(left, { type: 'selectTab', tab: 'new' }).screen, action.type).toEqual({ name: 'progress', jobId: 'job_running', pollAfterMs: 700 });
     }
+  });
+
+  it('restart explicitly forgets the active job', () => {
+    const left = flowReducer(toProgress('job_running'), { type: 'restart' });
+    expect(left.activeJob).toBeNull();
+    expect(JSON.stringify(left)).not.toContain('job_running');
   });
 });

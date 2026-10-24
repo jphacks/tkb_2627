@@ -3,16 +3,21 @@ import type { Money, Trip } from '@tkb/contracts';
 export interface CostSummary {
   /** Known costs summed per currency (minor units). Currencies are never merged (R11). */
   totals: Money[];
-  /** Number of items whose cost/fare is null (not obtained). Never counted as 0. */
+  /** Number of cost items (walking legs excluded) whose cost/fare is null (not obtained). Never counted as 0. */
   unknownCount: number;
 }
 
-/** Sums activity costs and leg fares per currency; counts items with null cost/fare as unknown. */
+/**
+ * Sums activity costs and leg fares per currency; counts items with null cost/fare as unknown.
+ * Walking legs have no fare by nature, so they are not cost items at all (neither known nor unknown),
+ * the same rule as K10 (docs/03_CONTRACTS.md) and the server diff.
+ */
 export function summarizeCosts(days: Trip['days']): CostSummary {
   const byCurrency = new Map<string, number>();
   let unknownCount = 0;
   for (const day of days) {
     for (const item of day.items) {
+      if (item.type === 'leg' && item.mode === 'walk') continue;
       const money = item.type === 'activity' ? item.cost : item.fare;
       if (money === null) {
         unknownCount += 1;
