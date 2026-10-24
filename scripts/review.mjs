@@ -117,7 +117,7 @@ await waitFor(`${web}/api/v1/health`, '画面サーバー'); // through the Vite
 if (stopping) await new Promise(() => {});
 
 // 5) Seed one trip for demo-a through the API (K07 plan-batches + K08 apply-candidate). Idempotent.
-const { domesticTrip, kanazawaPlaces } = await import('../packages/fixtures/src/index.ts');
+const { domesticTrip } = await import('../packages/fixtures/src/index.ts');
 async function seed() {
   const res = await fetch(`${api}/api/v1/auth/login`, {
     method: 'POST',
@@ -151,7 +151,7 @@ async function seed() {
       hasUnknownCost: true,
       validationState: domesticTrip.validationState,
     }],
-    places: kanazawaPlaces,
+    places: domesticTrip.places, // the trip's own places (#155 added more than kanazawaPlaces has)
     constraints: domesticTrip.constraints,
   });
   if (created.status !== 201) throw new Error(`plan-batches ${created.status}`);
