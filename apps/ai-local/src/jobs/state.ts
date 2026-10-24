@@ -40,3 +40,14 @@ export function transition(from: JobPhase, to: JobPhase): JobPhase {
   if (to.state === 'succeeded' && from.stage === 'queued') throw new Error('succeeded requires a run');
   return { state: to.state, stage: to.stage };
 }
+
+/**
+ * Restart recovery only: a journaled non-terminal job may be settled as succeeded (its batch was
+ * found in the shared DB) or failed. Terminal states stay immutable.
+ */
+export function recoveryTransition(from: JobPhase, to: JobPhase): JobPhase {
+  if (isTerminalState(from.state)) throw new Error(`illegal recovery from terminal state ${from.state}`);
+  if (to.state === 'succeeded' && to.stage === 'done') return { ...to };
+  if (to.state === 'failed') return { ...to };
+  throw new Error(`illegal recovery transition ${from.state} -> ${to.state}`);
+}

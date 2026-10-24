@@ -51,10 +51,10 @@ function clientErrorCode(status: number): ErrorCode {
   return 'VALIDATION_FAILED';
 }
 
-function sendError(reply: FastifyReply, requestId: string, code: ErrorCode, message: string, retryable = false) {
+function sendError(reply: FastifyReply, requestId: string, code: ErrorCode, message: string, retryable = false, details?: Record<string, unknown>) {
   return reply
     .status(ERROR_HTTP_STATUS[code])
-    .send(ApiError.parse({ code, message, retryable, requestId }));
+    .send(ApiError.parse({ code, message, retryable, requestId, ...(details ? { details } : {}) }));
 }
 
 export function buildApp(opts: BuildAppOptions): FastifyInstance {
@@ -71,6 +71,7 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     store: opts.jobStore ?? (config.jobDir ? new FileJobStore(config.jobDir) : undefined),
     findSavedBatch: opts.findSavedBatch,
     save: opts.save,
+    saveTimeoutMs: config.cliTimeoutMs,
   });
   const sessionOf = (req: FastifyRequest): LocalSession | null =>
     sessions.get(parseCookies(req.headers.cookie)[SESSION_COOKIE]);
@@ -231,7 +232,7 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     if (!r) return sendError(reply, req.id, 'NOT_FOUND', 'Not found.');
     // K21: 202 when the cancel was accepted for a queued/running job, 200 if already terminal.
     // After the save stage the result may already be committed: never claim cancelled (409, batchId shown).
-    if (r.committed) return sendError(reply, req.id, 'ALREADY_COMMITTED', 'The result is already being saved.');
+    if (r.committed) return sendError(reply, req.id, 'ALREADY_COMMITTED', 'The result is already being saved.', false, r.batchId ? { batchId: r.batchId } : undefined);
     const { wasActive, committed: _c, ...result } = r;
     return reply.status(wasActive ? 202 : 200).send(CancelResult.parse(result));
   });

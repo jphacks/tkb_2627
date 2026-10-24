@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -121,15 +121,74 @@ describe('restart handling', () => {
     await m2.ready;
     expect(m2.status('u1', a)?.error?.code).toBe('WORKER_RESTARTED');
   });
-  it('idempotency survives restart: same key+fingerprint returns the existing job, other fingerprint conflicts', async () => {
+  it('idempotency survives restart: same key+fingerprint returns the existing (settled) job, other fingerprint conflicts', async () => {
     const store = new MemoryJobStore();
     const a = accept(mk({ store }).submit('u1', 'key-00000001', 'f1', input));
-    const m2 = mk({ store });
+    const m2 = mk({ store, findSavedBatch: async () => 'b-1' });
     await m2.ready;
     expect(accept(m2.submit('u1', 'key-00000001', 'f1', input))).toBe(a);
     expect(m2.submit('u1', 'key-00000001', 'zzz', input).kind).toBe('conflict');
-    expect(m2.status('u1', a)?.state).toBe('failed');
+    expect(m2.status('u1', a)?.state).toBe('succeeded');
     expect(accept(m2.submit('u2', 'key-00000001', 'f1', input))).not.toBe(a);
+  });
+  it('resubmit of a WORKER_RESTARTED job starts a new attempt with the same operationKey, consulting findSavedBatch first', async () => {
+    const store = new MemoryJobStore();
+    const a = accept(mk({ store }).submit('u1', 'key-00000001', 'f1', input));
+    const asked: string[] = [];
+    let found: string | null = null;
+    const m2 = mk({ store, findSavedBatch: async (_o, k) => (asked.push(k), found) });
+    await m2.ready;
+    expect(m2.status('u1', a)?.error?.code).toBe('WORKER_RESTARTED');
+    found = 'late-batch'; // the earlier save committed after all
+    const b = accept(m2.submit('u1', 'key-00000001', 'f1', input));
+    expect(b).not.toBe(a);
+    await until(() => m2.status('u1', b)?.state === 'succeeded');
+    expect(m2.status('u1', b)?.batchId).toBe('late-batch');
+    expect(new Set(asked)).toEqual(new Set([operationKeyOf('u1', 'key-00000001')]));
+    expect(accept(m2.submit('u1', 'key-00000001', 'f1', input))).toBe(b); // now settled: idempotent
+  });
+  it('resubmit with no saved batch runs the runner again (same operationKey passed to save)', async () => {
+    const store = new MemoryJobStore();
+    accept(mk({ store }).submit('u1', 'key-00000001', 'f1', input));
+    const keys: string[] = [];
+    const m2 = mk({ store, runner: new FakeRunner(), allowedPlaceIds: placeIds, save: async c => (keys.push(c.operationKey), { batchId: 'nb' }) });
+    await m2.ready;
+    const b = accept(m2.submit('u1', 'key-00000001', 'f1', input));
+    await until(() => m2.status('u1', b)?.state === 'succeeded');
+    expect(keys).toEqual([operationKeyOf('u1', 'key-00000001')]);
+  });
+  it('reviewer repro: save pending at crash, restart, findSavedBatch -> b => succeeded with batchId b', async () => {
+    const dir = tmp();
+    const m1 = mk({ store: new FileJobStore(dir), runner: new FakeRunner(), allowedPlaceIds: placeIds, save: () => new Promise(() => {}) });
+    const a = accept(m1.submit('u1', 'key-00000001', 'f1', input));
+    await until(() => m1.status('u1', a)?.stage === 'saving');
+    const m2 = mk({ store: new FileJobStore(dir), findSavedBatch: async () => 'b' });
+    await m2.ready;
+    expect(m2.status('u1', a)).toMatchObject({ state: 'succeeded', stage: 'done', batchId: 'b' });
+    const m3 = mk({ store: new FileJobStore(dir) });
+    await m3.ready;
+    expect(m3.status('u1', a)).toMatchObject({ state: 'succeeded', batchId: 'b' });
+  });
+  it('queued jobs are checked too', async () => {
+    const store = new MemoryJobStore();
+    const m1 = mk({ store });
+    accept(m1.submit('u1', 'key-00000001', 'f1', input));
+    const q = accept(m1.submit('u1', 'key-00000002', 'f2', input));
+    const m2 = mk({ store, findSavedBatch: async () => 'bq' });
+    await m2.ready;
+    expect(m2.status('u1', q)).toMatchObject({ state: 'succeeded', batchId: 'bq' });
+  });
+  it('findSavedBatch error: failed in memory only, journal stays non-terminal and is re-checked on the next start', async () => {
+    const dir = tmp();
+    const a = accept(mk({ store: new FileJobStore(dir) }).submit('u1', 'key-00000001', 'f1', input));
+    const m2 = mk({ store: new FileJobStore(dir), findSavedBatch: async () => { throw new Error('down'); } });
+    await m2.ready;
+    expect(m2.status('u1', a)?.error).toMatchObject({ code: 'WORKER_RESTARTED', retryable: true });
+    const rec = JSON.parse(readFileSync(join(dir, 'jobs', `${a}.json`), 'utf8')) as { state: string };
+    expect(rec.state).toBe('running');
+    const m3 = mk({ store: new FileJobStore(dir), findSavedBatch: async () => 'b-later' });
+    await m3.ready;
+    expect(m3.status('u1', a)).toMatchObject({ state: 'succeeded', batchId: 'b-later' });
   });
   it('eviction removes journal entries too', async () => {
     const dir = tmp();
@@ -189,14 +248,67 @@ describe('cancel (K21)', () => {
     expect(m.status('u1', id)?.batchId).toBe('batch-1');
     expect(m.cancel('u1', id)).toMatchObject({ state: 'succeeded', batchId: 'batch-1', committed: false, wasActive: false });
   });
-  it('cancelled before save never reaches the saver', async () => {
+  it('cancelled while the runner is busy never reaches the saver, even if the runner then finishes', async () => {
     let saves = 0;
-    const m = mk({ save: async () => (saves++, { batchId: 'x' }) });
+    let finish!: () => void;
+    const inner = new FakeRunner();
+    const slow: Runner = { run: async (i, s) => { await new Promise<void>(r => (finish = r)); return inner.run(i, s); } };
+    const m = mk({ runner: slow, allowedPlaceIds: placeIds, save: async () => (saves++, { batchId: 'x' }) });
     const id = accept(m.submit('u1', 'key-00000001', 'f1', input));
+    await until(() => !!finish);
     m.cancel('u1', id);
-    await new Promise(r => setTimeout(r, 30));
+    finish();
+    await new Promise(r => setTimeout(r, 50));
     expect(saves).toBe(0);
     expect(m.status('u1', id)?.state).toBe('cancelled');
+  });
+  it('B1: a failed journal write for stage saving fails the job and the saver is NOT called', async () => {
+    let saves = 0;
+    const store = new MemoryJobStore();
+    const orig = store.save.bind(store);
+    store.save = rec => {
+      if (rec.stage === 'saving') throw new Error('disk full');
+      orig(rec);
+    };
+    const m = mk({ store, runner: new FakeRunner(), allowedPlaceIds: placeIds, save: async () => (saves++, { batchId: 'x' }) });
+    const id = accept(m.submit('u1', 'key-00000001', 'f1', input));
+    await until(() => m.status('u1', id)?.state === 'failed');
+    expect(m.status('u1', id)?.error).toMatchObject({ code: 'UNAVAILABLE', retryable: true });
+    expect(saves).toBe(0);
+  });
+  it('O1: deadline does not abort a save in progress; save errors map to UNAVAILABLE', async () => {
+    let release!: (v: { batchId: string }) => void;
+    const m = mk({ timeoutMs: 40, runner: new FakeRunner(), allowedPlaceIds: placeIds, save: () => new Promise(r => (release = r)) });
+    const id = accept(m.submit('u1', 'key-00000001', 'f1', input));
+    await until(() => !!release);
+    await new Promise(r => setTimeout(r, 80)); // past the deadline
+    expect(m.status('u1', id)?.state).toBe('running');
+    release({ batchId: 'late' });
+    await until(() => m.status('u1', id)?.state === 'succeeded');
+    const m2 = mk({ runner: new FakeRunner(), allowedPlaceIds: placeIds, save: async () => { throw new Error('boom'); } });
+    const id2 = accept(m2.submit('u1', 'key-00000001', 'f1', input));
+    await until(() => m2.status('u1', id2)?.state === 'failed');
+    expect(m2.status('u1', id2)?.error).toMatchObject({ code: 'UNAVAILABLE', retryable: true });
+  });
+  it('O1: save timeout consults findSavedBatch (hit => succeeded, miss => UNAVAILABLE, then resubmit is a new attempt)', async () => {
+    let found: string | null = 'tb';
+    const mkm = () => mk({ saveTimeoutMs: 30, runner: new FakeRunner(), allowedPlaceIds: placeIds, save: () => new Promise(() => {}), findSavedBatch: async () => found });
+    const m = mkm();
+    const a = accept(m.submit('u1', 'key-00000001', 'f1', input));
+    await until(() => m.status('u1', a)?.state === 'succeeded');
+    expect(m.status('u1', a)?.batchId).toBe('tb');
+    found = null;
+    const b = accept(m.submit('u1', 'key-00000002', 'f2', input));
+    await until(() => m.status('u1', b)?.state === 'failed');
+    expect(m.status('u1', b)?.error?.code).toBe('UNAVAILABLE');
+    expect(accept(m.submit('u1', 'key-00000002', 'f2', input))).not.toBe(b);
+  });
+  it('O4: an invalid batchId from the saver is not trusted', async () => {
+    const m = mk({ runner: new FakeRunner(), allowedPlaceIds: placeIds, save: async () => ({ batchId: 'bad id!' }) });
+    const id = accept(m.submit('u1', 'key-00000001', 'f1', input));
+    await until(() => m.status('u1', id)?.state === 'failed');
+    expect(m.status('u1', id)?.error?.code).toBe('UNAVAILABLE');
+    expect(m.status('u1', id)?.batchId).toBeNull();
   });
   it('without a saver, valid output fails UNAVAILABLE and never succeeds', async () => {
     const m = mk({ runner: new FakeRunner() });
@@ -233,6 +345,7 @@ describe('HTTP mapping', () => {
     const c = await app.inject({ method: 'POST', url: `/local/v1/jobs/${jobId}/cancel`, headers: h });
     expect(c.statusCode).toBe(409);
     expect((c.json() as { code: string }).code).toBe('ALREADY_COMMITTED');
+    expect((c.json() as { details?: { batchId?: string } }).details?.batchId).toBeUndefined(); // batch not known yet
     release({ batchId: 'b1' });
     for (let i = 0; i < 100; i++) {
       const s = (await app.inject({ url: `/local/v1/jobs/${jobId}`, headers: { host: HOST, cookie: h.cookie } })).json() as { state: string; batchId: string | null };
@@ -240,6 +353,50 @@ describe('HTTP mapping', () => {
       await new Promise(r => setTimeout(r, 10));
     }
     throw new Error('never succeeded');
+  });
+  it('parallel HTTP double submit yields one job and one runner call', async () => {
+    let calls = 0;
+    const config = loadConfig({ PERSONAL_OWNER_USER_ID: 'u1' });
+    const pairing = new PairingStore({ ttlMs: config.pairingTtlMs });
+    const runner: Runner = { run: async () => (calls++, { exitCode: 1, envelope: null, durationMs: 1, error: undefined }) };
+    const app = buildApp({ config, pairing, runner, fetch: upstream });
+    const p = await app.inject({ method: 'POST', url: '/local/v1/pair', payload: { code: pairing.issue() }, headers: { host: HOST, origin: ORIGIN } });
+    const h = { host: HOST, origin: ORIGIN, cookie: String(p.headers['set-cookie']).split(';')[0]!, 'x-csrf-token': (p.json() as { csrfToken: string }).csrfToken };
+    await app.inject({ method: 'POST', url: '/local/v1/auth/login', payload: { loginId: 'a', password: 'b' }, headers: h });
+    const rs = await Promise.all([1, 2, 3, 4].map(() => app.inject({ method: 'POST', url: '/local/v1/generations', payload: { constraints }, headers: { ...h, 'idempotency-key': 'key-12345678' } })));
+    expect(new Set(rs.map(r => (r.json() as { jobId: string }).jobId)).size).toBe(1);
+    expect(rs.every(r => r.statusCode === 202)).toBe(true);
+    await new Promise(r => setTimeout(r, 50));
+    expect(calls).toBe(1);
+  });
+  it('restart through buildApp + onReady: second app on the same jobDir recovers (found batch => succeeded)', async () => {
+    const dir = tmp();
+    let release!: (v: { batchId: string }) => void;
+    const mkApp = (o: { save?: ConstructorParameters<typeof JobManager>[0]['save']; find?: () => Promise<string | null> }) => {
+      const config = { ...loadConfig({ PERSONAL_OWNER_USER_ID: 'u1' }), jobDir: dir };
+      const pairing = new PairingStore({ ttlMs: config.pairingTtlMs });
+      return { pairing, app: buildApp({ config, pairing, runner: new FakeRunner(), fetch: upstream, allowedPlaceIds: placeIds, save: o.save, findSavedBatch: o.find }) };
+    };
+    const login = async (x: ReturnType<typeof mkApp>) => {
+      const p = await x.app.inject({ method: 'POST', url: '/local/v1/pair', payload: { code: x.pairing.issue() }, headers: { host: HOST, origin: ORIGIN } });
+      const h = { host: HOST, origin: ORIGIN, cookie: String(p.headers['set-cookie']).split(';')[0]!, 'x-csrf-token': (p.json() as { csrfToken: string }).csrfToken };
+      await x.app.inject({ method: 'POST', url: '/local/v1/auth/login', payload: { loginId: 'a', password: 'b' }, headers: h });
+      return h;
+    };
+    const a1 = mkApp({ save: () => new Promise(r => (release = r)) });
+    const h1 = await login(a1);
+    const g = await a1.app.inject({ method: 'POST', url: '/local/v1/generations', payload: { constraints }, headers: { ...h1, 'idempotency-key': 'key-12345678' } });
+    const { jobId } = g.json() as { jobId: string };
+    await until(() => !!release);
+    // "crash": a second app instance on the same dir
+    const a2 = mkApp({ find: async () => 'recovered' });
+    const h2 = await login(a2); // inject triggers onReady -> recovery done
+    const s = await a2.app.inject({ url: `/local/v1/jobs/${jobId}`, headers: { host: HOST, cookie: h2.cookie } });
+    expect(s.json()).toMatchObject({ state: 'succeeded', batchId: 'recovered' });
+    const same = await a2.app.inject({ method: 'POST', url: '/local/v1/generations', payload: { constraints }, headers: { ...h2, 'idempotency-key': 'key-12345678' } });
+    expect((same.json() as { jobId: string }).jobId).toBe(jobId);
+    await a1.app.close();
+    await a2.app.close();
   });
   it('baseTripId / expectedRevision stay rejected (422) until A04 passes revisions through', async () => {
     const { app, h } = await start();
@@ -254,5 +411,39 @@ describe('config', () => {
   it('AI_JOB_DIR is optional', () => {
     expect(loadConfig({ PERSONAL_OWNER_USER_ID: 'u1' }).jobDir).toBeNull();
     expect(loadConfig({ PERSONAL_OWNER_USER_ID: 'u1', AI_JOB_DIR: '/x/y' }).jobDir).toBe('/x/y');
+  });
+});
+
+describe('file journal hardening', () => {
+  it('O3/O7: invalid records are quarantined, stale tmp removed, no crash; O5/O6 permissions and secret', async () => {
+    const dir = tmp();
+    const m1 = mk({ store: new FileJobStore(dir) });
+    const a = accept(m1.submit('u1', 'key-00000001', 'f1', input));
+    const jd = join(dir, 'jobs');
+    writeFileSync(join(jd, 'bogus.json'), JSON.stringify({ jobId: 'bogus', ownerId: 'u1', state: 'weird' }));
+    writeFileSync(join(jd, 'junk.json'), '{not json');
+    writeFileSync(join(jd, `${a.slice(0, 8)}.json.123.tmp`), 'partial');
+    const m2 = mk({ store: new FileJobStore(dir) });
+    await m2.ready;
+    expect(m2.status('u1', a)?.error?.code).toBe('WORKER_RESTARTED');
+    const names = readdirSync(jd).sort();
+    expect(names).toContain('bogus.json.corrupt');
+    expect(names).toContain('junk.json.corrupt');
+    expect(names.some(n => n.endsWith('.tmp'))).toBe(false);
+    expect(statSync(dir).mode & 0o777).toBe(0o700);
+    expect(statSync(jd).mode & 0o777).toBe(0o700);
+    expect(statSync(join(jd, `${a}.json`)).mode & 0o777).toBe(0o600);
+    expect(statSync(join(dir, 'secret')).mode & 0o777).toBe(0o600);
+    // fingerprint is an HMAC, not the plain input
+    const rec = JSON.parse(readFileSync(join(jd, `${a}.json`), 'utf8')) as { fingerprint: string };
+    expect(rec.fingerprint).toMatch(/^[0-9a-f]{64}$/);
+    expect(rec.fingerprint).not.toBe('f1');
+  });
+  it('the secret is stable across restarts (idempotency still matches)', async () => {
+    const dir = tmp();
+    const a = accept(mk({ store: new FileJobStore(dir) }).submit('u1', 'key-00000001', 'f1', input));
+    const m2 = mk({ store: new FileJobStore(dir), findSavedBatch: async () => 'bb' });
+    await m2.ready;
+    expect(accept(m2.submit('u1', 'key-00000001', 'f1', input))).toBe(a);
   });
 });
