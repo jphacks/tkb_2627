@@ -1,0 +1,45 @@
+/* U04 map + itinerary. Mobile first (375px); two columns from 720px. Uses the variables of styles.css. */
+.it-meta { margin: 0 0 6px; font-size: 14px; color: var(--mut); }
+.it-fixture { margin: 6px 0; padding: 4px 10px; font-size: 13px; color: var(--warn); background: var(--warnbg); border: 1px dashed var(--warn); border-radius: 6px; }
+.it-warnings { margin: 6px 0; padding: 6px 10px 6px 28px; font-size: 13px; background: var(--warnbg); border-radius: 6px; }
+
+.it-days { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 8px; scrollbar-width: thin; }
+.it-day { flex: none; font: inherit; font-size: 14px; color: inherit; min-height: 44px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); cursor: pointer; }
+.it-day.it-on { background: var(--acc); color: var(--bg); border-color: var(--acc); font-weight: 700; }
+
+.it-layout { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.it-daymode { margin: 0; font-size: 14px; }
+@media (min-width: 720px) {
+  .it-layout { grid-template-columns: 1fr 1fr; align-items: start; }
+  .it-daymode { grid-column: 1 / -1; }
+  .it-mapcol { position: sticky; top: 8px; }
+}
+.it-mapcol { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+
+.it-map { border: 1px solid var(--line); border-radius: 8px; background: var(--card); padding: 6px; }
+.it-map-canvas { width: 100%; height: 46vh; min-height: 240px; max-height: 420px; border-radius: 6px; }
+.it-map-static { border-style: dashed; }
+.it-map-reason { margin: 2px 4px 6px; font-size: 13px; color: var(--warn); }
+
+.it-points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.it-points-compact { flex-direction: row; flex-wrap: wrap; margin-top: 6px; }
+.it-point { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; font: inherit; font-size: 14px; color: inherit; text-align: left; background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; cursor: pointer; }
+.it-points-compact .it-point { width: auto; }
+.it-point.it-on, .it-item.it-on { outline: 3px solid #d97706; background: var(--warnbg); }
+
+.it-num { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 26px; padding: 0 6px; margin-right: 6px; border-radius: 13px; background: #2563eb; color: #fff; font-size: 13px; font-weight: 700; }
+.it-on .it-num { background: #d97706; }
+.it-num-none { background: var(--line); color: var(--mut); }
+
+.it-timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.it-item { display: flex; flex-direction: column; gap: 2px; width: 100%; min-height: 44px; text-align: left; font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line); border-left: 6px solid var(--acc); border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+.it-leg { border-left-color: #6b7fd7; border-style: dashed; border-left-style: solid; margin-left: 12px; width: calc(100% - 12px); }
+.it-time { font-size: 13px; font-weight: 700; color: var(--mut); font-variant-numeric: tabular-nums; }
+.it-title { font-weight: 600; display: flex; align-items: center; flex-wrap: wrap; }
+.it-legmode { font-size: 12px; border: 1px solid currentColor; border-radius: 4px; padding: 0 6px; margin-right: 6px; color: #6b7fd7; }
+.it-transit { font-size: 13px; }
+.it-item:focus-visible, .it-point:focus-visible, .it-day:focus-visible { outline: 3px solid #e0a100; outline-offset: 2px; }
+
+.it-attr { font-size: 12px; color: var(--mut); border-top: 1px solid var(--line); padding-top: 4px; }
+.it-attr p { margin: 2px 0; }
+.it-google { color: var(--fg); }

@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
 import { FIXTURE_NOTICE, fixtureTrips } from '@tkb/fixtures';
+import { ItineraryScreen } from './screens/itinerary/ItineraryScreen.tsx';
+import { parseItineraryHash } from './screens/itinerary/route.ts';
 import { U01App } from './screens/U01App.tsx';
 import { ConnectionChips } from './shell/ConnectionChips.tsx';
 import { TripViewer } from './shell/TripViewer.tsx';
@@ -18,7 +21,16 @@ function DevShell() {
 }
 
 export function App() {
+  const [hash, setHash] = useState(() => (typeof location !== 'undefined' ? location.hash : ''));
+  useEffect(() => {
+    const on = () => setHash(location.hash);
+    window.addEventListener('hashchange', on);
+    return () => window.removeEventListener('hashchange', on);
+  }, []);
+  // U04: #/trips/<id>/map (server) or #/mock/trips/<id>/map (mock). Reload refetches the trip by id.
+  const itinerary = parseItineraryHash(hash);
+  if (itinerary) return <ItineraryScreen key={`${itinerary.mode}:${itinerary.tripId}`} route={itinerary} onBack={() => { location.hash = ''; }} />;
   // The U01 screens are the default (M1, #9). The skeleton stays reachable for development only.
-  if (typeof location !== 'undefined' && location.hash === '#dev-shell') return <DevShell />;
+  if (hash === '#dev-shell') return <DevShell />;
   return <U01App />;
 }
