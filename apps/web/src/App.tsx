@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { FIXTURE_NOTICE, fixtureTrips } from '@tkb/fixtures';
 import { ConditionsApp } from './screens/conditions/ConditionsApp.tsx';
+import { GenerateApp } from './screens/generate/GenerateApp.tsx';
 import { ItineraryScreen } from './screens/itinerary/ItineraryScreen.tsx';
 import { parseItineraryHash } from './screens/itinerary/route.ts';
 import { EditScreen } from './screens/edit/EditScreen.tsx';
 import { parseTripScreenHash } from './screens/edit/route.ts';
 import { TravelScreen } from './screens/travel/TravelScreen.tsx';
 import { U01App } from './screens/U01App.tsx';
+import { SocialApp } from './screens/social/SocialApp.tsx';
 import { ConnectionChips } from './shell/ConnectionChips.tsx';
 import { TripViewer } from './shell/TripViewer.tsx';
 
@@ -43,5 +45,10 @@ export function App() {
   if (hash === '#dev-shell') return <DevShell />;
   // U03 condition input (mock / live switch). Joins the U01 flow once U05 progress is wired (#31).
   if (hash === '#conditions') return <ConditionsApp />;
+  // U05 generation flow: conditions -> progress -> candidate compare -> apply -> U04 map (#33).
+  if (hash === '#generate') return <GenerateApp />;
+  // U08: SNS and group screens (#social), and the K17 invite link /invite#<token> (shared server).
+  if (typeof location !== 'undefined' && location.pathname === '/invite') return <SocialApp initialMode="server" inviteToken={location.hash.slice(1) || null} />;
+  if (hash === '#social') return <SocialApp />;
   return <U01App />;
 }
