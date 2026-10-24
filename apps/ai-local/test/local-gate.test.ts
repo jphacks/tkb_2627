@@ -31,7 +31,7 @@ function loginFetch(userId: string, status = 200, calls: Calls[] = []): FetchLik
 }
 
 function make(o: { failure?: FakeFailureMode; config?: Partial<PersonalConfig>; fetch?: FetchLike; env?: NodeJS.ProcessEnv } = {}) {
-  const config = { ...loadConfig({ PERSONAL_ALLOWED_USER_IDS: 'u1, u2', ...o.env }), ...o.config };
+  const config = { ...loadConfig({ PERSONAL_OWNER_USER_ID: 'u1', ...o.env }), ...o.config };
   const pairing = new PairingStore({ ttlMs: config.pairingTtlMs });
   const app = buildApp({
     config,
@@ -107,18 +107,19 @@ describe('pairing and CSRF', () => {
     for (let i = 0; i < 4; i++) expect((await post(a, '/local/v1/pair', { code: 'WRONG' + i })).statusCode).toBe(403);
     const fifth = await post(a, '/local/v1/pair', { code: 'WRONG5' });
     expect(fifth.statusCode).toBe(429);
-    expect((await post(a, '/local/v1/pair', { code: good })).statusCode).toBe(429);
+    expect((await post(a, '/local/v1/pair', { code: good })).statusCode).toBe(410);
 
     const b = make();
     await pair(b);
     const reuse = await post(b, '/local/v1/pair', { code: 'ANYTHING' });
-    expect(reuse.statusCode).toBe(429);
+    expect(reuse.statusCode).toBe(410);
+    expect(code(reuse)).toBe('EXPIRED');
 
     let t = 1000;
     const p = new PairingStore({ ttlMs: 100, now: () => t });
     const c = p.issue();
     t += 101;
-    expect(p.verify(c)).toBe('locked');
+    expect(p.verify(c)).toBe('expired');
   });
   it('unpaired is 401; missing or wrong CSRF is 403', async () => {
     const a = make();
@@ -139,7 +140,7 @@ describe('login proxy', () => {
     const a = make({ fetch: loginFetch('u1', 200, calls) });
     const s = await pair(a);
     const r = await post(a, '/local/v1/auth/login', { loginId: 'a', password: 'b' }, { cookie: s.cookie, 'x-csrf-token': s.csrf, authorization: 'Bearer x', 'x-forwarded-for': '1.2.3.4' });
-    expect(r.json()).toEqual({ userId: 'u1', displayName: 'Taro' });
+    expect(r.json()).toEqual({ userId: 'u1', displayName: 'Taro', csrfToken: s.csrf });
     expect(JSON.stringify(r.headers)).not.toContain('UPSTREAM');
     expect(r.body).not.toContain('UPSTREAM');
     expect(calls).toHaveLength(1);
@@ -156,14 +157,14 @@ describe('login proxy', () => {
     expect((await post(a, '/local/v1/auth/login', { loginId: 'a', password: 'b', url: 'http://evil' }, h)).statusCode).toBe(422);
     expect(calls).toHaveLength(0);
   });
-  it('rejects users outside the allowlist and discards the session', async () => {
-    const a = make({ fetch: loginFetch('stranger') });
+  it('rejects users other than the owner and discards the session', async () => {
+    const a = make({ fetch: loginFetch('u2') });
     const s = await pair(a);
     const h = { cookie: s.cookie, 'x-csrf-token': s.csrf };
     const r = await post(a, '/local/v1/auth/login', { loginId: 'a', password: 'b' }, h);
     expect(r.statusCode).toBe(403);
     expect((await gen(a, h)).statusCode).toBe(401);
-    const empty = make({ env: { PERSONAL_ALLOWED_USER_IDS: '' } });
+    const empty = make({ env: { PERSONAL_OWNER_USER_ID: '' } });
     const s2 = await pair(empty);
     expect((await post(empty, '/local/v1/auth/login', { loginId: 'a', password: 'b' }, { cookie: s2.cookie, 'x-csrf-token': s2.csrf })).statusCode).toBe(403);
   });
@@ -216,29 +217,6 @@ describe('generation gate', () => {
     expect(diff.statusCode).toBe(409);
     expect(code(diff)).toBe('IDEMPOTENCY_CONFLICT');
   });
-  it('hides jobs from other owners', async () => {
-    const a = make({
-      failure: 'timeout',
-      fetch: async (_u, init) => loginFetch(JSON.parse(String(init.body)).loginId)(_u, init),
-    });
-    const login = async (loginId: string) => {
-      const s = await pair(a);
-      const h = { cookie: s.cookie, 'x-csrf-token': s.csrf };
-      expect((await post(a, '/local/v1/auth/login', { loginId, password: 'b' }, h)).statusCode).toBe(200);
-      return h;
-    };
-    const h1 = await login('u1');
-    const h2 = await login('u2');
-    const id = JobAccepted.parse((await gen(a, h1)).json()).jobId;
-    const mine = await a.app.inject({ url: `/local/v1/jobs/${id}`, headers: { host: HOST, cookie: h1.cookie } });
-    expect(mine.statusCode).toBe(200);
-    const other = await a.app.inject({ url: `/local/v1/jobs/${id}`, headers: { host: HOST, cookie: h2.cookie } });
-    expect(other.statusCode).toBe(404);
-    expect((await post(a, `/local/v1/jobs/${id}/cancel`, undefined, h2)).statusCode).toBe(404);
-    // same idempotency key under another owner is a separate job
-    expect(JobAccepted.parse((await gen(a, h2)).json()).jobId).not.toBe(id);
-    expect((await a.app.inject({ url: `/local/v1/jobs/${id}`, headers: { host: HOST } })).statusCode).toBe(401);
-  });
   it('queue full is 429 QUEUE_FULL', async () => {
     const a = make({ failure: 'timeout', config: { aiQueueLimit: 1, aiTimeoutMs: 60_000 } });
     const { h } = await session(a);
@@ -278,10 +256,44 @@ describe('generation gate', () => {
     const { h } = await session(a);
     const id = JobAccepted.parse((await gen(a, h)).json()).jobId;
     const r = await post(a, `/local/v1/jobs/${id}/cancel`, undefined, h);
-    expect(r.statusCode).toBe(200);
+    expect(r.statusCode).toBe(202);
     expect((r.json() as { state: string }).state).toBe('cancelled');
+    expect((await post(a, `/local/v1/jobs/${id}/cancel`, undefined, h)).statusCode).toBe(200); // already terminal
     expect((await waitState(a, h, id, 'cancelled')).error).toBeNull();
     expect((await post(a, `/local/v1/jobs/${id}/cancel`, undefined, { cookie: h.cookie })).statusCode).toBe(403);
+  });
+});
+
+describe('review fixes', () => {
+  it('pollAfterMs is 2000, replan is rejected, requestId is the submitting request id', async () => {
+    const a = make({ failure: 'exit_nonzero' });
+    const { h } = await session(a);
+    const ok = await gen(a, h);
+    expect(JobAccepted.parse(ok.json()).pollAfterMs).toBe(2000);
+    const replan = await gen(a, h, 'key-replan01', { mode: 'replan', constraints, baseTripId: 'trip1', expectedRevision: 1 });
+    expect(replan.statusCode).toBe(422);
+    expect(code(replan)).toBe('VALIDATION_FAILED');
+    const j = await waitState(a, h, JobAccepted.parse(ok.json()).jobId, 'failed');
+    expect(j.error?.requestId).toBe(ok.headers['x-request-id']);
+  });
+  it('GET /local/v1/session', async () => {
+    const a = make();
+    expect((await a.app.inject({ url: '/local/v1/session', headers: { host: HOST } })).statusCode).toBe(401);
+    const s = await pair(a);
+    const r1 = await a.app.inject({ url: '/local/v1/session', headers: { host: HOST, cookie: s.cookie } });
+    expect(r1.json()).toEqual({ csrfToken: s.csrf, userId: null });
+    await post(a, '/local/v1/auth/login', { loginId: 'a', password: 'b' }, { cookie: s.cookie, 'x-csrf-token': s.csrf });
+    const r2 = await a.app.inject({ url: '/local/v1/session', headers: { host: HOST, cookie: s.cookie } });
+    expect(r2.json()).toEqual({ csrfToken: s.csrf, userId: 'u1' });
+  });
+  it('cancelling a queued job frees queue capacity immediately', async () => {
+    const a = make({ failure: 'timeout', config: { aiQueueLimit: 1, aiTimeoutMs: 60_000 } });
+    const { h } = await session(a);
+    await gen(a, h, 'key-00000001');
+    const q = JobAccepted.parse((await gen(a, h, 'key-00000002')).json()).jobId;
+    expect((await gen(a, h, 'key-00000003')).statusCode).toBe(429);
+    expect((await post(a, `/local/v1/jobs/${q}/cancel`, undefined, h)).statusCode).toBe(202);
+    expect((await gen(a, h, 'key-00000003')).statusCode).toBe(202);
   });
 });
 

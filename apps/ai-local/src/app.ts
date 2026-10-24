@@ -5,7 +5,10 @@ import {
   ApiError,
   Capabilities,
   ERROR_HTTP_STATUS,
+  CancelResult,
   GenerateRequest,
+  JobStatus,
+  LoginResponse,
   Health,
   Id,
   LoginRequest,
@@ -17,7 +20,7 @@ import { FakeRunner, type Runner } from '@tkb/ai';
 import { PairingStore, safeEqual } from './auth/pairing.ts';
 import { SESSION_COOKIE, SessionStore, parseCookies, sessionCookieHeader, type LocalSession } from './auth/session.ts';
 import type { PersonalConfig } from './config.ts';
-import { JobManager } from './jobs.ts';
+import { JobManager } from './jobs/index.ts';
 import { createSharedClient, type FetchLike, type SharedClient } from './shared-client/index.ts';
 
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,128}$/;
@@ -139,7 +142,8 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
       return sendError(reply, req.id, 'VALIDATION_FAILED', 'Invalid request.');
     }
     const r = pairing.verify(b.code);
-    if (r === 'locked') return sendError(reply, req.id, 'RATE_LIMITED', 'Pairing code is no longer valid.');
+    if (r === 'expired') return sendError(reply, req.id, 'EXPIRED', 'Pairing code expired or already used.');
+    if (r === 'locked') return sendError(reply, req.id, 'RATE_LIMITED', 'Too many attempts; the pairing code was invalidated.');
     if (r === 'invalid') return sendError(reply, req.id, 'FORBIDDEN', 'Forbidden.');
     const s = sessions.create();
     reply.header('set-cookie', sessionCookieHeader(s.id));
@@ -153,12 +157,13 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     if (!body.success) return sendError(reply, req.id, 'VALIDATION_FAILED', 'Invalid request.');
     const r = await shared.login(body.data);
     if (!r.ok) return sendError(reply, req.id, r.code, 'Login failed.', r.retryable);
-    if (!config.allowedUserIds.includes(r.userId)) {
+    if (config.ownerUserId === null || r.userId !== config.ownerUserId) {
       session.upstream = null; // discard the upstream session
       return sendError(reply, req.id, 'FORBIDDEN', 'Forbidden.');
     }
     session.upstream = { userId: r.userId, displayName: r.displayName, cookie: r.cookie, csrfToken: r.csrfToken };
-    return { userId: r.userId, displayName: r.displayName };
+    // csrfToken is the LOCAL session token; the upstream one never leaves the server.
+    return LoginResponse.parse({ userId: r.userId, displayName: r.displayName, csrfToken: session.csrfToken });
   });
 
   // K01. Full job lifecycle/dedup belongs to A03; candidate saving to S04/A04.
@@ -175,16 +180,18 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     const input: GenerationInput = {
       schemaVersion: SCHEMA_VERSION,
       constraints: body.data.constraints,
-      allowedPlaceIds: body.data.constraints.mustVisit ?? [],
+      allowedPlaceIds: [], // real allowed IDs come from the shared server (A04); mustVisit is user input
       facts: [],
       fixedActivities: [],
       instructions: 'Return a plan blueprint as structured output.',
     };
+    // TODO(A06): replan. Never silently run it as generate.
+    if (body.data.mode === 'replan') return sendError(reply, req.id, 'VALIDATION_FAILED', 'mode=replan is not supported yet.');
     const fingerprint = createHash('sha256').update(JSON.stringify(body.data)).digest('hex');
-    const r = jobs.submit(owner, key, fingerprint, input);
+    const r = jobs.submit(owner, key, fingerprint, input, req.id);
     if (r.kind === 'conflict') return sendError(reply, req.id, 'IDEMPOTENCY_CONFLICT', 'Idempotency-Key reused with a different request.');
     if (r.kind === 'full') return sendError(reply, req.id, 'QUEUE_FULL', 'Queue is full.', true);
-    return reply.status(202).send({ jobId: r.jobId, state: 'queued', pollAfterMs: 1000 });
+    return reply.status(202).send({ jobId: r.jobId, state: 'queued', pollAfterMs: 2000 });
   });
 
   const jobIdOf = (req: FastifyRequest) => Id.safeParse((req.params as { jobId: string }).jobId);
@@ -194,7 +201,7 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     if (!owner) return sendError(reply, req.id, 'UNAUTHENTICATED', 'Login required.');
     const id = jobIdOf(req);
     const st = id.success ? jobs.status(owner, id.data) : null;
-    return st ?? sendError(reply, req.id, 'NOT_FOUND', 'Not found.');
+    return st ? JobStatus.parse(st) : sendError(reply, req.id, 'NOT_FOUND', 'Not found.');
   });
 
   app.post('/local/v1/jobs/:jobId/cancel', async (req, reply) => {
@@ -202,7 +209,16 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     if (!owner) return sendError(reply, req.id, 'UNAUTHENTICATED', 'Login required.');
     const id = jobIdOf(req);
     const r = id.success ? jobs.cancel(owner, id.data) : null;
-    return r ?? sendError(reply, req.id, 'NOT_FOUND', 'Not found.');
+    if (!r) return sendError(reply, req.id, 'NOT_FOUND', 'Not found.');
+    // K21: 202 when the cancel was accepted for a queued/running job, 200 if already terminal.
+    const { wasActive, ...result } = r;
+    return reply.status(wasActive ? 202 : 200).send(CancelResult.parse(result));
+  });
+
+  app.get('/local/v1/session', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return sendError(reply, req.id, 'UNAUTHENTICATED', 'Pairing required.');
+    return { csrfToken: s.csrfToken, userId: s.upstream?.userId ?? null };
   });
 
   return app;

@@ -6,10 +6,13 @@ export interface PersonalConfig {
   port: number;
   allowClaudeExecution: boolean;
   sharedBaseUrl: string;
-  /** Shared-server userIds allowed to use this personal entry. Empty = deny all (fail closed). */
-  allowedUserIds: string[];
+  /** The single shared-server userId allowed to use this entry (A01: owner's own account only). null = deny all. */
+  ownerUserId: string | null;
   aiQueueLimit: number;
+  /** Overall per-job deadline, counted from submit (queue wait included). */
   aiTimeoutMs: number;
+  /** Per CLI invocation timeout; used by the real runner later. */
+  cliTimeoutMs: number;
   pairingTtlMs: number;
 }
 
@@ -37,14 +40,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): PersonalConfig
   if (!LOOPBACK.has(bind)) throw new Error('PERSONAL_BIND must be a loopback address');
   const port = Number(env.PERSONAL_PORT ?? 4311);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('invalid PERSONAL_PORT');
+  if (env.PERSONAL_ALLOWED_USER_IDS !== undefined) throw new Error('PERSONAL_ALLOWED_USER_IDS is replaced by PERSONAL_OWNER_USER_ID');
+  const owner = (env.PERSONAL_OWNER_USER_ID ?? '').trim();
+  if (/[\s,]/.test(owner)) throw new Error('PERSONAL_OWNER_USER_ID must be a single user id');
   return {
     bind,
     port,
     allowClaudeExecution: env.ALLOW_CLAUDE_EXECUTION === 'true',
     sharedBaseUrl: env.SHARED_BASE_URL ?? 'http://127.0.0.1:4310',
-    allowedUserIds: (env.PERSONAL_ALLOWED_USER_IDS ?? '').split(',').map(s => s.trim()).filter(Boolean),
+    ownerUserId: owner || null,
     aiQueueLimit: posInt(env.AI_QUEUE_LIMIT, 8, 'AI_QUEUE_LIMIT'),
-    aiTimeoutMs: posInt(env.AI_TIMEOUT_SECONDS, 180, 'AI_TIMEOUT_SECONDS') * 1000,
+    aiTimeoutMs: posInt(env.AI_TIMEOUT_SECONDS, 300, 'AI_TIMEOUT_SECONDS') * 1000,
+    cliTimeoutMs: posInt(env.CLI_TIMEOUT_SECONDS, 120, 'CLI_TIMEOUT_SECONDS') * 1000,
     pairingTtlMs: 10 * 60_000,
   };
 }

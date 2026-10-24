@@ -11,7 +11,7 @@ export function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(digest(a), digest(b));
 }
 
-export type PairingResult = 'ok' | 'invalid' | 'locked';
+export type PairingResult = 'ok' | 'invalid' | 'locked' | 'expired';
 
 export interface PairingOptions {
   ttlMs: number;
@@ -44,9 +44,10 @@ export class PairingStore {
   }
 
   verify(code: string): PairingResult {
+    // No active code (never issued, used, expired or locked out earlier): expired.
     if (!this.hash || this.now() > this.expiresAt) {
       this.hash = null;
-      return 'locked';
+      return 'expired';
     }
     if (timingSafeEqual(digest(code), this.hash)) {
       this.hash = null; // single use
