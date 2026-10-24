@@ -59,7 +59,7 @@ describe('T05-4 shared server: no log output and no leaking 5xx', () => {
     for (const f of ['apps/server/src/platform/app.ts', 'apps/ai-local/src/app.ts']) expect(read(`${ROOT}/${f}`), f).toMatch(/logger:\s*false/);
     const calls: string[] = [];
     for (const f of sourceFiles(['apps/server/src', 'apps/ai-local/src', 'packages/db/src', 'packages/ai/src', 'packages/contracts/src'], { skipTests: true })) {
-      for (const m of read(f).matchAll(/console\.\w+\(([^\n]*)/g)) calls.push(`${rel(f)}: ${m[0]}`);
+      for (const m of read(f).matchAll(/console\.\w+\(([\s\S]*?)\);/g)) calls.push(`${rel(f)}: ${m[0].replace(/\s+/g, ' ')}`);
     }
     // Every call is a fixed message (no interpolated secret-looking value). Pairing code on the terminal is by design (A02).
     expect(calls.length).toBeGreaterThan(0);
@@ -248,8 +248,6 @@ describe('T05-5 cookie attributes on the shared entry', () => {
     expect(c.some(x => /^(Max-Age=0|Expires=)/i.test(x))).toBe(true);
   });
   it('personal entry cookie is HttpOnly, SameSite=Strict, scoped to /local, and carries no Domain', async () => {
-    const c = buildLocal({ config: loadLocal({ PERSONAL_OWNER_USER_ID: 'u1' }) });
-    apps.push(c);
     const pairing = new PairingStore({ ttlMs: 1000 });
     const app = buildLocal({ config: loadLocal({ PERSONAL_OWNER_USER_ID: 'u1' }), pairing });
     apps.push(app);

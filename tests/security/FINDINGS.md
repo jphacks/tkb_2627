@@ -7,7 +7,7 @@
 
 | # | 観測 | 影響 | 扱い |
 |---|---|---|---|
-| O-1 | `app.inject()`(light-my-request)は `/\local\v1\pair` を WHATWG URL 経由で `//local/...` と解釈し、`/v1/pair` として SPA シェルを返す。実ソケットでは生の `\` が届き /local として拒否される | 試験ハーネス固有。実サーバーでは SPA シェル(index.html、秘密なし)が返るだけで /local 処理系には到達しない | `public-boundary.test.ts` の「raw request targets」で実ソケット検証済み |
+| O-1 | `app.inject()`(light-my-request)は `/\local\v1\pair` を WHATWG URL 経由で `//local/...` と解釈し、SPA シェルを返す | inject 固有。実サーバーでは static.ts が `\` を `/` に正規化して予約 prefix と判定し 404、SPA も返らない | `public-boundary.test.ts` の「raw request targets」(実ソケット、GET は status>=400 も確認)で検証済み |
 | O-2 | `apps/ai-local/src/main.ts` は単回使用ペアリングコードを端末へ `console.log` する | 設計どおり(A02)。端末のみ・HTTP非公開 | 変更不要。ソース走査は補間された秘密を禁止する範囲に限定 |
 | O-3 | CI は `check:secrets` というスクリプト名を含むが secrets 参照ではない | なし | 試験の正規表現は `${{ secrets` / `secrets.` / GITHUB_TOKEN のみ対象 |
 

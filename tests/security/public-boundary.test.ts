@@ -77,6 +77,7 @@ describe('T05-1 shared entry never reaches the personal AI entry', () => {
         sock.on('data', d => (buf += d)).on('end', () => resolve(buf)).on('error', reject);
       });
       expect(raw, JSON.stringify(target)).not.toContain('<title>spa</title>');
+      expect(Number(/^HTTP\/1\.1 (\d{3})/.exec(raw)?.[1] ?? 0), JSON.stringify(target)).toBeGreaterThanOrEqual(400);
     }
   });
 
@@ -102,7 +103,7 @@ describe('T05-1 shared entry never reaches the personal AI entry', () => {
     // The personal entry has no static/SPA fallback: unknown paths are plain K23 404, even for the shared app's paths.
     const r = await local.inject({ url: '/api/v1/health', headers: { host: '127.0.0.1:4311' } });
     expect(r.statusCode).toBe(404);
-    // Pairing code issued for the personal app is useless on the shared app and vice versa.
+    // A shared-server session cookie does not authenticate against the personal entry (one direction; the reverse is covered by the no-/local-route checks above).
     const sr = await s.app.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { loginId: 'user-a', password: PW } });
     expect(sr.statusCode).toBe(200);
     const sharedCookie = String(sr.headers['set-cookie']).split(';')[0]!;
@@ -113,13 +114,14 @@ describe('T05-1 shared entry never reaches the personal AI entry', () => {
 
 describe('T05-2 SSRF: no path lets a client choose an outbound URL', () => {
   it('server and ai-local sources never call fetch/http(s).request/net.connect except the single shared-client call', () => {
-    const files = sourceFiles(['apps/server/src', 'apps/ai-local/src', 'packages/ai/src', 'packages/db/src', 'packages/contracts/src', 'packages/planner/src', 'packages/exports/src'], { skipTests: true });
+    const files = sourceFiles(['apps/server/src', 'apps/ai-local/src', 'packages/ai/src', 'packages/db/src', 'packages/contracts/src', 'packages/planner/src', 'packages/exports/src', 'packages/travel-data/src', 'packages/fixtures/src', 'scripts'], { skipTests: true });
     expect(files.length).toBeGreaterThan(10);
     const hits: string[] = [];
     for (const f of files) {
       const t = read(f);
       for (const m of t.matchAll(/\b(fetch\s*\(|https?\.(request|get)\s*\(|net\.(connect|createConnection)\s*\(|undici|node-fetch|axios|XMLHttpRequest|WebSocket\s*\(|dns\.(lookup|resolve))/g)) hits.push(`${rel(f)}: ${m[0]}`);
-      expect(t, rel(f)).not.toMatch(/from ['"]node:(http|https|net|tls|dgram)['"]/);
+      expect(t, rel(f)).not.toMatch(/(from\s+|import\s*\(\s*|require\s*\(\s*)['"](node:)?(http|https|http2|net|tls|dgram|dns|undici|node-fetch|axios|ws)['"]/);
+      expect(t, rel(f)).not.toMatch(/\brequire\s*\(/);
     }
     expect(hits).toEqual(['apps/ai-local/src/shared-client/index.ts: fetch(']);
   });
@@ -146,15 +148,19 @@ describe('T05-2 SSRF: no path lets a client choose an outbound URL', () => {
     const cookie = String(p.headers['set-cookie']).split(';')[0]!;
     const csrf = (p.json() as { csrfToken: string }).csrfToken;
     const evil = ['http://evil.example/steal', '//evil.example', 'https://169.254.169.254/latest/meta-data', 'file:///etc/passwd', '@evil.example', '../../x'];
+    let reachedUpstream = 0;
     for (const v of evil) {
       for (const body of [{ loginId: v, password: v }, { loginId: 'a', password: 'b', url: v, baseUrl: v, path: v, host: v }]) {
         const r = await l2.inject({ method: 'POST', url: '/local/v1/auth/login', payload: body, headers: { ...H, cookie, 'x-csrf-token': csrf, referer: v, 'x-forwarded-host': v, 'x-forwarded-for': '169.254.169.254' } });
         expect(r.statusCode).toBeGreaterThanOrEqual(400);
+        if (r.statusCode === 401) reachedUpstream++; // upstream mock answers 401; 422 means rejected before any call
       }
     }
+    expect(reachedUpstream).toBeGreaterThanOrEqual(evil.length); // every URL-like loginId/password pair was a valid body
     // Query strings and path suffixes on the local route cannot redirect the upstream call either.
-    await l2.inject({ method: 'POST', url: '/local/v1/auth/login?url=http://evil.example&next=//evil.example', payload: { loginId: 'a', password: 'b' }, headers: { ...H, cookie, 'x-csrf-token': csrf } });
-    expect(calls.length).toBeGreaterThan(0);
+    const q = await l2.inject({ method: 'POST', url: '/local/v1/auth/login?url=http://evil.example&next=//evil.example', payload: { loginId: 'a', password: 'b' }, headers: { ...H, cookie, 'x-csrf-token': csrf } });
+    expect(q.statusCode).toBe(401);
+    expect(calls).toHaveLength(reachedUpstream + 1); // one upstream call per accepted request, none for rejected ones
     for (const c of calls) {
       expect(c.url).toBe('http://127.0.0.1:4310/api/v1/auth/login');
       const h = new Headers(c.init.headers as Record<string, string>);
@@ -167,17 +173,20 @@ describe('T05-2 SSRF: no path lets a client choose an outbound URL', () => {
 
   it('shared client does not follow upstream redirects to another host and never forwards credentials there', async () => {
     const seen: string[] = [];
+    const redirects: unknown[] = [];
     const client = createSharedClient({
       baseUrl: 'http://127.0.0.1:4310',
+      // Record only: an expect() inside the mock would be swallowed by the client's try/catch around fetch.
       fetch: async (url, init) => {
         seen.push(url);
-        expect(init.redirect).toBe('manual'); // the real fetch would not follow; a 3xx must surface as an error
+        redirects.push(init.redirect);
         return new Response(null, { status: 302, headers: { location: 'http://evil.example/' } });
       },
     });
     const r = await client.login({ loginId: 'a', password: 'b' });
-    expect(r.ok).toBe(false);
-    expect(seen).toEqual(['http://127.0.0.1:4310/api/v1/auth/login']);
+    expect(redirects).toEqual(['manual']); // the real fetch would not follow; the 3xx surfaces as an error
+    expect(seen).toEqual(['http://127.0.0.1:4310/api/v1/auth/login']); // exactly one call, no second hop to the Location host
+    expect(r).toEqual({ ok: false, code: 'UNAVAILABLE', retryable: true });
   });
 
   it('shared client exposes no method other than login (no generic proxy)', () => {
