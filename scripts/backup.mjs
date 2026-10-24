@@ -28,6 +28,7 @@ const stamp = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z').replace(/[:]/g,
 const out = resolve(root, values.out ?? `backups/travel-${stamp}.sqlite`);
 try {
   const summary = backupDatabase(src, out);
+  for (const w of summary.warnings) console.error(`warning: ${w}`);
   console.log(`backup written: ${out}`);
   console.log(formatSummary(summary));
 } catch (e) {

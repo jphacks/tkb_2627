@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { chmodSync, copyFileSync, constants, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { chmodSync, closeSync, copyFileSync, constants, existsSync, lstatSync, mkdirSync, openSync, rmSync, statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { migrate, openDatabase } from './index.ts';
 
@@ -14,9 +14,19 @@ export class BackupError extends Error {}
 
 const SIDECARS = ['-wal', '-shm'];
 
+/** lstat, so a dangling symlink counts as taken. */
+function pathTaken(path: string): boolean {
+  try {
+    lstatSync(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function assertFresh(path: string, what: string): void {
   for (const suffix of ['', ...SIDECARS]) {
-    if (existsSync(path + suffix)) throw new BackupError(`${what} already exists, refusing to overwrite: ${path + suffix}`);
+    if (pathTaken(path + suffix)) throw new BackupError(`${what} already exists, refusing to overwrite: ${path + suffix}`);
   }
 }
 
@@ -52,22 +62,30 @@ export function inspectDatabase(path: string): DbSummary {
 
 /**
  * Consistent single-file snapshot of a live (WAL) database via VACUUM INTO. Committed data still
- * in the -wal file is included. Never overwrites an existing file. Output is 0600 in a 0700 dir.
+ * in the -wal file is included. Never overwrites an existing file. Output is created 0600; a new directory is 0700.
  */
-export function backupDatabase(srcPath: string, destPath: string): DbSummary {
+export function backupDatabase(srcPath: string, destPath: string): DbSummary & { warnings: string[] } {
   if (!existsSync(srcPath)) throw new BackupError(`source database not found: ${srcPath}`);
   assertFresh(destPath, 'backup file');
-  mkdirSync(dirname(destPath), { recursive: true, mode: 0o700 });
-  const src = new DatabaseSync(srcPath);
-  try {
-    src.exec('PRAGMA busy_timeout = 5000');
-    src.prepare('VACUUM INTO ?').run(destPath);
-  } finally {
-    src.close();
+  const dir = dirname(destPath);
+  const warnings: string[] = [];
+  const dirExisted = existsSync(dir);
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  if (dirExisted && (statSync(dir).mode & 0o077) !== 0) {
+    warnings.push(`backup directory is not private (0700 recommended): ${dir}`);
   }
-  chmodSync(destPath, 0o600);
+  // Create the empty 0600 file first so the data is never exposed with looser permissions.
+  closeSync(openSync(destPath, 'wx', 0o600));
   try {
-    return inspectDatabase(destPath);
+    const src = new DatabaseSync(srcPath);
+    try {
+      src.exec('PRAGMA busy_timeout = 5000');
+      src.prepare('VACUUM INTO ?').run(destPath);
+    } finally {
+      src.close();
+    }
+    chmodSync(destPath, 0o600);
+    return { ...inspectDatabase(destPath), warnings };
   } catch (e) {
     rmSync(destPath, { force: true });
     throw e;

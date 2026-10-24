@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { DatabaseSync } from 'node:sqlite';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, statSync, openSync, writeSync, closeSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, symlinkSync, rmSync, statSync, openSync, writeSync, chmodSync, writeFileSync, closeSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -93,6 +94,20 @@ describe('backup and restore', () => {
     expect(Object.keys(postIds)).toHaveLength(3);
     expect(statSync(live + '-wal').size).toBeGreaterThan(0); // un-checkpointed writes exist
 
+    // A plain copy of the main file alone loses the un-checkpointed rows; the snapshot must not.
+    const naive = join(dir, 'naive.sqlite');
+    copyFileSync(live, naive);
+    const naiveDb = new DatabaseSync(naive, { readOnly: true });
+    const naivePosts = (() => {
+      try {
+        return (naiveDb.prepare('SELECT count(*) AS n FROM posts').get() as { n: number }).n;
+      } catch {
+        return 0;
+      }
+    })();
+    naiveDb.close();
+    expect(naivePosts).toBe(0);
+
     const bak = join(dir, 'out', 'b.sqlite');
     const summary = backupDatabase(live, bak);
     expect(summary.integrity).toBe('ok');
@@ -138,6 +153,26 @@ describe('backup and restore', () => {
     expect(readFileSync(bak).equals(before)).toBe(true);
     expect(() => restoreDatabase(bak, live)).toThrow(/already exists/);
     expect(() => backupDatabase(join(dir, 'missing.sqlite'), join(dir, 'x.sqlite'))).toThrow(BackupError);
+  });
+
+  it('refuses a dangling symlink as output, warns on a loose existing directory, and cleans up on failure', () => {
+    const dir = tmp();
+    const live = join(dir, 'live.sqlite');
+    seedLive(live);
+    const link = join(dir, 'link.sqlite');
+    symlinkSync(join(dir, 'nowhere'), link);
+    expect(() => backupDatabase(live, link)).toThrow(/already exists/);
+    expect(existsSync(join(dir, 'nowhere'))).toBe(false);
+    // dir is created by mkdtemp as 0700 normally; loosen it to check the warning
+    chmodSync(dir, 0o755);
+    const r = backupDatabase(live, join(dir, 'ok.sqlite'));
+    expect(r.warnings).toHaveLength(1);
+    // failure (source is not a database) leaves no partial output
+    const notDb = join(dir, 'notdb.sqlite');
+    writeFileSync(notDb, 'x'.repeat(200));
+    const out = join(dir, 'fail.sqlite');
+    expect(() => backupDatabase(notDb, out)).toThrow();
+    expect(existsSync(out)).toBe(false);
   });
 
   it('reports an integrity error for a damaged backup and creates no restore target', () => {

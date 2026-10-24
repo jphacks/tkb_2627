@@ -18,7 +18,8 @@ npm run db:backup
 - 出力先を変える場合は `npm run db:backup -- --out <file>` とします。既存ファイルは上書きしません。
 - サーバーを動かしたまま実行できます。内部では `VACUUM INTO` を使い、`-wal` にある未チェックポイントの書込みも含めた一貫したスナップショットを作ります。`.sqlite` ファイルだけを `cp` すると WAL の内容が抜けるので、`cp` は使いません。
 - 完了時に `integrity_check`、適用済み migration、表ごとの行数を表示します。内容や秘密は表示しません。
-- ディレクトリは 0700、ファイルは 0600 で作ります。
+- ファイルは 0600 で作ります。出力先ディレクトリを新規に作る場合は 0700 です。既存のディレクトリの権限は変更せず、0700 でなければ警告を表示します。出力先が切れたシンボリックリンクの場合も拒否します。
+- 本体ファイル（`.sqlite`）だけをコピーしても、`-wal` にある直近の書込みが失われます。必ず `db:backup` を使います。
 
 ## 保存場所と取り扱い
 
@@ -41,10 +42,17 @@ npm run db:restore -- backups/travel-<時刻>.sqlite --to data/restored.sqlite
 自動化していません。次の順に行います。
 
 1. 共有サーバー（`npm run dev:shared` または `start:shared`）を停止する。
-2. 現在の `data/travel.sqlite`、`data/travel.sqlite-wal`、`data/travel.sqlite-shm` を別名へ退避する（削除しない）。
-3. 上の復元コマンドで、`--to data/travel.sqlite` を指定して復元する。退避済みなので既存ファイルは存在しない。
-4. サーバーを起動し、ログインと旅程一覧を確認する。
-5. 問題があれば、サーバーを止めて復元後のファイルを退避し、手順2で退避したファイルを戻す。
+2. 停止中のまま、バックアップを別名のファイルへ復元する。`npm run db:restore -- backups/travel-<時刻>.sqlite --to data/restored.sqlite`（`--to` を稼働DBのパスにすることは拒否される）。表示された件数を確認する。
+3. 稼働DBを退避する。本体、`-wal`、`-shm` は同じ新ベース名で揃える（削除しない）。
+   ```
+   mv data/travel.sqlite     data/travel.old-<時刻>.sqlite
+   mv data/travel.sqlite-wal data/travel.old-<時刻>.sqlite-wal   # 存在する場合
+   mv data/travel.sqlite-shm data/travel.old-<時刻>.sqlite-shm   # 存在する場合
+   ```
+   本体だけを退避して `-wal` を残すと、古い `-wal` が復元したDBに適用されて壊れるおそれがある。
+4. 復元したDBを置く。`mv data/restored.sqlite data/travel.sqlite`
+5. サーバーを起動し、ログインと旅程一覧を確認する。
+6. 問題があれば、サーバーを止めて `data/travel.sqlite` を別名へ退避し、手順3で退避した3ファイルを同じ組み合わせで元の名前へ戻す。
 
 ## 検証方法
 
