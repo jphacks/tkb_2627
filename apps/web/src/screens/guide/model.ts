@@ -131,9 +131,13 @@ export function currentDayIndex(trip: Trip, today: string): number {
 }
 
 /** Fallback search area: around the centroid of the day's located places. null when none has a location. */
-export function fallbackBbox(day: TripDay | undefined, places: PlaceInfo[]): Bbox | null {
+/**
+ * Search area from the day's located stops. The trip's departure / return places (usually home) are left out:
+ * averaging home with the destination would put the centre between the two and miss both (I05).
+ */
+export function fallbackBbox(day: TripDay | undefined, places: PlaceInfo[], homePlaceIds: readonly string[] = []): Bbox | null {
   if (!day) return null;
-  const pts = mapPoints(day, places);
+  const pts = mapPoints(day, places).filter(p => !homePlaceIds.includes(p.placeId));
   if (pts.length === 0) return null;
   const lat = pts.reduce((s, p) => s + p.lat, 0) / pts.length;
   const lng = pts.reduce((s, p) => s + p.lng, 0) / pts.length;
@@ -146,14 +150,14 @@ export type AreaChoice = { source: 'device' | 'trip'; bbox: Bbox; deviceFailure:
  * Chooses the search area. `useDevice` is true only after the user pressed the consent button. The device
  * position is turned into a bbox right here and dropped; denied / error falls back to the trip's places.
  */
-export async function chooseArea(opts: { useDevice: boolean; geo: GeoLike | undefined | null; day: TripDay | undefined; places: PlaceInfo[] }): Promise<AreaChoice> {
+export async function chooseArea(opts: { useDevice: boolean; geo: GeoLike | undefined | null; day: TripDay | undefined; places: PlaceInfo[]; homePlaceIds?: readonly string[] }): Promise<AreaChoice> {
   let deviceFailure: 'denied' | 'error' | null = null;
   if (opts.useDevice) {
     const loc = await requestLocation(opts.geo);
     if (loc.kind === 'coords') return { source: 'device', bbox: bboxAround(loc.point), deviceFailure: null };
     deviceFailure = loc.kind === 'unavailable' && loc.reason === 'denied' ? 'denied' : 'error';
   }
-  const bbox = fallbackBbox(opts.day, opts.places);
+  const bbox = fallbackBbox(opts.day, opts.places, opts.homePlaceIds);
   return bbox ? { source: 'trip', bbox, deviceFailure } : { source: 'none', deviceFailure };
 }
 

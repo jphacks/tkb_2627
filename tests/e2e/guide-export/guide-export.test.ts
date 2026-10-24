@@ -285,8 +285,9 @@ describe('I05 finding: fallback area with a home leg', () => {
   // FINDING: fallbackBbox averages every located place of the day, including the departure/return place (home) that a
   // leg touches. For a day that starts with home -> station, the centroid lands between Tokyo and Kanazawa, outside the
   // supported region and nowhere near the traveller. Expected: the search area contains the destination stops.
-  it.fails('the fallback bbox of a day that starts at home still contains the destination stops', () => {
-    const b = fallbackBbox(day('2026-11-01'), trip.places)!;
+  it('the fallback bbox of a day that starts at home still contains the destination stops', () => {
+    const home = [trip.constraints.departure?.placeId, trip.constraints.return?.placeId].filter((x): x is string => typeof x === 'string');
+    const b = fallbackBbox(day('2026-11-01'), trip.places, home)!;
     const st = trip.places.find(p => p.placeId === 'fx_kanazawa_station')!.location!;
     expect(st.lat >= b.south && st.lat <= b.north && st.lng >= b.west && st.lng <= b.east).toBe(true);
   });
