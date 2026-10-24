@@ -32,6 +32,8 @@ interface Job {
   batchId: string | null;
   /** New attempt after a restart / unknown save outcome: consult findSavedBatch before generating. */
   recoverCheck: boolean;
+  /** recoverCheck attempts: the pre-generate lookup has completed. Until then the outcome of earlier attempts is unknown. */
+  lookupDone: boolean;
   /** Journal record deliberately left non-terminal (recovery lookup failed): never delete it on eviction. */
   keepJournal: boolean;
   state: JobState;
@@ -57,6 +59,8 @@ export interface JobManagerOptions {
   allowedPlaceIds?: readonly string[];
   /** Terminal jobs (and their idempotency entries) kept before the oldest are evicted. */
   maxFinished?: number;
+  /** Evicted terminal jobs kept as compact journal records so a same-key resubmit returns the old result (default 5000, oldest pruned). */
+  tombstoneLimit?: number;
   /** Durable journal. Default: in-memory (lost on restart). */
   store?: JobStore;
   /**
@@ -91,6 +95,14 @@ const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 /** Deterministic per (owner, idempotency key); the shared DB uses it to dedupe saves. */
 export const operationKeyOf = (ownerId: string, key: string): string => sha(`${ownerId}:${key}`);
 
+const FIXED_MESSAGES: Partial<Record<ErrorCode, string>> = {
+  CLI_EXIT: 'The generator exited with an error.',
+  CLI_TIMEOUT: 'The generator timed out.',
+  CLI_LIMIT: 'Usage limit reached.',
+  INVALID_OUTPUT: 'The generator returned an invalid result.',
+  UNAVAILABLE: 'The service is unavailable.',
+};
+
 export interface CancelOutcome {
   jobId: string;
   state: JobState;
@@ -104,6 +116,8 @@ export class JobManager {
   private readonly jobs = new Map<string, Job>();
   private readonly queue: Job[] = [];
   private readonly finished: Job[] = [];
+  /** Evicted terminal jobs (compact journal records), oldest first. */
+  private readonly tomb = new Map<string, JobRecord>();
   private running = false;
   /** idemHash -> jobId and request fingerprint */
   private readonly idem = new Map<string, { jobId: string; fingerprint: string }>();
@@ -115,6 +129,7 @@ export class JobManager {
     this.store = o.store ?? new MemoryJobStore();
     this.mac = s => createHmac('sha256', this.store.secret).update(s).digest('hex');
     this.ready = this.recover();
+    this.ready.catch(() => {}); // surfaced where it is awaited (app onReady); never an unhandled rejection
   }
 
   private toRecord(j: Job): JobRecord {
@@ -149,6 +164,7 @@ export class JobManager {
         requestId: r.error?.requestId ?? 'recovery',
         idemKey: r.idemHash,
         recoverCheck: false,
+        lookupDone: true,
         keepJournal: false,
         input: null,
         ctl: new AbortController(),
@@ -195,7 +211,35 @@ export class JobManager {
 
   /** A failed job whose save may have committed (restart, or save at/after stage saving): resubmit starts a new attempt. */
   private isRetryableAttempt(j: Job): boolean {
-    return j.state === 'failed' && (j.error?.code === 'WORKER_RESTARTED' || isSavingOrLater(j.stage));
+    if (j.state === 'cancelled') return j.recoverCheck || j.stage === 'collecting_context';
+    if (j.state !== 'failed') return false;
+    // collecting_context is only ever the stage of an attempt that died during the pre-generate lookup.
+    return j.error?.code === 'WORKER_RESTARTED' || isSavingOrLater(j.stage) || j.stage === 'collecting_context' || (j.recoverCheck && !j.lookupDone);
+  }
+
+  /** Live job, or an evicted one rehydrated from its compact record. */
+  private getJob(jobId: string): Job | undefined {
+    const live = this.jobs.get(jobId);
+    if (live) return live;
+    const r = this.tomb.get(jobId);
+    if (!r) return undefined;
+    this.tomb.delete(jobId);
+    const job: Job = {
+      ...r,
+      requestId: r.error?.requestId ?? 'recovery',
+      idemKey: r.idemHash,
+      recoverCheck: false,
+      lookupDone: true,
+      keepJournal: false,
+      input: null,
+      ctl: new AbortController(),
+      timer: null,
+      cancelled: false,
+      timedOut: false,
+    };
+    this.jobs.set(job.jobId, job);
+    this.finish(job);
+    return job;
   }
 
   submit(ownerId: string, key: string, fingerprint: string, input: GenerationInput, requestId: string = randomUUID()): SubmitResult {
@@ -205,7 +249,7 @@ export class JobManager {
     let recoverCheck = false;
     if (prev) {
       if (prev.fingerprint !== fp) return { kind: 'conflict' };
-      const pj = this.jobs.get(prev.jobId);
+      const pj = this.getJob(prev.jobId);
       if (!pj || !this.isRetryableAttempt(pj)) return { kind: 'accepted', jobId: prev.jobId };
       recoverCheck = true; // new attempt, same operationKey so the shared server can dedupe
     }
@@ -220,6 +264,7 @@ export class JobManager {
       operationKey: operationKeyOf(ownerId, key),
       batchId: null,
       recoverCheck,
+      lookupDone: !recoverCheck,
       keepJournal: false,
       state: 'queued',
       stage: 'queued',
@@ -297,18 +342,33 @@ export class JobManager {
     job.timer = null;
     if (this.finished.includes(job)) return;
     this.finished.push(job);
-    const max = this.o.maxFinished ?? 100;
+    const max = this.o.maxFinished ?? 500;
     while (this.finished.length > max) {
       const old = this.finished.shift()!;
       this.jobs.delete(old.jobId);
-      if (this.idem.get(old.idemKey)?.jobId === old.jobId) this.idem.delete(old.idemKey);
-      if (old.keepJournal) continue;
+      if (old.keepJournal) {
+        if (this.idem.get(old.idemKey)?.jobId === old.jobId) this.idem.delete(old.idemKey);
+        continue;
+      }
+      // Keep the (metadata-only) journal record so a same-key resubmit returns the old result.
+      this.tomb.set(old.jobId, this.toRecord(old));
+    }
+    const lim = this.o.tombstoneLimit ?? 5000;
+    while (this.tomb.size > lim) {
+      const [id, rec] = this.tomb.entries().next().value!;
+      this.tomb.delete(id);
+      if (this.idem.get(rec.idemHash)?.jobId === id) this.idem.delete(rec.idemHash);
       try {
-        this.store.remove(old.jobId);
+        this.store.remove(id);
       } catch {
         /* ignore */
       }
     }
+  }
+
+  /** Runner/parser text is never stored or returned: only the code and retryable flag are kept, with a fixed message. */
+  private safeErr(job: Job, e: { code: ErrorCode; retryable: boolean }): SafeError {
+    return this.err(job, e.code, FIXED_MESSAGES[e.code] ?? 'The generator failed.', e.retryable);
   }
 
   private err(job: Job, code: ErrorCode, message: string, retryable: boolean): SafeError {
@@ -332,6 +392,7 @@ export class JobManager {
     if (job.recoverCheck) {
       // A previous attempt with this operationKey may have committed: never generate/save twice.
       const { batch } = await this.lookup(job);
+      job.lookupDone = true;
       if (!isActive(job)) return;
       if (batch) {
         job.batchId = batch;
@@ -352,12 +413,12 @@ export class JobManager {
       const r = await Promise.race([run, aborted]);
       if (!isActive(job)) return;
       if (r.error || r.exitCode !== 0) {
-        const e = r.error ?? this.err(job, 'CLI_EXIT', 'The generator exited with an error.', true);
-        return this.set(job, 'failed', job.stage, { ...e, requestId: job.requestId });
+        const e = r.error ?? this.err(job, 'CLI_EXIT', '', true);
+        return this.set(job, 'failed', job.stage, this.safeErr(job, e));
       }
       this.set(job, 'running', 'validating');
       const p = parseBlueprint(r.envelope, this.o.allowedPlaceIds ?? []);
-      if (!p.ok) return this.set(job, 'failed', job.stage, { ...p.error, requestId: job.requestId });
+      if (!p.ok) return this.set(job, 'failed', job.stage, this.safeErr(job, p.error));
       if (!this.o.save) {
         // Valid output, but candidates cannot be saved yet (needs S04): never report `succeeded` without batchId.
         return this.set(job, 'failed', 'validating', this.err(job, 'UNAVAILABLE', 'Candidate saving is not yet available.', false));
@@ -430,7 +491,7 @@ export class JobManager {
 
   /** Owner-scoped: other owners and unknown ids look identical (null). */
   status(ownerId: string, jobId: string): JobStatus | null {
-    const j = this.jobs.get(jobId);
+    const j = this.getJob(jobId);
     if (!j || j.ownerId !== ownerId) return null;
     return {
       jobId: j.jobId,
@@ -447,10 +508,11 @@ export class JobManager {
    * not cancelled, `committed` is true and the batchId (if known) is reported.
    */
   cancel(ownerId: string, jobId: string): CancelOutcome | null {
-    const j = this.jobs.get(jobId);
+    const j = this.getJob(jobId);
     if (!j || j.ownerId !== ownerId) return null;
     const wasActive = isActive(j);
-    if (wasActive && isSavingOrLater(j.stage)) {
+    // Saving or later, or a resubmitted attempt whose lookup of earlier attempts is still pending: the outcome is unknown, so never claim cancelled.
+    if (wasActive && (isSavingOrLater(j.stage) || (j.recoverCheck && !j.lookupDone))) {
       return { jobId: j.jobId, state: j.state, batchId: j.batchId, wasActive: false, committed: true };
     }
     if (wasActive) {

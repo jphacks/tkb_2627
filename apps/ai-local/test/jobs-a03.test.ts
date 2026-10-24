@@ -192,14 +192,14 @@ describe('restart handling', () => {
   });
   it('eviction removes journal entries too', async () => {
     const dir = tmp();
-    const m = mk({ store: new FileJobStore(dir), runner: new FakeRunner({ failure: 'exit_nonzero' }), maxFinished: 2 });
+    const m = mk({ store: new FileJobStore(dir), runner: new FakeRunner({ failure: 'exit_nonzero' }), maxFinished: 2, tombstoneLimit: 0 });
     const ids: string[] = [];
     for (let i = 0; i < 4; i++) {
       ids.push(accept(m.submit('u1', `key-0000000${i}`, `f${i}`, input)));
       await until(() => m.status('u1', ids[i]!)?.state === 'failed');
     }
     expect(readdirSync(join(dir, 'jobs')).sort()).toEqual([`${ids[2]}.json`, `${ids[3]}.json`].sort());
-    const m2 = mk({ store: new FileJobStore(dir), maxFinished: 2 });
+    const m2 = mk({ store: new FileJobStore(dir), maxFinished: 2, tombstoneLimit: 0 });
     await m2.ready;
     expect(m2.status('u1', ids[0]!)).toBeNull();
     expect(m2.status('u1', ids[3]!)?.state).toBe('failed');
@@ -354,6 +354,35 @@ describe('HTTP mapping', () => {
     }
     throw new Error('never succeeded');
   });
+  it('another user cannot see a recovered job after restart (404)', async () => {
+    const dir = tmp();
+    const mkApp = (uid: string) => {
+      const config = { ...loadConfig({ PERSONAL_OWNER_USER_ID: uid }), jobDir: dir };
+      const pairing = new PairingStore({ ttlMs: config.pairingTtlMs });
+      const f = async () => {
+        const h = new Headers({ 'content-type': 'application/json' });
+        h.append('set-cookie', 'tkb_sid=S; HttpOnly; Path=/');
+        return new Response(JSON.stringify({ userId: uid, displayName: 'T', csrfToken: 'C' }), { status: 200, headers: h });
+      };
+      return { pairing, app: buildApp({ config, pairing, runner: never, fetch: f }) };
+    };
+    const login = async (x: ReturnType<typeof mkApp>) => {
+      const p = await x.app.inject({ method: 'POST', url: '/local/v1/pair', payload: { code: x.pairing.issue() }, headers: { host: HOST, origin: ORIGIN } });
+      const h = { host: HOST, origin: ORIGIN, cookie: String(p.headers['set-cookie']).split(';')[0]!, 'x-csrf-token': (p.json() as { csrfToken: string }).csrfToken };
+      await x.app.inject({ method: 'POST', url: '/local/v1/auth/login', payload: { loginId: 'a', password: 'b' }, headers: h });
+      return h;
+    };
+    const a1 = mkApp('u1');
+    const h1 = await login(a1);
+    const g = await a1.app.inject({ method: 'POST', url: '/local/v1/generations', payload: { constraints }, headers: { ...h1, 'idempotency-key': 'key-12345678' } });
+    const { jobId } = g.json() as { jobId: string };
+    const a2 = mkApp('u2');
+    const h2 = await login(a2);
+    expect((await a2.app.inject({ url: `/local/v1/jobs/${jobId}`, headers: { host: HOST, cookie: h2.cookie } })).statusCode).toBe(404);
+    expect((await a2.app.inject({ method: 'POST', url: `/local/v1/jobs/${jobId}/cancel`, headers: h2 })).statusCode).toBe(404);
+    await a1.app.close();
+    await a2.app.close();
+  });
   it('parallel HTTP double submit yields one job and one runner call', async () => {
     let calls = 0;
     const config = loadConfig({ PERSONAL_OWNER_USER_ID: 'u1' });
@@ -404,6 +433,64 @@ describe('HTTP mapping', () => {
       const r = await app.inject({ method: 'POST', url: '/local/v1/generations', payload: { constraints, ...extra }, headers: { ...h, 'idempotency-key': 'key-12345678' } });
       expect(r.statusCode).toBe(422);
     }
+  });
+});
+
+describe('M1 review', () => {
+  it('cancel during the recoverCheck lookup is refused (409 path) and the late batch is still reachable', async () => {
+    const store = new MemoryJobStore();
+    accept(mk({ store }).submit('u1', 'key-00000001', 'f1', input));
+    let found: string | null = null;
+    let release!: () => void;
+    const m = mk({ store, findSavedBatch: async () => (found === null ? null : (await new Promise<void>(r => (release = r)), found)) });
+    await m.ready;
+    found = 'late';
+    const b = accept(m.submit('u1', 'key-00000001', 'f1', input));
+    await until(() => !!release);
+    expect(m.cancel('u1', b)).toMatchObject({ committed: true, wasActive: false, state: 'running' });
+    release();
+    await until(() => m.status('u1', b)?.state === 'succeeded');
+    expect(m.status('u1', b)?.batchId).toBe('late');
+  });
+  it('a cancelled/failed recoverCheck attempt is retryable: resubmit re-runs the lookup', async () => {
+    const store = new MemoryJobStore();
+    accept(mk({ store }).submit('u1', 'key-00000001', 'f1', input));
+    let found: string | null = null;
+    const m = mk({ store, timeoutMs: 40, runner: never, findSavedBatch: async () => (found === null ? (await new Promise(r => setTimeout(r, 100)), null) : found) });
+    await m.ready;
+    const b = accept(m.submit('u1', 'key-00000001', 'f1', input));
+    await until(() => m.status('u1', b)?.state === 'failed'); // deadline during the lookup
+    found = 'late';
+    const c = accept(m.submit('u1', 'key-00000001', 'f1', input));
+    expect(c).not.toBe(b);
+    await until(() => m.status('u1', c)?.state === 'succeeded');
+    expect(m.status('u1', c)?.batchId).toBe('late');
+  });
+  it('runner error text is replaced by a fixed message', async () => {
+    const leaky: Runner = { run: async () => ({ exitCode: 1, envelope: null, durationMs: 1, error: { code: 'CLI_EXIT', message: 'SECRET /home/x token=abc', retryable: true, requestId: 'r' } }) };
+    const m = mk({ runner: leaky });
+    const id = accept(m.submit('u1', 'key-00000001', 'f1', input));
+    await until(() => m.status('u1', id)?.state === 'failed');
+    expect(JSON.stringify(m.status('u1', id))).not.toContain('SECRET');
+  });
+  it('evicted jobs stay as compact records: same-key resubmit returns the old result; the record count is bounded', async () => {
+    const dir = tmp();
+    const m = mk({ store: new FileJobStore(dir), runner: new FakeRunner({ failure: 'exit_nonzero' }), maxFinished: 1, tombstoneLimit: 2 });
+    const ids: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      ids.push(accept(m.submit('u1', `key-0000000${i}`, `f${i}`, input)));
+      await until(() => m.status('u1', ids[i]!)?.state === 'failed');
+    }
+    expect(readdirSync(join(dir, 'jobs')).filter(f => f.endsWith('.json')).length).toBe(3); // 1 live + 2 tombstones
+    expect(accept(m.submit('u1', 'key-00000003', 'f3', input))).toBe(ids[3]); // old result, no new run
+    expect(m.status('u1', ids[3]!)?.state).toBe('failed');
+    expect(m.status('u1', ids[0]!)).toBeNull(); // pruned
+  });
+  it('ready rejection does not leak as unhandled', async () => {
+    const store = new MemoryJobStore();
+    store.loadAll = () => { throw new Error('bad journal'); };
+    const m = mk({ store });
+    await expect(m.ready).rejects.toThrow();
   });
 });
 

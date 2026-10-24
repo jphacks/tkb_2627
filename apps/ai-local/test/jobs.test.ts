@@ -87,7 +87,7 @@ describe('JobManager lifecycle', () => {
     expect(m.status('u1', id)?.error?.requestId).toBe('req-123');
   });
   it('evicts oldest terminal jobs together with their idempotency entries', async () => {
-    const m = mgr(new FakeRunner({ failure: 'exit_nonzero' }), { maxFinished: 2 });
+    const m = mgr(new FakeRunner({ failure: 'exit_nonzero' }), { maxFinished: 2, tombstoneLimit: 0 });
     const ids: string[] = [];
     for (let i = 0; i < 4; i++) {
       ids.push(accept(m.submit('u1', `key-0000000${i}`, `f${i}`, input)));
