@@ -77,7 +77,7 @@
 責任：条件入力、生成進捗、候補の比較と採用
 入力：
 出力：
-担当：M2。予定path：apps/web/
+担当：M2。予定path：apps/web/（画面はsrc/screens/、共有版と同じコード）
 本人PCの127.0.0.1:4311で配信。共有版と同じUIコードをcapabilitiesで切替。
 
 ### web-shared / 共有Web画面
@@ -85,7 +85,7 @@
 責任：旅程閲覧、編集、SNS、ガイド
 入力：
 出力：
-担当：M2。予定path：apps/web/
+担当：M2。予定path：apps/web/（画面はsrc/screens/：conditions, generate, itinerary, edit, social, guide, travel, print, hub）
 HTTPS共有URLから利用。第三者のClaude生成をホストのProへ中継しない。
 
 ### personal / 本人用App Server
@@ -125,7 +125,7 @@ HTTPS共有URLから利用。第三者のClaude生成をホストのProへ中継
 責任：Host・Origin・CSRF・所有権・入力を検証
 入力：GenerateRequest / ReplanRequest
 出力：JobAccepted / Error
-担当：M4。予定path：apps/ai-local/src/routes/
+担当：M4。予定path：apps/ai-local/src/app.ts, apps/ai-local/src/auth/
 
 
 ### job / 生成ジョブ管理
@@ -165,7 +165,7 @@ AIが候補順を生成し、プログラムが制約を検証。運賃やホー
 責任：利用者を特定し所有権・所属を検証
 入力：app cookie + resource IDs
 出力：ActorContext / denied
-担当：M1。予定path：apps/server/src/auth/
+担当：M1。予定path：apps/server/src/platform/auth/
 
 
 ### trips / 旅程API
@@ -173,8 +173,8 @@ AIが候補順を生成し、プログラムが制約を検証。運賃やホー
 責任：下書き・候補・採用・編集・版管理
 入力：Trip / batch / expectedRevision
 出力：tripId + revision / conflict
-担当：M4。予定path：apps/server/src/trips/
-生成用の旅行情報取得（K05）はapps/server/src/trips/generation/。
+担当：M4。予定path：apps/server/src/trips/（generation, alternatives, replan）
+生成用の旅行情報取得（K05）はapps/server/src/trips/generation/、代替案（A05）はalternatives/、再計画（A06）はreplan/。
 
 
 ### social / SNS投稿API
@@ -182,7 +182,7 @@ AIが候補順を生成し、プログラムが制約を検証。運賃やホー
 責任：プレビュー、安全化snapshot、公開・閲覧・複製
 入力：tripRef / previewToken / visibility
 出力：Post / filtered feed / new trip
-担当：M1。予定path：apps/server/src/social/
+担当：M1。予定path：apps/server/src/social/（posts, copy, groups）
 
 
 ### groups / グループAPI
@@ -190,7 +190,7 @@ AIが候補順を生成し、プログラムが制約を検証。運賃やホー
 責任：招待・所属・除外の管理
 入力：groupId + invite / membership command
 出力：membership / forbidden
-担当：M1。予定path：apps/server/src/groups/
+担当：M1。予定path：apps/server/src/social/groups/
 
 
 ### data-api / 旅行情報API
@@ -198,7 +198,7 @@ AIが候補順を生成し、プログラムが制約を検証。運賃やホー
 責任：地点・区間・ガイド・周辺施設を取得
 入力：area / place IDs / departure
 出力：normalized facts + provenance
-担当：M3。予定path：packages/travel-data/
+担当：M3。予定path：packages/travel-data/（src/places, routes, guides, amenities, policy）, apps/server/src/guides/
 
 
 ### exports / しおり・予定出力
@@ -206,7 +206,7 @@ AIが候補順を生成し、プログラムが制約を検証。運賃やホー
 責任：認可済み旅程をPDF・ICS・地図リンクへ変換
 入力：tripRef + expectedRevision
 出力：exportId / authorized file / URL
-担当：M2（E01）+ M3（E03）+ M1（E02）。予定path：packages/exports/, apps/server/src/platform/exports/
+担当：M2（E01）+ M3（E03）+ M1（E02）。予定path：packages/exports/（src/calendar, src/maps）, apps/server/src/platform/exports/（calendar-maps.ts含む）
 
 
 ### repository / 永続化Repository
