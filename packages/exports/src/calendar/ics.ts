@@ -167,18 +167,24 @@ export interface IcsResult {
  * ICS files are easily forwarded. An item ending before it starts is omitted rather than shortened.
  */
 export function tripToIcs(
-  trip: Pick<Trip, 'tripId' | 'title' | 'days' | 'places'> & Partial<Pick<Trip, 'revision' | 'constraints'>>,
+  // constraints is required so a caller cannot drop it and silently write the home name.
+  trip: Pick<Trip, 'tripId' | 'title' | 'days' | 'places'> &
+    Partial<Pick<Trip, 'revision'>> & { constraints: Pick<Trip['constraints'], 'departure' | 'return'> },
   options: IcsOptions,
 ): IcsResult {
   const places = new Map(trip.places.map(p => [p.placeId, p]));
-  const privateLabel = new Map<string, string>();
-  const ret = trip.constraints?.return?.placeId;
-  const dep = trip.constraints?.departure?.placeId;
-  if (ret) privateLabel.set(ret, '到着地');
-  if (dep) privateLabel.set(dep, '出発地');
+  const dep = trip.constraints.departure?.placeId ?? null;
+  const ret = trip.constraints.return?.placeId ?? null;
+  const isPrivate = (placeId: string | null) => placeId !== null && (placeId === dep || placeId === ret);
+  /** Label for a private place by direction: where a leg leaves from vs arrives at. */
+  const labelFor = (placeId: string | null, side: 'from' | 'to'): string | undefined => {
+    if (!isPrivate(placeId)) return undefined;
+    if (side === 'from') return placeId === dep ? '出発地' : '到着地';
+    return placeId === ret ? '到着地' : '出発地';
+  };
   const withheld = new Set<string>();
   const exportable = (placeId: string | null): PlaceInfo | undefined => {
-    if (placeId !== null && privateLabel.has(placeId)) return undefined;
+    if (isPrivate(placeId)) return undefined;
     const place = placeId === null ? undefined : places.get(placeId);
     if (place && !place.provenance.mayExport) {
       withheld.add(place.placeId);
@@ -204,8 +210,9 @@ export function tripToIcs(
           continue;
         }
         const place = exportable(item.placeId);
-        const label = item.placeId === null ? undefined : privateLabel.get(item.placeId);
-        const where = [...new Set([label ?? place?.name, item.areaName].filter((v): v is string => Boolean(v)))].join(' / ');
+        const label = labelFor(item.placeId, 'from');
+        // At a private place the area name could pinpoint it, so only the label is written.
+        const where = label ?? [...new Set([place?.name, item.areaName].filter((v): v is string => Boolean(v)))].join(' / ');
         const description = [
           `${KIND_LABEL[item.kind]}${item.fixed ? '（固定予定）' : ''}${item.status === 'completed' ? '（訪問済み）' : ''}`,
           `費用: ${money(item.cost)}`,
@@ -236,8 +243,8 @@ export function tripToIcs(
           omitted.push({ itemId: item.legId, reason: 'invalid_time' });
           continue;
         }
-        const from = privateLabel.get(item.fromPlaceId) ?? exportable(item.fromPlaceId)?.name;
-        const to = privateLabel.get(item.toPlaceId) ?? exportable(item.toPlaceId)?.name;
+        const from = labelFor(item.fromPlaceId, 'from') ?? exportable(item.fromPlaceId)?.name;
+        const to = labelFor(item.toPlaceId, 'to') ?? exportable(item.toPlaceId)?.name;
         const line = item.lineName ?? MODE_LABEL[item.mode];
         const description = [
           `移動（${MODE_LABEL[item.mode]}）`,

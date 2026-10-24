@@ -88,7 +88,7 @@ const act = (id: string, timeZone: string, start: string, end: string, extra: Pa
   privateNotes: null,
   ...extra,
 });
-const tripOf = (days: TripDay[], places: PlaceInfo[] = []) => ({ tripId: 't1', title: 'テスト', days, places });
+const tripOf = (days: TripDay[], places: PlaceInfo[] = []) => ({ tripId: 't1', title: 'テスト', days, places, constraints: {} });
 const flightLike = (legId: string, from: string, to: string, dep: string, arr: string) => ({
   type: 'leg' as const,
   legId,
@@ -263,7 +263,8 @@ describe('tripToIcs', () => {
             items: [
               { ...flightLike('go', 'home', 'ok', '2026-07-01T00:00:00Z', '2026-07-01T01:00:00Z') },
               act('v', T, '2026-07-01T01:00:00Z', '2026-07-01T02:00:00Z', { placeId: 'ok' }),
-              act('h', T, '2026-07-01T10:00:00Z', '2026-07-01T11:00:00Z', { placeId: 'home', kind: 'lodging' }),
+              { ...flightLike('back', 'ok', 'home', '2026-07-01T09:00:00Z', '2026-07-01T10:00:00Z') },
+              act('h', T, '2026-07-01T10:00:00Z', '2026-07-01T11:00:00Z', { placeId: 'home', kind: 'lodging', areaName: '三軒茶屋2丁目' }),
             ],
           },
         ],
@@ -275,8 +276,11 @@ describe('tripToIcs', () => {
     expect(r.ics).not.toContain('山田家');
     const { events } = readIcs(r.ics);
     expect(events[0]!.SUMMARY).toBe('SUMMARY:移動: 出発地 → ok（公共交通）');
-    expect(events[2]).toMatchObject({ LOCATION: 'LOCATION:出発地' });
-    expect(events[2]).not.toHaveProperty('GEO');
+    expect(events[2]!.SUMMARY).toBe('SUMMARY:移動: ok → 到着地（公共交通）');
+    // No area name either: it could pinpoint home.
+    expect(events[3]).toMatchObject({ LOCATION: 'LOCATION:出発地' });
+    expect(events[3]).not.toHaveProperty('GEO');
+    expect(r.ics).not.toContain('三軒茶屋');
   });
 
   it('omits an item that ends before it starts instead of shortening it', () => {
@@ -292,10 +296,15 @@ describe('tripToIcs', () => {
     expect(r.eventCount).toBe(0);
   });
 
-  it('credits the provider attribution of exported places and legs', () => {
+  it('credits the provider attribution of exported places and legs, escaped', () => {
     const r = tripToIcs(domesticTrip, { now: NOW });
-    const kenroku = readIcs(r.ics).events.find(e => e.UID!.startsWith('UID:fx_act_kenrokuen'))!;
-    expect(kenroku.DESCRIPTION).toContain('出典: tkb_2627 fixture');
+    const events = readIcs(r.ics).events;
+    expect(events.find(e => e.UID!.startsWith('UID:fx_act_kenrokuen'))!.DESCRIPTION).toContain('出典: tkb_2627 fixture');
+    expect(events.find(e => e.UID!.startsWith('UID:fx_leg_1'))!.DESCRIPTION).toContain('出典: tkb_2627 fixture');
+
+    const trip = structuredClone(domesticTrip);
+    trip.places = trip.places.map(p => (p.placeId === 'fx_kenrokuen' ? { ...p, provenance: { ...p.provenance, attribution: 'Google, ©Map; x' } } : p));
+    expect(tripToIcs(trip, { now: NOW }).ics).toContain('出典: Google\\, ©Map\\; x');
   });
 
   it('is reproducible for the same input and export time', () => {
