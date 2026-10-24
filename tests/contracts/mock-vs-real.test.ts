@@ -105,7 +105,7 @@ describe('K10 PATCH: mock and shared server agree', () => {
   });
   it('an itinerary edit makes the trip needs_revalidation on both', async () => {
     const t = await trips();
-    const op = [{ op: 'remove', itemId: 'fx_act_omicho' }];
+    const op = [{ op: 'remove', itemId: 'fx_act_lunch' }];
     const real = (await t.send('PATCH', `/api/v1/trips/${t.tripId}`, patchBody(1, op))).json() as TripPatchResult;
     const mock = await t.mock.patchTrip(t.tripId, patchBody(1, op) as never);
     expect(mock.ok && mock.data.trip.validationState).toBe(real.trip.validationState);
@@ -134,7 +134,7 @@ describe('K10 PATCH: mock and shared server agree', () => {
   // B04 review 3: warnings. Main appends '移動情報を再確認してください' when the trip becomes needs_revalidation.
   it.skip('an itinerary edit adds the same re-check warning on both [FINDINGS M-3: mock keeps warnings unchanged]', async () => {
     const t = await trips();
-    const op = [{ op: 'remove', itemId: 'fx_act_omicho' }];
+    const op = [{ op: 'remove', itemId: 'fx_act_lunch' }];
     const real = (await t.send('PATCH', `/api/v1/trips/${t.tripId}`, patchBody(1, op))).json() as TripPatchResult;
     const mock = await t.mock.patchTrip(t.tripId, patchBody(1, op) as never);
     expect(mock.ok && mock.data.warnings).toEqual(real.warnings);

@@ -3,6 +3,7 @@
  * unsaved list; the server stays the authority), build new activities and describe a diff without ever
  * turning an unknown value into 0.
  */
+import { blockOf, planMoves } from '../itinerary/table.ts';
 import type { Activity, ItineraryItem, Money, Trip, TripDiff, TripOperation, ZonedTime } from '@tkb/contracts';
 
 export function itemIdOf(item: ItineraryItem): string {
@@ -58,16 +59,14 @@ export function applyOperations(trip: Trip, ops: readonly TripOperation[]): Appl
   return { ok: true, trip: after };
 }
 
-/** One move step of an activity to the previous (-1) or next (+1) activity of the same day. null at the edge. */
-export function moveStepOp(trip: Trip, itemId: string, dayIndex: number, dir: -1 | 1): TripOperation | null {
-  const items = trip.days[dayIndex]?.items;
-  if (!items) return null;
-  const from = items.findIndex(i => itemIdOf(i) === itemId);
-  if (from < 0) return null;
-  for (let j = from + dir; j >= 0 && j < items.length; j += dir) {
-    if (items[j]?.type === 'activity') return { op: 'move', itemId, toDayIndex: dayIndex, toPosition: j };
-  }
-  return null;
+/**
+ * R1 (drag and drop): K10 `move` operations that put a stay (with its nested children) before `beforeKey`
+ * (null: the end of the day). Empty when nothing changes.
+ */
+export function reorderOps(trip: Trip, dayIndex: number, stayKey: string, beforeKey: string | null): TripOperation[] {
+  const day = trip.days[dayIndex];
+  if (!day) return [];
+  return planMoves(day.items.map(itemIdOf), blockOf(day, stayKey), beforeKey, dayIndex);
 }
 
 /** Local date + "HH:MM" in an IANA zone to a ZonedTime. null when the text is not a valid time. */

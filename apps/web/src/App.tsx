@@ -12,6 +12,7 @@ import { GuideScreen } from './screens/guide/GuideScreen.tsx';
 import { parseGuideHash } from './screens/guide/route.ts';
 import { TravelScreen } from './screens/travel/TravelScreen.tsx';
 import { U01App } from './screens/U01App.tsx';
+import { ScreenBadge } from './screens/hub/ScreenBadge.tsx';
 import { HomeApp } from './screens/hub/HomeApp.tsx';
 import { parseHubHash } from './screens/hub/route.ts';
 import { SocialApp } from './screens/social/SocialApp.tsx';
@@ -39,6 +40,15 @@ export function App() {
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);
+  return (
+    <>
+      <Screen hash={hash} />
+      <ScreenBadge hash={hash} pathname={typeof location !== 'undefined' ? location.pathname : '/'} />
+    </>
+  );
+}
+
+function Screen({ hash }: { hash: string }) {
   // U04: #/trips/<id>/map (server) or #/mock/trips/<id>/map (mock). Reload refetches the trip by id.
   const itinerary = parseItineraryHash(hash);
   if (itinerary) return <ItineraryScreen key={`${itinerary.mode}:${itinerary.tripId}`} route={itinerary} onBack={() => { location.hash = ''; }} />;

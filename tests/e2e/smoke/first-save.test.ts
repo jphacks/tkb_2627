@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ApiError, PlanBatch, PlanBatchCreated, Trip, TripList, TripWriteResult, type PlanCandidate } from '@tkb/contracts';
 import { createUser, migrate, openDatabase } from '@tkb/db';
-import { domesticTrip, kanazawaPlaces } from '@tkb/fixtures';
+import { domesticTrip, kanazawaTripPlaces } from '@tkb/fixtures';
 import { hashPassword } from '../../../apps/server/src/platform/auth/password.ts';
 import { createMockApi } from '../../../apps/web/src/mocks/index.ts';
 
@@ -150,7 +150,7 @@ describe('I01 layer 1: real server, login -> save -> re-display', () => {
       baseRevision: null,
       generationId: 'gen_i01',
       candidates: [candidateFromFixture()],
-      places: kanazawaPlaces,
+      places: kanazawaTripPlaces,
       constraints: domesticTrip.constraints,
     });
     expect(created.status).toBe(201);

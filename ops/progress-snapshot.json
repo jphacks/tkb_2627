@@ -1,6 +1,6 @@
 {
   "repository": "jphacks/tkb_2627",
-  "fetchedAt": "2026-10-24T17:30:49.851Z",
+  "fetchedAt": "2026-10-24T19:40:15.123Z",
   "warnings": [],
   "tasks": {
     "B01": {
@@ -64,7 +64,7 @@
       }
     },
     "G02": {
-      "status": "review",
+      "status": "done",
       "issue": {
         "number": 8,
         "url": "https://github.com/jphacks/tkb_2627/issues/8",
@@ -154,7 +154,7 @@
       }
     },
     "D07": {
-      "status": "review",
+      "status": "done",
       "issue": {
         "number": 17,
         "url": "https://github.com/jphacks/tkb_2627/issues/17",
@@ -164,7 +164,7 @@
       }
     },
     "D08": {
-      "status": "review",
+      "status": "done",
       "issue": {
         "number": 18,
         "url": "https://github.com/jphacks/tkb_2627/issues/18",
@@ -275,7 +275,7 @@
       }
     },
     "A05": {
-      "status": "review",
+      "status": "done",
       "issue": {
         "number": 29,
         "url": "https://github.com/jphacks/tkb_2627/issues/29",
@@ -302,7 +302,8 @@
         "assignees": [
           "KatTanaka",
           "poyyk",
-          "murataka-csl"
+          "murataka-csl",
+          "ryoumatimati"
         ]
       }
     },
@@ -347,7 +348,8 @@
         "url": "https://github.com/jphacks/tkb_2627/issues/35",
         "assignees": [
           "KatTanaka",
-          "murataka-csl"
+          "murataka-csl",
+          "ryoumatimati"
         ]
       }
     },
@@ -374,7 +376,7 @@
       }
     },
     "E02": {
-      "status": "review",
+      "status": "done",
       "issue": {
         "number": 38,
         "url": "https://github.com/jphacks/tkb_2627/issues/38",
@@ -465,7 +467,7 @@
       }
     },
     "I02": {
-      "status": "review",
+      "status": "done",
       "issue": {
         "number": 47,
         "url": "https://github.com/jphacks/tkb_2627/issues/47",
@@ -496,7 +498,7 @@
       }
     },
     "I05": {
-      "status": "doing",
+      "status": "done",
       "issue": {
         "number": 50,
         "url": "https://github.com/jphacks/tkb_2627/issues/50",
@@ -517,7 +519,7 @@
       }
     },
     "T06": {
-      "status": "review",
+      "status": "done",
       "issue": {
         "number": 52,
         "url": "https://github.com/jphacks/tkb_2627/issues/52",

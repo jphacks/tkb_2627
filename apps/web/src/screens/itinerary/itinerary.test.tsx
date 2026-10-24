@@ -5,13 +5,14 @@ import type { PlaceInfo, TravelLeg, Trip } from '@tkb/contracts';
 import { domesticTrip, overseasTrip } from '@tkb/fixtures';
 import { createMockApi } from '../../mocks/index.ts';
 import { fetchTrip, fetchTripFromMock, tripUrl } from './api.ts';
-import { AttributionBlock, ItineraryBody, ItineraryView, TimelineItem } from './ItineraryScreen.tsx';
+import { AttributionBlock, ItineraryBody, ItineraryView } from './ItineraryScreen.tsx';
 import { StaticMap } from './MapPanel.tsx';
 import { readBrowserMapsKey } from './mapsKey.ts';
 import {
-  attributionFor, dayTransportMode, formatLocalTime, mapPoints, syncSelection, timelineRows, toggleSelection, transitDetail, unlocatedPlaces,
+  attributionFor, dayTransportMode, formatLocalTime, mapPoints, syncSelection, toggleSelection, transitDetail, unlocatedPlaces,
 } from './model.ts';
 import { itineraryHash, parseItineraryHash } from './route.ts';
+import { tableRows } from './table.ts';
 
 const render = (el: ReactElement): string => renderRaw(el).replace(/<!-- -->/g, '');
 const noop = () => {};
@@ -34,21 +35,19 @@ function tripWithItems(items: Trip['days'][number]['items']): Trip {
 }
 
 describe('unknown values are never shown as 0', () => {
-  it('a leg with null fare/duration/times renders 不明 / 未定', () => {
+  it('a leg with null fare/duration/times renders 未取得 in its two rows and details, never 0', () => {
     const trip = tripWithItems([unknownLeg()]);
-    const [row] = timelineRows(trip.days[0]!, trip.places);
-    const html = render(<TimelineItem row={row!} selected={false} onSelect={noop} />);
-    expect(html.replace(/<[^>]+>/g, '')).toContain('未定 〜 未定');
-    expect(html).toContain('所要 <span class="u1-unknown">不明</span>');
-    expect(html).toContain('運賃 <span class="u1-unknown">不明</span>');
-    expect(html).toContain('ホーム <span class="u1-unknown">不明</span>');
+    const html = render(<ItineraryView trip={trip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} initialExpanded={['leg_u']} />);
+    expect(html).toContain('出発 </span><span class="u1-unknown">未取得</span>');
+    expect(html).toContain('到着 </span><span class="u1-unknown">未取得</span>');
+    expect(html).toContain('<dt>運賃</dt><dd><span class="u1-unknown">未取得</span>');
+    expect(html).toContain('<dt>ホーム</dt><dd><span class="u1-unknown">未取得</span>');
     expect(html).not.toMatch(SHOWN_AS_ZERO);
   });
 
   it('the whole Kanazawa fixture view (unknown admission, untimed leg) shows no 0 for unknowns', () => {
     const html = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
-    expect(html).toContain('不明');
-    expect(html).toContain('未定');
+    expect(html).toContain('未取得');
     expect(html).not.toMatch(SHOWN_AS_ZERO);
   });
 
@@ -91,13 +90,12 @@ describe('per-day transport mode (R06)', () => {
 });
 
 describe('transit details (R05)', () => {
-  it('shows line, boarding/alighting and transfer stops when present', () => {
+  it('shows line, boarding/alighting and transfer stops when present (in the opened connector)', () => {
     const trip = tripWithItems([unknownLeg({
       lineName: '北鉄バス', platform: '3', transfers: 1,
       transit: { boardingStop: '金沢駅東口', alightingStop: '兼六園下', transferStops: ['香林坊'] },
     })]);
-    const [row] = timelineRows(trip.days[0]!, trip.places);
-    const html = render(<TimelineItem row={row!} selected={false} onSelect={noop} />);
+    const html = render(<ItineraryView trip={trip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} initialExpanded={['leg_u']} />);
     for (const s of ['北鉄バス', '金沢駅東口', '兼六園下', '香林坊', '1回']) expect(html).toContain(s);
   });
 });
@@ -105,14 +103,14 @@ describe('transit details (R05)', () => {
 describe('selection sync (R08)', () => {
   const day = domesticTrip.days[0]!;
   it('timeline -> map: selecting a leg highlights both of its places', () => {
-    const s = syncSelection({ kind: 'item', key: 'fx_leg_1' }, day);
-    expect([...s.placeIds].sort()).toEqual(['fx_kanazawa_station', 'fx_kenrokuen']);
-    expect(s.focusItemKey).toBe('fx_leg_1');
+    const s = syncSelection({ kind: 'item', key: 'fx_leg_k4' }, day);
+    expect([...s.placeIds].sort()).toEqual(['fx_21c_museum', 'fx_kenrokuen']);
+    expect(s.focusItemKey).toBe('fx_leg_k4');
   });
   it('map -> timeline: selecting a place highlights its items and opens the first one', () => {
     const s = syncSelection({ kind: 'place', placeId: 'fx_kenrokuen' }, day);
-    expect([...s.itemKeys]).toEqual(expect.arrayContaining(['fx_leg_1', 'fx_act_kenrokuen', 'fx_leg_2']));
-    expect(s.focusItemKey).toBe('fx_leg_1');
+    expect([...s.itemKeys]).toEqual(expect.arrayContaining(['fx_leg_k3', 'fx_act_kenrokuen', 'fx_leg_k4']));
+    expect(s.focusItemKey).toBe('fx_leg_k3');
   });
   it('no selection highlights nothing; selecting again clears', () => {
     const s = syncSelection(null, day);
@@ -121,12 +119,12 @@ describe('selection sync (R08)', () => {
     expect(toggleSelection({ kind: 'place', placeId: 'a' }, { kind: 'place', placeId: 'a' })).toBeNull();
     expect(toggleSelection({ kind: 'place', placeId: 'a' }, { kind: 'item', key: 'a' })).toEqual({ kind: 'item', key: 'a' });
   });
-  it('the rendered view marks the selected item and its map points', () => {
+  it('the rendered view marks the selected row, opens its details and marks its map point', () => {
     const html = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null}
-      initialSelection={{ kind: 'place', placeId: 'fx_kenrokuen' }} />);
-    expect(html).toMatch(/class="it-point it-on" aria-pressed="true"/);
-    expect(html).toContain('（選択中）');
-    expect((html.match(/class="it-item[^"]*it-on"/g) ?? []).length).toBe(3);
+      initialSelection={{ kind: 'place', placeId: 'fx_kenrokuen' }} initialExpanded={['fx_act_kenrokuen']} />);
+    expect(html).toContain('aria-label="3. 兼六園（選択中）"'.replace('3.', String(mapPoints(domesticTrip.days[0]!, domesticTrip.places).find(p => p.placeId === 'fx_kenrokuen')!.number) + '.'));
+    expect(html).toContain('class="it-stay it-on"');
+    expect(html).toContain('<dt>説明</dt><dd>（fixture）日本三名園の一つとされる庭園。');
   });
   it('places without a location are not put on the map (never at 0,0)', () => {
     const t = clone(domesticTrip);
@@ -134,6 +132,7 @@ describe('selection sync (R08)', () => {
     const points = mapPoints(t.days[0]!, t.places);
     expect(points.find(p => p.placeId === 'fx_kenrokuen')).toBeUndefined();
     expect(unlocatedPlaces(t.days[0]!, t.places).map(p => p.name)).toHaveLength(1);
+    expect(tableRows(t.days[0]!, t.places).length).toBeGreaterThan(0);
   });
 });
 
@@ -145,7 +144,7 @@ describe('map without a key, attribution', () => {
     expect(readBrowserMapsKey({ PUBLIC_MAPS_BROWSER_KEY: 'browser-test' })).toBe('browser-test');
   });
 
-  it('no key renders the static fallback (地図キー未設定) with numbered places, without loading Google', () => {
+  it('no key renders the static fallback (地図キー未設定) as an SVG map with numbered points and arrows, without loading Google', () => {
     const before = typeof document;
     const html = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
     expect(html).toContain('地図キー未設定');
@@ -154,6 +153,8 @@ describe('map without a key, attribution', () => {
     expect(typeof document).toBe(before); // nothing injected a script into a DOM in the node test environment
     const fb = render(<StaticMap points={mapPoints(domesticTrip.days[0]!, domesticTrip.places)} highlighted={new Set()} onSelectPlace={noop} reason="地図キー未設定" />);
     expect(fb).toContain('金沢駅');
+    expect(fb).toContain('data-testid="map-arrow"');
+    expect(fb).not.toContain('<ol');
   });
 
   it('attribution is shown: fixture data, provider credits, photo authors, Google when Google data is used', () => {

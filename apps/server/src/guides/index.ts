@@ -7,8 +7,7 @@
  *  - provider unavailable (live source not connected, dataStatus "unavailable")        -> 503 UNAVAILABLE (retryable)
  *  - unsupported region                                                                 -> 200 with dataStatus "unsupported_region" (never an empty "ok")
  *  - covered range, nothing found                                                       -> 200 items [] with dataStatus "fixture"/"verified"
- * `GET /api/v1/guides` (spot descriptions) is not registered: descriptions already travel in Trip.places (K06) and
- * D07's packages/travel-data/src/guides does not exist yet.
+ * `GET /api/v1/guides` (spot descriptions + licensed photos) lives in ./spots.ts.
  */
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';

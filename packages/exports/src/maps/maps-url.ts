@@ -127,6 +127,7 @@ export function tripMapsLinks(trip: Pick<Trip, 'days' | 'places' | 'constraints'
         legs.push(item);
         continue;
       }
+      if (item.parentActivityId) continue; // nested activities are shown inside their parent, not as separate route stops
       const place = item.placeId === null ? undefined : places.get(item.placeId);
       if (item.status !== 'skipped' && item.placeId !== null && !place) (known.has(item.placeId) ? withheld : unknown).add(item.placeId);
       if (item.status === 'skipped' || !place) continue;

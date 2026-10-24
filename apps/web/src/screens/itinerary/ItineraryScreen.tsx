@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Trip } from '@tkb/contracts';
+import type { ApiError, Trip } from '@tkb/contracts';
 import { FIXTURE_NOTICE } from '@tkb/fixtures';
 import { ErrorBox } from '../../components/ErrorBox.tsx';
 import { MockBanner } from '../../components/MockBanner.tsx';
@@ -7,19 +7,24 @@ import { ScreenHeader } from '../../components/ScreenHeader.tsx';
 import { formatDay } from '../../lib/format.ts';
 import type { Selection } from '../../lib/places.ts';
 import { createMockApi, type MockApi } from '../../mocks/index.ts';
+import { createLiveTripEditApi, createMockTripEditApi, describeEditError, isRevisionConflict, type TripEditApi } from '../edit/api.ts';
+import { applyOperations } from '../edit/ops.ts';
 import { fetchTrip, fetchTripFromMock, type TripLoad } from './api.ts';
+import { ItineraryTable } from './ItineraryTable.tsx';
 import { MapPanel } from './MapPanel.tsx';
 import { readBrowserMapsKey } from './mapsKey.ts';
 import {
-  DAY_MODE_LABEL, KIND_LABEL, LEG_MODE_LABEL, TIME_UNKNOWN, VALUE_UNKNOWN,
-  attributionFor, dayTransportMode, durationText, fareText, mapPoints, syncSelection, timelineRows,
-  toggleSelection, transitDetail, unlocatedPlaces, type TimelineRow,
+  DAY_MODE_LABEL, attributionFor, dayTransportMode, mapPoints, syncSelection, toggleSelection, unlocatedPlaces,
 } from './model.ts';
 import { itineraryHash, type ItineraryRoute } from './route.ts';
+import { blockOf, planMoves, tableRows } from './table.ts';
 import '../../components/u01.css';
 import './itinerary.css';
 
 const NO_PLACES: ReadonlySet<string> = new Set();
+
+/** How a reorder is saved: locally only (an unsaved candidate preview) or through K10 PATCH (mock or server). */
+export type ItineraryEditor = { kind: 'local' } | { kind: 'api'; api: TripEditApi };
 
 /**
  * U04 map + itinerary screen (R05, R06, R08). Loads the trip by id every time it mounts (a reload
@@ -33,6 +38,7 @@ export function ItineraryScreen({ route, mockApi, onBack, embedded = false }: {
   embedded?: boolean;
 }) {
   const api = useMemo(() => (route.mode === 'mock' ? mockApi ?? createMockApi() : null), [route.mode, mockApi]);
+  const editApi = useMemo<TripEditApi>(() => (api ? createMockTripEditApi(api) : createLiveTripEditApi()), [api]);
   const [load, setLoad] = useState<TripLoad | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [dayIndex, setDayIndex] = useState(route.dayIndex);
@@ -52,7 +58,7 @@ export function ItineraryScreen({ route, mockApi, onBack, embedded = false }: {
 
   const body = (
     <ItineraryBody load={load} dayIndex={dayIndex} onSelectDay={selectDay} onRetry={() => setAttempt(a => a + 1)}
-      mapsKey={readBrowserMapsKey()} {...(onBack ? { onBack } : {})} />
+      mapsKey={readBrowserMapsKey()} editor={{ kind: 'api', api: editApi }} {...(onBack ? { onBack } : {})} />
   );
   if (embedded) return body;
 
@@ -65,13 +71,14 @@ export function ItineraryScreen({ route, mockApi, onBack, embedded = false }: {
 }
 
 /** Pure part (no fetching): loading / 404 / error / empty / the itinerary. Rendered directly in tests. */
-export function ItineraryBody({ load, dayIndex, onSelectDay, onRetry, mapsKey, onBack }: {
+export function ItineraryBody({ load, dayIndex, onSelectDay, onRetry, mapsKey, onBack, editor }: {
   load: TripLoad | null;
   dayIndex: number;
   onSelectDay: (i: number) => void;
   onRetry: () => void;
   mapsKey: string | null;
   onBack?: () => void;
+  editor?: ItineraryEditor;
 }) {
   const header = (title: string) => <ScreenHeader title={title} {...(onBack ? { onBack } : {})} />;
   if (load === null) return <>{header('地図と旅程')}<p className="u1-loading" role="status">サーバーから旅程を読み込み中…</p></>;
@@ -90,40 +97,92 @@ export function ItineraryBody({ load, dayIndex, onSelectDay, onRetry, mapsKey, o
       </>
     );
   }
-  return <ItineraryView trip={load.trip} source={load.source} dayIndex={dayIndex} onSelectDay={onSelectDay} mapsKey={mapsKey} {...(onBack ? { onBack } : {})} />;
+  return (
+    <ItineraryView trip={load.trip} source={load.source} dayIndex={dayIndex} onSelectDay={onSelectDay} mapsKey={mapsKey}
+      {...(editor ? { editor } : {})} {...(onBack ? { onBack } : {})} />
+  );
 }
 
-export function ItineraryView({ trip, source, dayIndex, onSelectDay, mapsKey, onBack, initialSelection = null }: {
+export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, mapsKey, onBack, initialSelection = null, initialExpanded = [], editor, hideHeader = false, previewNote }: {
   trip: Trip;
-  source: TripLoad['source'];
+  source: TripLoad['source'] | 'preview';
   dayIndex: number;
   onSelectDay: (i: number) => void;
   mapsKey: string | null;
   onBack?: () => void;
   initialSelection?: Selection;
+  /** Row keys opened at the start (stay rows show their details and nested activities). */
+  initialExpanded?: string[];
+  /** Without an editor the table is read-only (no drag handles). */
+  editor?: ItineraryEditor;
+  hideHeader?: boolean;
+  /** Shown instead of the saved-data line, e.g. for an unsaved candidate preview. */
+  previewNote?: string;
 }) {
+  const [trip, setTrip] = useState(tripProp);
+  useEffect(() => setTrip(tripProp), [tripProp]);
   const idx = Math.min(Math.max(dayIndex, 0), Math.max(trip.days.length - 1, 0));
   const day = trip.days[idx];
   const [selection, setSelection] = useState<Selection>(initialSelection);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set(initialExpanded));
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
   const points = useMemo(() => (day ? mapPoints(day, trip.places) : []), [day, trip.places]);
-  const rows = useMemo(() => (day ? timelineRows(day, trip.places) : []), [day, trip.places]);
+  const rows = useMemo(() => (day ? tableRows(day, trip.places) : []), [day, trip.places]);
   const sync = useMemo(() => (day ? syncSelection(selection, day) : null), [selection, day]);
   const attribution = useMemo(() => attributionFor(trip), [trip]);
-  const rowRefs = useRef(new Map<string, HTMLLIElement>());
+  const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
+  const editable = editor !== undefined;
 
-  // R08: selecting on the map opens (scrolls to) the matching item.
+  // R08: selecting on the map opens the matching row and scrolls to it.
   useEffect(() => {
     if (sync?.focusItemKey && selection?.kind === 'place') rowRefs.current.get(sync.focusItemKey)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
   }, [sync, selection]);
 
-  const changeDay = (i: number) => { setSelection(null); onSelectDay(i); };
-  const selectPlace = useCallback((placeId: string) => setSelection(s => toggleSelection(s, { kind: 'place', placeId })), []);
+  const changeDay = (i: number) => { setSelection(null); setNotice(null); onSelectDay(i); };
+  const toggleOpen = (key: string) => setExpanded(s => { const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+
+  // D: clicking a row (or a map marker) shows its details: the row opens and is selected.
+  const selectRow = (key: string) => {
+    const open = !expanded.has(key);
+    toggleOpen(key);
+    setSelection(s => (open ? { kind: 'item', key } : toggleSelection(s, { kind: 'item', key })));
+  };
+  const selectPlace = useCallback((placeId: string) => {
+    setSelection(s => toggleSelection(s, { kind: 'place', placeId }));
+    const keys = rows.flatMap(r => (r.kind === 'stay' && r.item.placeId === placeId ? [r.key] : []));
+    setExpanded(s => new Set([...s, ...keys]));
+  }, [rows]);
+
+  const commitMove = async (key: string, before: string | null) => {
+    if (!day || !editor) return;
+    const order = day.items.map(i => (i.type === 'activity' ? i.activityId : i.legId));
+    const ops = planMoves(order, blockOf(day, key), before, idx);
+    if (ops.length === 0) return;
+    setNotice(null);
+    if (editor.kind === 'local') {
+      const r = applyOperations(trip, ops);
+      if (!r.ok) { setNotice({ kind: 'error', text: `並べ替えできませんでした（${r.reason}）。` }); return; }
+      setTrip({ ...r.trip, validationState: 'needs_revalidation' });
+      setNotice({ kind: 'info', text: '並べ替えました（候補の表示のみ・まだ保存していません）。移動の時刻は再計算されていません。' });
+      return;
+    }
+    setSaving(true);
+    const r = await editor.api.patch(trip.tripId, { expectedRevision: trip.revision, operations: ops });
+    setSaving(false);
+    if (!r.ok) {
+      setNotice({ kind: 'error', text: apiMessage(r.error) });
+      return; // nothing is overwritten: the table keeps what is saved
+    }
+    setTrip(r.data.trip);
+    setNotice({ kind: 'info', text: `並べ替えを保存しました（版 ${r.data.revision}）。移動の時刻と所要時間は再計算が必要です。` });
+  };
 
   return (
     <>
-      <ScreenHeader title={trip.title} {...(onBack ? { onBack } : {})} />
+      {!hideHeader && <ScreenHeader title={trip.title} {...(onBack ? { onBack } : {})} />}
       <p className="it-meta">
-        <span className="u1-source">{source === 'server' ? 'サーバー保存データ' : 'モックデータ'}（版 {trip.revision}）</span>{' '}
+        {previewNote ? <span className="u1-source">{previewNote}</span> : <span className="u1-source">{source === 'server' ? 'サーバー保存データ' : 'モックデータ'}（版 {trip.revision}）</span>}{' '}
         {trip.constraints.area} / {trip.constraints.startDate}〜{trip.constraints.endDate}
       </p>
       {attribution.hasFixture && <p className="it-fixture" role="note"><strong>FIXTURE</strong> {FIXTURE_NOTICE}</p>}
@@ -152,15 +211,14 @@ export function ItineraryView({ trip, source, dayIndex, onSelectDay, mapsKey, on
               <UnlocatedNote names={unlocatedPlaces(day, trip.places)} />
               <AttributionBlock attribution={attribution} mapShown={mapsKey !== null} />
             </div>
-            <ol className="it-timeline" aria-label="行程表">
-              {rows.length === 0 && <li className="u1-empty">この日の予定はありません。</li>}
-              {rows.map(r => (
-                <li key={r.key} ref={el => { if (el) rowRefs.current.set(r.key, el); else rowRefs.current.delete(r.key); }}>
-                  <TimelineItem row={r} selected={sync?.itemKeys.has(r.key) ?? false}
-                    onSelect={() => setSelection(s => toggleSelection(s, { kind: 'item', key: r.key }))} />
-                </li>
-              ))}
-            </ol>
+            <div className="it-tablecol">
+              {editable && <p className="meta it-hint">左の「⠿」をドラッグ（またはEnterで持ち上げて↑↓キー、Enterで置く）で並べ替えられます。行を押すと詳細が開きます。</p>}
+              {saving && <p role="status" className="u1-loading">並べ替えを保存中…</p>}
+              {notice && <p role={notice.kind === 'error' ? 'alert' : 'status'} className={notice.kind === 'error' ? 'it-notice it-error' : 'it-notice'}>{notice.text}</p>}
+              <ItineraryTable key={idx} rows={rows} dayDate={day.date} expanded={expanded} selectedKeys={sync?.itemKeys}
+                onToggleRow={selectRow} saving={saving} {...(editable ? { onReorder: (k: string, b: string | null) => void commitMove(k, b) } : {})}
+                setRowRef={(k, el) => { if (el) rowRefs.current.set(k, el); else rowRefs.current.delete(k); }} />
+            </div>
           </section>
         </>
       )}
@@ -168,52 +226,8 @@ export function ItineraryView({ trip, source, dayIndex, onSelectDay, mapsKey, on
   );
 }
 
-function Unknown({ text }: { text: string }) {
-  return text === VALUE_UNKNOWN || text === TIME_UNKNOWN ? <span className="u1-unknown">{text}</span> : <>{text}</>;
-}
-
-export function TimelineItem({ row, selected, onSelect }: { row: TimelineRow; selected: boolean; onSelect: () => void }) {
-  const { item } = row;
-  const nums = row.numbers.length > 0 ? row.numbers.join('→') : null;
-  const head = (
-    <span className="it-time">
-      <Unknown text={row.start} /> 〜 <Unknown text={row.end} />
-    </span>
-  );
-  if (item.type === 'activity') {
-    return (
-      <button type="button" className={`it-item${selected ? ' it-on' : ''}`} aria-pressed={selected} onClick={onSelect}>
-        {head}
-        <span className="it-title">
-          {nums ? <span className="it-num" aria-label={`地図の地点${nums}`}>{nums}</span> : <span className="it-num it-num-none" aria-label="地図に表示なし">–</span>}
-          {row.title}
-        </span>
-        <span className="meta">
-          {KIND_LABEL[item.kind]}{item.fixed ? '・固定予定' : ''}
-          {item.kind === 'free_walk' && <>・エリア {item.areaName ?? VALUE_UNKNOWN}</>}
-          ・費用 <Unknown text={item.cost === null ? VALUE_UNKNOWN : fareText(item.cost)} />
-        </span>
-      </button>
-    );
-  }
-  const t = transitDetail(item);
-  return (
-    <button type="button" className={`it-item it-leg${selected ? ' it-on' : ''}`} aria-pressed={selected} onClick={onSelect}>
-      {head}
-      <span className="it-title">
-        <span className="it-legmode">{LEG_MODE_LABEL[item.mode]}</span>
-        {row.title}
-      </span>
-      <span className="meta">所要 <Unknown text={durationText(item.durationSeconds)} />・運賃 <Unknown text={fareText(item.fare)} /></span>
-      {t && (
-        <span className="meta it-transit">
-          路線 <Unknown text={t.line} />・乗車 <Unknown text={t.boarding} />・降車 <Unknown text={t.alighting} />
-          ・乗換 <Unknown text={t.transferCount} />{t.transfers.length > 0 ? `（${t.transfers.join('、')}）` : ''}
-          ・ホーム <Unknown text={t.platform} />
-        </span>
-      )}
-    </button>
-  );
+function apiMessage(e: ApiError): string {
+  return isRevisionConflict(e) ? describeEditError(e) : `保存できませんでした。${describeEditError(e)}`;
 }
 
 function UnlocatedNote({ names }: { names: { number: number; name: string }[] }) {
@@ -234,7 +248,7 @@ export function AttributionBlock({ attribution, mapShown }: { attribution: Retur
       </p>
       {attribution.providers.length > 0 && <p>提供元：{attribution.providers.join('、')}</p>}
       {attribution.photos.length > 0 && <p>写真：{attribution.photos.join('、')}</p>}
-      <p className="meta">地図上の線は訪問順を直線で結んだもので、実際の経路ではありません。</p>
+      <p className="meta">地図上の線は訪問順を直線で結んだもので、実際の経路ではありません。矢印は進む向きです。</p>
     </footer>
   );
 }

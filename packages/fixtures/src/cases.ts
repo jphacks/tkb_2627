@@ -19,7 +19,7 @@ import type {
   Trip,
   TripList,
 } from '@tkb/contracts';
-import { domesticTrip, kanazawaPlaces, overseasTrip, sampleFeed } from './index.ts';
+import { domesticTrip, fxActivity, fxLeg, jst, kanazawaTripPlaces, overseasTrip, sampleFeed } from './index.ts';
 
 type Days = Trip['days'];
 
@@ -164,6 +164,19 @@ function kanazawaItems(): Map<string, Days[number]['items'][number]> {
   for (const day of structuredClone(domesticTrip).days) {
     for (const item of day.items) map.set(item.type === 'activity' ? item.activityId : item.legId, item);
   }
+  // Items only the relaxed candidate uses: every cost and fare known, so that candidate has hasUnknownCost=false.
+  const JST = 'Asia/Tokyo';
+  const D1 = '2026-11-01';
+  const prov = domesticTrip.places[0]?.provenance ?? null;
+  map.set('fx_leg_c3', fxLeg('fx_leg_c3', 'fx_kanazawa_station', 'fx_kenrokuen', 'transit', JST, jst(D1, '09:30'), jst(D1, '09:50'), {
+    lineName: '（fixture）路線バス', fare: { amountMinor: 210, currency: 'JPY' }, provenance: prov,
+  }));
+  map.set('fx_act_c3_kenrokuen', fxActivity('fx_act_c3_kenrokuen', '兼六園を散策', 'visit', JST, jst(D1, '10:00'), jst(D1, '11:30'), {
+    placeId: 'fx_kenrokuen', cost: { amountMinor: 320, currency: 'JPY' },
+  }));
+  map.set('fx_act_c3_lunch', fxActivity('fx_act_c3_lunch', '兼六園の近くで昼食', 'meal', JST, jst(D1, '12:00'), jst(D1, '13:00'), {
+    placeId: 'fx_sushi', cost: { amountMinor: 2000, currency: 'JPY' },
+  }));
   return map;
 }
 
@@ -197,32 +210,34 @@ export function createSamplePlanBatch(): PlanBatch {
     baseTripId: null,
     baseRevision: null,
     candidates: [
-      candidate('candidate_1', '庭園と美術館を優先（fixture）', [
-        ['fx_leg_1', 'fx_act_kenrokuen', 'fx_leg_2', 'fx_act_museum', 'fx_leg_3', 'fx_act_lunch', 'fx_act_omicho'],
-        ['fx_act_higashi'],
+      candidate('candidate_1', '定番を一通り（fixture）', [
+        ['fx_act_station', 'fx_leg_k1', 'fx_act_omicho', 'fx_act_omicho_walk', 'fx_act_lunch', 'fx_leg_k2', 'fx_act_castle', 'fx_leg_k3', 'fx_act_kenrokuen',
+          'fx_leg_k4', 'fx_act_museum', 'fx_leg_k5', 'fx_act_dinner', 'fx_leg_k6', 'fx_act_hotel'],
+        ['fx_act_higashi', 'fx_act_higashi_tea', 'fx_act_higashi_sweets', 'fx_leg_k7', 'fx_act_kazue', 'fx_leg_k8', 'fx_act_oyama', 'fx_leg_k9',
+          'fx_act_nagamachi', 'fx_leg_k10', 'fx_act_station_end'],
       ], {
-        reasons: ['必須地点の兼六園を午前に配置'],
+        reasons: ['必須地点の兼六園を午後に配置', '昼食は近江町市場エリアの中にまとめた'],
         warnings: ['美術館の入館料と一部の移動は未取得'],
         excludedPlaceIds: [],
         validationState: 'needs_review',
       }),
-      candidate('candidate_2', '茶屋街を優先（fixture）', [
-        ['fx_leg_1', 'fx_act_kenrokuen', 'fx_act_lunch', 'fx_act_omicho'],
-        ['fx_act_higashi'],
+      candidate('candidate_2', '市場と庭園を中心に（fixture）', [
+        ['fx_act_station', 'fx_leg_k1', 'fx_act_omicho', 'fx_act_omicho_walk', 'fx_act_lunch', 'fx_leg_k2', 'fx_act_castle', 'fx_leg_k3', 'fx_act_kenrokuen'],
+        ['fx_act_higashi', 'fx_act_higashi_tea', 'fx_act_higashi_sweets'],
       ], {
-        reasons: ['移動を減らすため美術館を除外'],
-        warnings: ['近江町市場・ひがし茶屋街の費用は未取得'],
-        excludedPlaceIds: ['fx_21c_museum'],
+        reasons: ['移動を減らすため美術館と夕食以降を除外'],
+        warnings: ['金沢城公園・ひがし茶屋街の費用は未取得'],
+        excludedPlaceIds: ['fx_21c_museum', 'fx_oyama', 'fx_nagamachi'],
         validationState: 'needs_review',
       }),
-      candidate('candidate_3', 'ゆったり1日（fixture）', [['fx_leg_1', 'fx_act_kenrokuen', 'fx_act_lunch'], []], {
+      candidate('candidate_3', 'ゆったり1日（fixture）', [['fx_leg_c3', 'fx_act_c3_kenrokuen', 'fx_act_c3_lunch'], []], {
         reasons: ['予定を絞り、費用が分かる項目だけにした'],
         warnings: [],
         excludedPlaceIds: ['fx_21c_museum', 'fx_omicho', 'fx_higashi'],
         validationState: 'valid',
       }),
     ],
-    places: structuredClone(kanazawaPlaces),
+    places: structuredClone(kanazawaTripPlaces),
     createdAt: '2026-10-24T00:00:30Z',
   };
 }

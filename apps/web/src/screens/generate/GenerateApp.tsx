@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { GenerateRequest, JobAccepted } from '@tkb/contracts';
+import type { GenerateRequest, JobAccepted, PlanBatch } from '@tkb/contracts';
 import { MockBanner } from '../../components/MockBanner.tsx';
 import { ScenarioSwitcher } from '../../components/ScenarioSwitcher.tsx';
 import { createMockApi, type MockScenario } from '../../mocks/index.ts';
@@ -7,6 +7,7 @@ import { createLiveConditionsApi, createMockConditionsApi, type DataSource } fro
 import { ConditionsScreen } from '../conditions/ConditionsScreen.tsx';
 import { itineraryHash } from '../itinerary/route.ts';
 import { createLiveGenerateApi, createMockGenerateApi } from './api.ts';
+import { CandidatePreview } from './CandidatePreview.tsx';
 import { CompareScreen, LiveBanner, ModeChip, ProgressScreen } from './GenerateScreens.tsx';
 import type { ModeCapState } from './model.ts';
 import '../../components/u01.css';
@@ -14,10 +15,12 @@ import '../../components/u01.css';
 type Step =
   | { name: 'conditions' }
   | { name: 'progress'; accepted: JobAccepted; request: GenerateRequest }
-  | { name: 'compare'; batchId: string };
+  | { name: 'compare'; batchId: string; request: GenerateRequest };
 
 /**
- * U05 flow (#generate): conditions (U03) -> progress (K02/K21) -> candidate compare (K07) -> apply (K08) -> U04 map link.
+ * U05 flow (#generate): conditions (U03) stay on the page; below them progress (K02/K21) -> candidate compare (K07) ->
+ * the U04 table + map of the first candidate -> apply (K08) -> U04 map link. Changing the conditions and generating again
+ * replaces the result below without leaving the page.
  * Mock mode shares ONE in-memory mock API between the screens so the accepted job can be polled.
  */
 export function GenerateApp({ initialSource = 'mock' }: { initialSource?: DataSource }) {
@@ -40,7 +43,8 @@ export function GenerateApp({ initialSource = 'mock' }: { initialSource?: DataSo
     });
     return () => { alive = false; };
   }, [source, apis]);
-  const reset = () => setStep({ name: 'conditions' });
+  const [batch, setBatch] = useState<PlanBatch | null>(null);
+  const reset = () => { setStep({ name: 'conditions' }); setBatch(null); };
 
   return (
     <div className="u1-root">
@@ -58,23 +62,24 @@ export function GenerateApp({ initialSource = 'mock' }: { initialSource?: DataSo
       </div>
       {source === 'mock' && <ScenarioSwitcher value={scenario} onChange={s => { setScenario(s); reset(); }} />}
       <main className="u1-main">
-        {step.name === 'conditions' && (
-          <ConditionsScreen key={`${source}:${scenario}`} api={apis.cond} onStarted={(accepted, request) => setStep({ name: 'progress', accepted, request })} />
-        )}
+        <ConditionsScreen key={`${source}:${scenario}`} api={apis.cond} onStarted={(accepted, request) => { setBatch(null); setStep({ name: 'progress', accepted, request }); }} />
         {source === 'live' && step.name !== 'conditions' && <ModeChip state={modeCap} />}
         {step.name === 'progress' && (
           <ProgressScreen
             key={step.accepted.jobId} api={apis.flow} accepted={step.accepted} request={step.request}
-            onSucceeded={batchId => setStep({ name: 'compare', batchId })}
+            onSucceeded={batchId => setStep({ name: 'compare', batchId, request: step.request })}
             onRetried={accepted => setStep({ name: 'progress', accepted, request: step.request })}
             onBack={reset}
           />
         )}
         {step.name === 'compare' && (
-          <CompareScreen
-            key={step.batchId} api={apis.flow} batchId={step.batchId} onBack={reset}
-            mapHrefFor={tripId => itineraryHash({ mode: source === 'mock' ? 'mock' : 'server', tripId, dayIndex: 0 })}
-          />
+          <>
+            <CompareScreen
+              key={step.batchId} api={apis.flow} batchId={step.batchId} onBack={reset} onBatchLoaded={setBatch}
+              mapHrefFor={tripId => itineraryHash({ mode: source === 'mock' ? 'mock' : 'server', tripId, dayIndex: 0 })}
+            />
+            {batch && batch.batchId === step.batchId && <CandidatePreview batch={batch} constraints={step.request.constraints} />}
+          </>
         )}
       </main>
     </div>

@@ -111,9 +111,13 @@ describe('tripToIcs', () => {
     const r = tripToIcs(domesticTrip, { now: NOW });
     const { events, lines } = readIcs(r.ics);
     expect(events.map(e => [e.UID!.slice(4).split('.')[0], e.startUtc, e.endUtc])).toEqual(timedItems(domesticTrip).map(i => [i.id, i.start, i.end]));
-    expect(r.omitted).toEqual([{ itemId: 'fx_leg_3', reason: 'time_unknown' }]);
+    expect(r.omitted).toEqual([
+      { itemId: 'fx_leg_k1', reason: 'time_unknown' },
+      { itemId: 'fx_act_hotel', reason: 'time_unknown' },
+      { itemId: 'fx_act_station_end', reason: 'time_unknown' },
+    ]);
     expect(r.eventCount).toBe(events.length);
-    expect(lines).toContain('DTSTART;TZID=Asia/Tokyo:20261101T100000');
+    expect(lines).toContain('DTSTART;TZID=Asia/Tokyo:20261102T100000');
     expect(lines.filter(l => l.startsWith('TZOFFSETTO'))).toEqual(['TZOFFSETTO:+0900']);
     expect(r.ics).not.toContain('予約番号'); // privateNotes
     expect(r.ics).toContain('サンプルデータ（fixture）');
@@ -300,7 +304,7 @@ describe('tripToIcs', () => {
     const r = tripToIcs(domesticTrip, { now: NOW });
     const events = readIcs(r.ics).events;
     expect(events.find(e => e.UID!.startsWith('UID:fx_act_kenrokuen'))!.DESCRIPTION).toContain('出典: tkb_2627 fixture');
-    expect(events.find(e => e.UID!.startsWith('UID:fx_leg_1'))!.DESCRIPTION).toContain('出典: tkb_2627 fixture');
+    expect(events.find(e => e.UID!.startsWith('UID:fx_leg_k1'))!.DESCRIPTION).toContain('出典: tkb_2627 fixture');
 
     const trip = structuredClone(domesticTrip);
     trip.places = trip.places.map(p => (p.placeId === 'fx_kenrokuen' ? { ...p, provenance: { ...p.provenance, attribution: 'Google, ©Map; x' } } : p));

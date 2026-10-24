@@ -33,3 +33,9 @@ h1 { font-size:20px; margin:8px 0; } h2 { font-size:18px; margin:12px 0 6px; } h
 .meta { color:var(--mut); font-size:13px; display:block; }
 .note { color:var(--warn); background:var(--warnbg); border-radius:6px; padding:6px 8px; font-size:13px; margin:0 0 8px; }
 .num { flex:none; width:28px; height:28px; border-radius:50%; background:var(--acc); color:var(--bg); display:grid; place-items:center; font-weight:700; font-size:14px; }
+
+/* UI approval helper: which task / Issue this screen is (docs/ui/UI_CHECK_GUIDE.md). */
+.screen-badge{position:fixed;left:8px;bottom:8px;z-index:1000;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;max-width:calc(100vw - 16px);padding:6px 10px;border-radius:8px;background:#142b3d;color:#fff;font-size:12px;line-height:1.4;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.screen-badge a{color:#ffd479;text-decoration:underline}
+.screen-badge-note{opacity:.85}
+@media print{.screen-badge{display:none}}

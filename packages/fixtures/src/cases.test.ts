@@ -68,11 +68,11 @@ describe('fixture cases', () => {
       }
     }
     const [c1, c2, c3] = createSamplePlanBatch().candidates;
-    expect(c1?.totalKnownCost).toEqual([{ currency: 'JPY', amountMinor: 200 + 320 + 4000 }]);
+    expect(c1?.totalKnownCost).toEqual([{ currency: 'JPY', amountMinor: 210 + 2200 + 320 + 210 + 210 }]);
     expect(c1?.hasUnknownCost).toBe(true);
     expect(c2?.hasUnknownCost).toBe(true);
     expect(c3?.hasUnknownCost).toBe(false);
-    expect(c3?.totalKnownCost).toEqual([{ currency: 'JPY', amountMinor: 4520 }]);
+    expect(c3?.totalKnownCost).toEqual([{ currency: 'JPY', amountMinor: 2530 }]);
     expect(createBudgetUnknownPlanBatch().candidates.every(c => c.hasUnknownCost && c.totalKnownCost.length === 0)).toBe(true);
   });
 
