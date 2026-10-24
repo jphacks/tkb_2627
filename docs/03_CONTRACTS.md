@@ -1194,6 +1194,12 @@ job: queued→running→succeeded/failed/cancelled。succeededは候補の共通
   - 徒歩区間には運賃がないので、費用の項目として扱いません。
   - `durationDeltaSeconds`：旅程全体の開始から終了までの差です（日をまたぐ空き時間も含みます）。時刻が不明な項目が1つでもある場合と、項目が0件の場合はnullにします。
 - **K18の「転載不可の素材」**（E03で決定）：ICS・Maps URL・PDFでは、利用条件で出力できない場所・写真・区間（`mayExport=false`）を除いて出力を続け、除いたものを`withheld`/`omitted`の一覧で返します。422にするのは、出力できる内容が1つもない場合だけです。出発地・帰着地（自宅）の名前は出力しません。
+- **K18のPDF**（E02）：
+  - `POST /api/v1/trips/{id}/exports`（本文は`ExportRequest`。`tripId`は省略可で、送る場合はパスと一致が必要。`format`は`pdf`のみ受け付け、他は422）→ 202 `ExportStatus`（`status=queued`、`withheld`に除いた項目）。
+  - `GET /api/v1/exports/{id}`：完成していればPDF本体（`application/pdf`、`attachment; filename="trip-<tripId>.pdf"`、`no-store`）。未完成・失敗・期限切れは`ExportStatus`のJSON（実行中も`queued`、失敗は`error.code`に`TIMEOUT`等）。`DELETE /api/v1/exports/{id}`は204で、以後のGETは404です。
+  - 作成も取得も旅程の所有者だけです。他人の旅程・exportと存在しないものは、どちらも404です。取得のたびに旅程の所有を確認するので、旅程を削除するとexportも404になります。版違いは409 `REVISION_CONFLICT`、出力できる項目が1つもない場合は422 `RESTRICTED_ASSET`です。
+  - 生成は共有サーバー内の固定レイアウト（pdf-lib＋同梱のNoto Sans JP、OFL-1.1、subset埋込み）で行います。ブラウザ・HTML・任意URLは読み込みません。地図画像と写真は描画しません（写真は外部URLのため。件数だけ注記）。不明な値は「未定」「不明」と書き、0にしません。JIS第1・第2水準外の文字は「?」になります。
+  - 出力jobはメモリ上のキューで、同時実行1件、待機8件まで（超えると429 `QUEUE_FULL`）、利用者ごとに処理中1件（429 `RATE_LIMITED`）、1件20秒で`failed`（TIMEOUT）、完成したPDFは10分で破棄（`expired`）します。ディスクには書かず、再起動で消えます。ICS・Maps URL（E03）は`@tkb/exports`の関数で、このルートでは返しません。
 - **互換の追加（schemaVersion 1のまま）**：
   - `TripConstraints.transportModeByDate`（R6、日ごとの交通手段。指定のない日は`transportMode`を使う。公開snapshotにも含める）
   - `TravelLeg.transit`（R05、乗車駅・降車駅・乗換駅の名前。取得できなければ`null`または空配列で、推測しない）

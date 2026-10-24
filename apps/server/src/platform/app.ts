@@ -10,6 +10,7 @@ import {
 } from '@tkb/contracts';
 import { checkConnection, migrate, openDatabase, type Db } from '@tkb/db';
 import { registerAuth } from './auth/index.ts';
+import { registerExports, type ExportsDeps } from './exports/index.ts';
 import { registerGroups } from '../social/groups/index.ts';
 import { registerCopy } from '../social/copy/index.ts';
 import { registerPosts } from '../social/posts/index.ts';
@@ -21,6 +22,8 @@ export interface BuildAppOptions {
   config: SharedConfig;
   /** Inject an already-migrated database (tests). Otherwise opened from config. */
   db?: Db;
+  /** E02 PDF export job settings / renderer (tests). */
+  exports?: ExportsDeps;
 }
 
 function sendError(reply: FastifyReply, requestId: string, code: ErrorCode, message: string, retryable = false) {
@@ -96,6 +99,7 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
   registerPosts(app, handle);
   registerTrips(app, handle, config);
   registerCopy(app, handle);
+  registerExports(app, handle, opts.exports); // E02 (K18 PDF)
 
   app.get('/api/v1/health', async (req, reply) => {
     if (!checkConnection(handle)) {
