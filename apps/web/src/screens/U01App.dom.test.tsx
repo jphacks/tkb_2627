@@ -25,7 +25,7 @@ describe('U01App (DOM)', () => {
     expect(tabBar().getByRole('button', { name: '旅程' }).getAttribute('aria-current')).toBeNull();
   });
 
-  it('the empty scenario's 旅程を新規作成する opens the condition form', async () => {
+  it('in the empty scenario, 旅程を新規作成する opens the condition form', async () => {
     render(<U01App initialScenario="empty" />);
     const create = await screen.findByRole('button', { name: '旅程を新規作成する' });
     fireEvent.click(create);
