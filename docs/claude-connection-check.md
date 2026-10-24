@@ -12,7 +12,7 @@
 | `--bare`、`ANTHROPIC_API_KEY`、apiKeyHelperへの切替え | **既定にしない／無断で行わない** | `--bare`はOAuthを読まずAPIキー課金になる（④）。API課金はCLAUDE.md §2で禁止。 |
 | アプリを配布する、または本人以外（他メンバー・審査員・家族を含む）に生成機能を提供する | **このままでは不可** | ①によりAPIキー認証が必要。API課金を伴うため、事前にチームの別途合意が必要。 |
 
-最終的な利用可否はM4本人とM1が下記条件を読んで同意し、Issue #25にコメントしてから実CLIを起動する実装（A04で予定。`.env.ai-local.example`の`ALLOW_CLAUDE_EXECUTION=true`で有効化）へ進む。それまでApp Serverは`TERMS_NOT_CONFIRMED`扱いで実CLIを起動しない。
+最終的な利用可否はM4本人とM1が下記条件を読んで同意し、Issue #25にコメントしてから実CLIを起動する実装（A04で予定。A02の時点では`ALLOW_CLAUDE_EXECUTION=true`でも実行は有効にならない）へ進む。それまでApp Server（A02）は実CLIを起動しない。capabilitiesの理由は、`ALLOW_CLAUDE_EXECUTION=false`のとき`CLAUDE_EXECUTION_DISABLED`、`true`のとき`TERMS_NOT_CONFIRMED`で、どちらでもfake runnerのままにする。
 
 ### 出典（2026-10-24取得）
 1. Claude Code Docs「Legal and compliance」― Authentication and credential use：OAuth認証はサブスク購入者による*ordinary use*のため。*Developers building products or services that interact with Claude's capabilities … should use API key authentication*。開発者がclaude.aiログインを自アプリに提供すること、Free/Pro/Max資格情報で利用者に代わって要求を中継すること、claude.aiの資格情報やセッショントークンを収集・保存・中継することは禁止。<https://code.claude.com/docs/en/legal-and-compliance>
@@ -24,7 +24,7 @@
 - 実行するのは**本人入口（loopbackの:4311）だけ**。ペアリング済みのローカルセッションで、**CLIにログインしている本人（サブスク契約者）自身のアプリアカウント**の要求に限る。`PERSONAL_ALLOWED_USER_IDS`には本人のuserIdだけを入れ、他メンバー・審査員・家族などのアカウントは入れない。デモも本人が自分で操作する。共有サーバーから本人CLIへの逆proxyやジョブ取得は作らない。
 - 起動方法：固定の実行ファイル（`CLAUDE_BIN`）、引数配列、`shell:false`。promptはstdinで渡す（stdinの上限は10MB）。
 - 隔離：`-p`では`--bare`なしでもhooks・MCP・CLAUDE.mdを読み込むため、**空の専用cwd**（毎回作成して削除）、`--tools ""`、`--strict-mcp-config`（`--mcp-config`は指定しない）、`--no-session-persistence`を使う。`~/.claude/settings.json`のhooksとプラグインは本人が確認する（M4のPCでは手動で確認し、キーは`model`と`effortLevel`だけでhooksはなかった）。`--setting-sources`で`user`を外すかどうかは、サブスク認証が維持されるかを実機で確かめるまで未確定。ツールを無効にしても完全に隔離できたとは見なさない。
-- 起動前に検証して拒否する条件：`ANTHROPIC_API_KEY`／`ANTHROPIC_AUTH_TOKEN`／`ANTHROPIC_BASE_URL`／`CLAUDE_CODE_OAUTH_TOKEN`／`CLAUDE_CODE_USE_BEDROCK|VERTEX|FOUNDRY`のいずれかが設定されている、または`claude auth status --json`の`authMethod`が`claude.ai`でない場合は実行しない（API課金や別の経路にしない）。子プロセスにはこれらの変数を渡さない環境を組み立てる。
+- 起動前に検証して拒否する条件：`ANTHROPIC_API_KEY`／`ANTHROPIC_AUTH_TOKEN`／`ANTHROPIC_BASE_URL`／`CLAUDE_CODE_OAUTH_TOKEN`／`CLAUDE_CODE_USE_BEDROCK|VERTEX|FOUNDRY`のいずれか、またはそれ以外の`ANTHROPIC_*`・`CLAUDE_CODE_USE_*`の変数が（空文字でも）設定されている、または`claude auth status --json`の`authMethod`が`claude.ai`でない場合は実行しない（API課金や別の経路にしない）。子プロセスにはこれらの変数を渡さない環境を組み立てる。
 - 出力の扱い：exit codeが0、`type=result`、`is_error=false`、`subtype=success`、`structured_output`ありの**すべて**を満たす場合だけ受け取り、さらに`parseBlueprint`でschemaと許可された地点IDを検証する。`total_cost_usd`はクライアント側の推定値なので課金の根拠にしない。
 - 失敗の分類（K23/SafeError）：CLIが見つからない→`CLI_NOT_FOUND`（capabilities）、未ログイン→`CLI_NOT_AUTHENTICATED`、利用枠超過→`CLI_LIMIT`（APIへ切り替えない・無限リトライしない）、timeout→`CLI_TIMEOUT`（SIGTERMの場合はexit 143）、0以外で終了→`CLI_EXIT`、JSON不正や`structured_output`なし→`INVALID_OUTPUT`。stderrの生の内容はUIやログに出さない。
 - 負荷：初期値は同時実行1・待機8・全体300秒・CLI120秒・形式修復1回（docs/00_DECISIONS.md）。個人の通常利用の範囲に収める。
