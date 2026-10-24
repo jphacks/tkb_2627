@@ -293,6 +293,7 @@ function withCarLegs(days: PlanCandidate['days']): PlanCandidate['days'] {
             platform: null,
             transfers: null,
             fare: null,
+            transit: null,
             dataStatus: 'unknown' as const,
             provenance: null,
           }

@@ -8,6 +8,7 @@ import { ConditionInput } from './ConditionInput.tsx';
 import { emptyForm } from './condition.ts';
 import { flowReducer, initialFlow, type FlowState } from './flow.ts';
 import { GenerationProgress } from './GenerationProgress.tsx';
+import { ItineraryScreen } from './itinerary/ItineraryScreen.tsx';
 import { Guide } from './Guide.tsx';
 import { Feed, Share } from './Share.tsx';
 import { TripDetailEdit } from './TripDetailEdit.tsx';
@@ -39,6 +40,8 @@ function Shell({ scenario }: { scenario: MockScenario }) {
   const [form, setForm] = useState(emptyForm);
   const main = useRef<HTMLElement>(null);
   const first = useRef(true);
+  const [mapTripId, setMapTripId] = useState<string | null>(null);
+  useEffect(() => setMapTripId(null), [flow.screen]);
 
   // Move focus to the new screen so keyboard and screen-reader users start at its top.
   useEffect(() => {
@@ -53,7 +56,19 @@ function Shell({ scenario }: { scenario: MockScenario }) {
   return (
     <>
       <main className="u1-main" ref={main} tabIndex={-1} aria-label="画面">
-        <Screen api={api} flow={flow} dispatch={dispatch} form={form} setForm={setForm} />
+        {/* U04: the map + itinerary view of the open trip, read from the same mock API. */}
+        {mapTripId ? (
+          <ItineraryScreen embedded route={{ mode: 'mock', tripId: mapTripId, dayIndex: 0 }} mockApi={api} onBack={() => setMapTripId(null)} />
+        ) : (
+          <>
+            {flow.screen.name === 'detail' && (
+              <div className="u1-actions">
+                <button type="button" className="btn u1-primary" onClick={() => flow.screen.name === 'detail' && setMapTripId(flow.screen.tripId)}>地図と旅程を見る</button>
+              </div>
+            )}
+            <Screen api={api} flow={flow} dispatch={dispatch} form={form} setForm={setForm} />
+          </>
+        )}
       </main>
       <TabBar active={flow.tab} onSelect={tab => dispatch({ type: 'selectTab', tab })} />
     </>
