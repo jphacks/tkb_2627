@@ -1,4 +1,4 @@
-// Dependency-free syntax lint: runs `node --check` on scripts/*.mjs and tests/**/*.mjs.
+// Dependency-free syntax lint: runs `node --check` on .mjs files in scripts/, tests/, apps/ and packages/.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -7,9 +7,9 @@ import { fileURLToPath } from 'node:url';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const walk = d => fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }).flatMap(e => {
   const p = path.join(d, e.name);
-  return e.isDirectory() ? (e.name === 'node_modules' ? [] : walk(p)) : [p];
+  return e.isDirectory() ? (['node_modules', 'dist'].includes(e.name) ? [] : walk(p)) : [p];
 }) : [];
-const files = [...walk(path.join(root, 'scripts')), ...walk(path.join(root, 'tests'))].filter(f => f.endsWith('.mjs'));
+const files = ['scripts', 'tests', 'apps', 'packages'].flatMap(d => walk(path.join(root, d))).filter(f => f.endsWith('.mjs'));
 let bad = 0;
 for (const f of files) {
   const r = spawnSync(process.execPath, ['--check', f], { encoding: 'utf8' });
