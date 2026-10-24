@@ -68,7 +68,8 @@ export function GuideView({ trip, mock, geo, today }: { trip: Trip; mock: boolea
     const my = ++seq.current;
     setAmen(null);
     setNote(null);
-    const area = await chooseArea({ useDevice, geo, day, places: trip.places });
+    const homePlaceIds = [trip.constraints.departure?.placeId, trip.constraints.return?.placeId].filter((x): x is string => typeof x === 'string');
+    const area = await chooseArea({ useDevice, geo, day, places: trip.places, homePlaceIds });
     if (my !== seq.current) return;
     if (area.deviceFailure) setNote(area.deviceFailure === 'denied' ? '位置情報が許可されなかったため、旅程の地点の周辺を表示しています。' : '現在地を取得できなかったため、旅程の地点の周辺を表示しています。');
     if (area.source === 'none') { setAmen({ state: 'empty', reason: '旅程に位置のある地点がありません。', dataStatus: 'unknown' }); return; }
