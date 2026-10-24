@@ -1,13 +1,11 @@
 import { createHash } from 'node:crypto';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
+  AlternativesRequest,
+  AlternativesResult,
   ApiError,
   ERROR_HTTP_STATUS,
   Id,
-  Trip,
-  TripDiff,
-  TripOperation,
-  TripPatchRequest,
   type ErrorCode,
 } from '@tkb/contracts';
 import { getTripForOwner, type Db } from '@tkb/db';
@@ -20,39 +18,15 @@ import { createUserLimiter, dailyPerUserFromEnv, type UserLimiter } from '../gen
 import { limitRoutesPerUser, sharedUserRouteBudget, type UserRouteBudget } from '../generation/live-route-budget.ts';
 import { LegBook } from './leg-book.ts';
 import { unsourcedServiceLeg } from './ops-between.ts';
-import { buildCandidates, type Candidate } from './plan.ts';
+import { buildCandidates } from './plan.ts';
 
-/**
- * POST /api/v1/trips/:id/alternatives (A05, Issue #29). Preview only: nothing is written, no revision is bumped.
- * Not in docs/03_CONTRACTS.md yet; the shapes below are local until M1 adds them (see the A05 report).
- */
-export interface AlternativesRequest {
-  expectedRevision: number;
-  operations: TripOperation[];
-  maxAlternatives?: number;
-}
+/** The shapes now live in @tkb/contracts; re-exported for existing imports. */
+export type { AlternativesRequest, AlternativesResult } from '@tkb/contracts';
 
-/**
- * `candidates[].trip` is the previewed itinerary for display. Its validationState is what PATCH will store
- * (needs_revalidation after a structural edit); the schedule check is in `validationState` of the candidate.
- * `diff` is exactly what K10 PATCH returns for `operations`.
- */
-export interface AlternativesResult {
-  tripId: string;
-  baseRevision: number;
-  candidates: (Omit<Candidate, 'operations'> & {
-    /** Send these to PATCH /api/v1/trips/:id with expectedRevision = baseRevision to apply the candidate. null: not representable. */
-    operations: TripOperation[] | null;
-  })[];
-}
-
-/** Strict body: the K10 body (TripPatchRequest, unknown keys refused) plus optional maxAlternatives 1..3. */
+/** POST /api/v1/trips/:id/alternatives (A05, Issue #29; K10 extension in docs/03_CONTRACTS.md). Preview only: nothing is written. */
 function parseRequest(raw: unknown): AlternativesRequest | null {
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const { maxAlternatives, ...rest } = raw as Record<string, unknown>;
-  if (maxAlternatives !== undefined && (typeof maxAlternatives !== 'number' || !Number.isInteger(maxAlternatives) || maxAlternatives < 1 || maxAlternatives > 3)) return null;
-  const k10 = TripPatchRequest.safeParse(rest);
-  return k10.success ? { ...k10.data, ...(maxAlternatives === undefined ? {} : { maxAlternatives }) } : null;
+  const r = AlternativesRequest.safeParse(raw);
+  return r.success ? r.data : null;
 }
 
 export interface AlternativesDeps {
@@ -131,11 +105,11 @@ export function registerAlternatives(app: FastifyInstance, db: Db, config: Pick<
         return { ...c, candidateId };
       });
       // Not stored, not sent to a model. Live legs stay in `trip` for display only (like K05); `operations` never carries them.
-      const result: AlternativesResult = {
+      const result = AlternativesResult.parse({
         tripId: trip.tripId,
         baseRevision: trip.revision,
-        candidates: candidates.map(c => ({ ...c, trip: Trip.parse(c.trip), diff: TripDiff.parse(c.diff) })),
-      };
+        candidates,
+      });
       return result;
     } catch (e) {
       if (e instanceof PolicyError && e.code === 'CANCELLED') {

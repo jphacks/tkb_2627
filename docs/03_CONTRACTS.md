@@ -616,7 +616,7 @@
 
 失敗：404所有権／409 REVISION_CONFLICT（details: expectedRevision、currentRevision）／422 CONSTRAINT_UNSATISFIED（操作を適用できない。details: operationIndex、reason）／422 VALIDATION_FAILED（形式不正、50件超）／422 RESTRICTED_ASSET
 
-操作は先頭から順に、全部成功するか全部失敗するかで適用する。差分の定義は本書末尾のK10の差分（TripDiff）のとおり。公開の手動編集はClaude不要。AIで残りを作り直す操作はK01経由。
+操作は先頭から順に、全部成功するか全部失敗するかで適用する。差分の定義は本書末尾のK10の差分（TripDiff）のとおり。公開の手動編集はClaude不要。AIで残りを作り直す操作はK01経由。【拡張：A05の代替案プレビュー】POST /api/v1/trips/{id}/alternatives。要求はAlternativesRequest（PATCHと同じ厳格なbody＋maxAlternatives?（1〜3））。戻り値は200 AlternativesResult（tripId、baseRevision、candidates[]：candidateId、kind=requested|reorder|swap、summary、trip（表示用）、diff（このoperationsをPATCHしたときと同じ差分）、displayOnly?、affectedSegments[]（travel=known|none|unknown）、validationState、warnings、unknown、operations（PATCHでそのまま適用できる操作。書けない場合はnull））。何も保存せず、版も上げず、cache-control: no-store。適用はoperationsをexpectedRevision=baseRevisionでPATCHする（古い版なら409）。失敗：401／403 CSRF／404（他人・不存在）／409 REVISION_CONFLICT／422 VALIDATION_FAILED・CONSTRAINT_UNSATISFIED・RESTRICTED_ASSET／429 RATE_LIMITED（1人同時1件。live・mixedではK05と同じ1日の上限と、K05と共有するlive経路の上限LIVE_ROUTE_CALLS_PER_USER_PER_DAY（既定6、最大20）。使い切ったら区間は不明のまま警告を付ける）。live経路の詳細は表示用のtripにだけ入り、operationsには入れない。
 
 入力例：
 ```json
@@ -1211,3 +1211,4 @@ job: queued→running→succeeded/failed/cancelled。succeededは候補の共通
   - 既知の制約（reviewer O3）：liveモードでは2回目のK05で地点検索をもう一度行うため、呼出し回数に余裕がありません。デモはmixedで行います。
   - 既知の制約（reviewer O7）：時刻のない立ち寄り先は、1日にまとめて配置されます。
   - 既知の差：本人用App Serverのcapabilitiesは`dataMode=fixture`を固定で返します（A05で修正予定）。
+- **A05の代替案（#114）**：型は`packages/contracts`の`AlternativesRequest`／`AlternativesResult`（K10の拡張、schemaVersion 1のまま）。既知の制約：`reorder`の案は、1日の終わりを23:59とみなして詰めて並べます（案の説明に「詰めた案」と明記）。宿の到着時刻などの実際の終了時刻は、まだ考慮していません。
