@@ -61,6 +61,12 @@ export const Activity = z.object({
   costStatus: DataStatus,
   /** Never copied into SNS snapshots. */
   privateNotes: z.string().nullable(),
+  /**
+   * U04 rework: id of the area-level activity this one happens inside (e.g. lunch inside a market area).
+   * Optional and compatible (schemaVersion stays 1). One level only; the parent must be an activity of the same day.
+   * Children are shown only inside the expanded parent and are not numbered on the map.
+   */
+  parentActivityId: Id.nullable().optional(),
 });
 export type Activity = z.infer<typeof Activity>;
 
@@ -114,6 +120,7 @@ export const PublicActivity = Activity.pick({
   status: true,
   cost: true,
   costStatus: true,
+  parentActivityId: true,
 });
 export type PublicActivity = z.infer<typeof PublicActivity>;
 

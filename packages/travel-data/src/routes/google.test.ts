@@ -13,6 +13,7 @@ const louvre = place('fx_louvre', parisPlaces);
 const orsay = place('fx_orsay', parisPlaces);
 const station = place('fx_kanazawa_station', kanazawaPlaces);
 const kenrokuen = place('fx_kenrokuen', kanazawaPlaces);
+const nagamachi = place('fx_nagamachi', kanazawaPlaces);
 
 const quota = () => new DailyQuota({ [SKU.routesTransit]: 20, [SKU.routesDrive]: 20 }, () => NOW);
 const budget = (over: Partial<ConstructorParameters<typeof CallBudget>[0]> = {}) =>
@@ -248,9 +249,9 @@ describe('FixtureRouteProvider', () => {
   it('serves B04 legs for the same segment and mode, and no_route otherwise, without charging the budget', async () => {
     const b = budget();
     const p = new FixtureRouteProvider();
-    const r = await p.route({ from: station, to: kenrokuen, departureUtc: '2026-11-01T00:30:00Z', mode: 'transit' }, b);
-    expect(r.leg).toMatchObject({ legId: 'fx_leg_1', dataStatus: 'fixture', fare: { amountMinor: 200, currency: 'JPY' } });
-    expect(await p.route({ from: station, to: kenrokuen, departureUtc: '2026-11-01T00:30:00Z', mode: 'car' }, b)).toEqual({ leg: null, reason: 'no_route' });
+    const r = await p.route({ from: nagamachi, to: station, departureUtc: '2026-11-02T05:30:00Z', mode: 'transit' }, b);
+    expect(r.leg).toMatchObject({ legId: 'fx_leg_k10', dataStatus: 'fixture', fare: { amountMinor: 210, currency: 'JPY' } });
+    expect(await p.route({ from: nagamachi, to: station, departureUtc: '2026-11-02T05:30:00Z', mode: 'car' }, b)).toEqual({ leg: null, reason: 'no_route' });
     expect(b.callsUsed).toBe(0);
   });
 });

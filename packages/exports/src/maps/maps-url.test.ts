@@ -106,15 +106,17 @@ describe('tripMapsLinks', () => {
     expect(r.notice).toBe(MAPS_LINK_NOTICE);
     expect(r.notice).toContain('自動登録は行いません');
     const [day1, day2] = r.days;
-    expect(day1!.places.map(l => l.placeIds[0])).toEqual(['fx_kenrokuen', 'fx_21c_museum', 'fx_sushi', 'fx_omicho']);
-    // kenrokuen→museum is a walk leg; museum→sushi a transit leg; sushi→omicho has no leg, so the trip mode (transit).
-    expect(day1!.routes.map(l => [l.travelMode, l.placeIds])).toEqual([
-      ['walking', ['fx_kenrokuen', 'fx_21c_museum']],
-      ['transit', ['fx_21c_museum', 'fx_sushi']],
-      ['transit', ['fx_sushi', 'fx_omicho']],
+    // Top-level stops only: the children of 近江町市場エリア (fx_sushi) are not route stops.
+    expect(day1!.places.map(l => l.placeIds[0])).toEqual([
+      'fx_kanazawa_station', 'fx_omicho', 'fx_kanazawa_castle', 'fx_kenrokuen', 'fx_21c_museum', 'fx_dinner', 'fx_hotel',
     ]);
-    expect(day2).toMatchObject({ date: '2026-11-02', routes: [], tooLong: [] });
-    expect(day2!.places).toHaveLength(1);
+    expect(day1!.routes.map(l => [l.travelMode, l.placeIds])).toEqual([
+      ['transit', ['fx_kanazawa_station', 'fx_omicho']],
+      ['walking', ['fx_omicho', 'fx_kanazawa_castle', 'fx_kenrokuen', 'fx_21c_museum', 'fx_dinner']],
+      ['transit', ['fx_dinner', 'fx_hotel']],
+    ]);
+    expect(day2).toMatchObject({ date: '2026-11-02', tooLong: [] });
+    expect(day2!.places.map(l => l.placeIds[0])).toEqual(['fx_higashi', 'fx_kazue', 'fx_oyama', 'fx_nagamachi', 'fx_kanazawa_station']);
     expect(r.withheldPlaceIds).toEqual([]);
     expect(r.unknownPlaceIds).toEqual([]);
   });
@@ -129,14 +131,11 @@ describe('tripMapsLinks', () => {
 
   it('does not borrow a leg mode across a withheld place', () => {
     const trip = structuredClone(domesticTrip);
-    // Omicho → (garden, withheld) → walk leg garden→museum → museum. The only leg left does not start at Omicho,
-    // so the Omicho→museum segment must use the trip mode (transit), not the walk.
-    trip.places = trip.places.map(p => (p.placeId === 'fx_kenrokuen' ? { ...p, provenance: { ...p.provenance, mayExport: false } } : p));
-    const items = trip.days[0]!.items.filter(i => i.type === 'activity' || i.legId !== 'fx_leg_1');
-    const garden = items.find(i => i.type === 'activity' && i.activityId === 'fx_act_kenrokuen')!;
-    trip.days[0]!.items = [{ ...garden, activityId: 'fx_act_pre', placeId: 'fx_omicho' } as typeof garden, ...items];
+    // Omicho → (castle, withheld) → walk legs omicho→castle and castle→garden. Neither leg joins Omicho and the garden,
+    // so that segment must use the trip mode (transit), not the walk.
+    trip.places = trip.places.map(p => (p.placeId === 'fx_kanazawa_castle' ? { ...p, provenance: { ...p.provenance, mayExport: false } } : p));
     const day1 = tripMapsLinks(trip).days[0]!;
-    expect(day1.routes[0]).toMatchObject({ travelMode: 'transit', placeIds: ['fx_omicho', 'fx_21c_museum'] });
+    expect(day1.routes[1]).toMatchObject({ travelMode: 'transit', placeIds: ['fx_omicho', 'fx_kenrokuen'] });
   });
 
   it('withholds places whose provider does not allow export', () => {

@@ -43,11 +43,20 @@ export function buildSnapshot(trip: Trip): { snapshot: PostSnapshot; redactedFie
   };
   const referenced = new Set<string>();
 
-  const days: PublicTripDay[] = trip.days.map((d) => ({
+  const days: PublicTripDay[] = trip.days.map((d) => {
+    // Activities dropped because they sit at the home: their children are dropped with them.
+    const droppedParents = new Set<string>(
+      d.items.flatMap((i) => (i.type === 'activity' && i.placeId && home.has(i.placeId) ? [i.activityId] : [])),
+    );
+    return {
     date: d.date,
     timeZone: d.timeZone,
     items: d.items.flatMap((it): PublicTripDay['items'] => {
       if (it.type === 'activity') {
+        if (it.parentActivityId && droppedParents.has(it.parentActivityId)) {
+          removed.add('homeActivities');
+          return [];
+        }
         const pub = PublicActivity.parse(it);
         if (it.privateNotes) removed.add('privateNotes');
         // A stop at the home (e.g. "自宅を出発") is dropped entirely: its title and times would reveal it.
@@ -93,7 +102,8 @@ export function buildSnapshot(trip: Trip): { snapshot: PostSnapshot; redactedFie
       });
       return [{ ...leg, fromPlaceId: ends[0]!, toPlaceId: ends[1]! }];
     }),
-  }));
+    };
+  });
 
   const places: PlaceInfo[] = [];
   for (const id of referenced) {

@@ -83,8 +83,20 @@ function leg(legId: string, fromPlaceId: string, toPlaceId: string, mode: Travel
   };
 }
 
-// ---------- Domestic: Kanazawa, public transit, JPY ----------
+// ---------- Domestic: Kanazawa, public transit + walking, JPY (dense 2-day sample) ----------
 const JST = 'Asia/Tokyo';
+
+/** "2026-11-01" + "09:30" (JST, UTC+9, no DST) -> UTC instant string. */
+export function jst(date: string, hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number) as [number, number];
+  const base = Date.parse(`${date}T00:00:00Z`) + (h * 60 + m) * 60_000 - 9 * 3_600_000;
+  return new Date(base).toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+/** Exported builders so other fixture files (cases.ts) can assemble extra items in the same shape. */
+export const fxActivity = activity;
+export const fxLeg = leg;
+
+// The six places the area-level fixtures (K05 area pool, place search, guides, generation tests) have always used.
 export const kanazawaPlaces: PlaceInfo[] = [
   place('fx_kanazawa_station', '金沢駅', 'station', 36.578, 136.648, JST),
   place('fx_kenrokuen', '兼六園', 'spot', 36.562, 136.662, JST, { openingHours: '（fixture）7:00-18:00', description: '（fixture）日本三名園の一つとされる庭園。' }),
@@ -94,6 +106,23 @@ export const kanazawaPlaces: PlaceInfo[] = [
   place('fx_sushi', '（fixture）寿司店A', 'restaurant', 36.570, 136.657, JST),
 ];
 
+// Additional places the dense sample trip visits. Not part of the area pool above.
+const kanazawaExtraPlaces: PlaceInfo[] = [
+  place('fx_kanazawa_castle', '金沢城公園', 'spot', 36.5655, 136.6594, JST, { openingHours: null }),
+  place('fx_korinbo', '香林坊', 'area', 36.5604, 136.6540, JST),
+  place('fx_dinner', '（fixture）香林坊の夕食店', 'restaurant', 36.5606, 136.6547, JST),
+  place('fx_hotel', '（fixture）ホテル', 'lodging', 36.5700, 136.6520, JST),
+  place('fx_kazue', '主計町茶屋街', 'area', 36.5739, 136.6639, JST),
+  place('fx_oyama', '尾山神社', 'spot', 36.5667, 136.6588, JST),
+  place('fx_nagamachi', '長町武家屋敷跡', 'spot', 36.5638, 136.6516, JST),
+];
+export const kanazawaTripPlaces: PlaceInfo[] = [...kanazawaPlaces, ...kanazawaExtraPlaces];
+
+const D1 = '2026-11-01';
+const D2 = '2026-11-02';
+const t = (d: string, hhmm: string) => jst(d, hhmm);
+const yen = (amountMinor: number) => ({ amountMinor, currency: 'JPY' });
+
 export const domesticTrip: Trip = {
   schemaVersion: 1,
   tripId: 'fx_trip_kanazawa',
@@ -102,8 +131,8 @@ export const domesticTrip: Trip = {
   revision: 1,
   constraints: {
     area: '金沢',
-    startDate: '2026-11-01',
-    endDate: '2026-11-02',
+    startDate: D1,
+    endDate: D2,
     timeZone: JST,
     transportMode: 'transit',
     budget: { amountMinor: 30000, currency: 'JPY' },
@@ -111,55 +140,87 @@ export const domesticTrip: Trip = {
   },
   days: [
     {
-      date: '2026-11-01',
+      date: D1,
       timeZone: JST,
       items: [
-        leg('fx_leg_1', 'fx_kanazawa_station', 'fx_kenrokuen', 'transit', JST, '2026-11-01T00:30:00Z', '2026-11-01T00:50:00Z', {
-          lineName: '（fixture）路線バス',
-          fare: { amountMinor: 200, currency: 'JPY' },
+        activity('fx_act_station', '金沢駅（出発）', 'custom', JST, t(D1, '09:00'), t(D1, '09:10'), { placeId: 'fx_kanazawa_station' }),
+        // The arrival time of the bus is not known (fixture): null, never guessed.
+        leg('fx_leg_k1', 'fx_kanazawa_station', 'fx_omicho', 'transit', JST, t(D1, '09:10'), null, {
+          lineName: '（fixture）路線バス', fare: yen(210), dataStatus: 'unknown', provenance: null,
         }),
-        activity('fx_act_kenrokuen', '兼六園を散策', 'visit', JST, '2026-11-01T01:00:00Z', '2026-11-01T02:30:00Z', {
-          placeId: 'fx_kenrokuen',
-          cost: { amountMinor: 320, currency: 'JPY' },
+        activity('fx_act_omicho', '近江町市場エリア', 'free_walk', JST, t(D1, '09:30'), t(D1, '12:30'), {
+          areaName: '近江町市場周辺', placeId: 'fx_omicho',
         }),
-        leg('fx_leg_2', 'fx_kenrokuen', 'fx_21c_museum', 'walk', JST, '2026-11-01T02:30:00Z', '2026-11-01T02:45:00Z'),
-        activity('fx_act_museum', '金沢21世紀美術館', 'visit', JST, '2026-11-01T02:45:00Z', '2026-11-01T04:15:00Z', {
+        activity('fx_act_omicho_walk', '市場を散策（買い物・見学）', 'free_walk', JST, t(D1, '09:30'), t(D1, '11:30'), {
+          areaName: '近江町市場周辺', parentActivityId: 'fx_act_omicho',
+        }),
+        activity('fx_act_lunch', '寿司店Aで海鮮丼の昼食（予約済み）', 'meal', JST, t(D1, '11:30'), t(D1, '12:15'), {
+          placeId: 'fx_sushi', fixed: true, cost: yen(2200), parentActivityId: 'fx_act_omicho',
+          privateNotes: '予約番号は非公開メモ（fixture）',
+        }),
+        leg('fx_leg_k2', 'fx_omicho', 'fx_kanazawa_castle', 'walk', JST, t(D1, '12:30'), t(D1, '12:45')),
+        activity('fx_act_castle', '金沢城公園', 'visit', JST, t(D1, '12:45'), t(D1, '14:00'), { placeId: 'fx_kanazawa_castle' }),
+        leg('fx_leg_k3', 'fx_kanazawa_castle', 'fx_kenrokuen', 'walk', JST, t(D1, '14:00'), t(D1, '14:10')),
+        activity('fx_act_kenrokuen', '兼六園を散策', 'visit', JST, t(D1, '14:10'), t(D1, '15:30'), {
+          placeId: 'fx_kenrokuen', cost: yen(320),
+        }),
+        leg('fx_leg_k4', 'fx_kenrokuen', 'fx_21c_museum', 'walk', JST, t(D1, '15:30'), t(D1, '15:45')),
+        activity('fx_act_museum', '金沢21世紀美術館', 'visit', JST, t(D1, '15:45'), t(D1, '17:15'), {
           placeId: 'fx_21c_museum',
           // Admission unknown in fixture: stays null, never 0.
         }),
-        leg('fx_leg_3', 'fx_21c_museum', 'fx_sushi', 'transit', JST, '2026-11-01T04:20:00Z', null, {
-          dataStatus: 'unknown',
-          provenance: null,
+        leg('fx_leg_k5', 'fx_21c_museum', 'fx_dinner', 'walk', JST, t(D1, '17:15'), t(D1, '17:25')),
+        activity('fx_act_dinner', '香林坊で夕食', 'meal', JST, t(D1, '17:30'), t(D1, '19:00'), { placeId: 'fx_dinner' }),
+        leg('fx_leg_k6', 'fx_dinner', 'fx_hotel', 'transit', JST, t(D1, '19:00'), t(D1, '19:15'), {
+          lineName: '（fixture）路線バス', fare: yen(210),
         }),
-        activity('fx_act_lunch', '寿司店Aで昼食（予約済み）', 'meal', JST, '2026-11-01T04:30:00Z', '2026-11-01T05:30:00Z', {
-          placeId: 'fx_sushi',
-          fixed: true,
-          cost: { amountMinor: 4000, currency: 'JPY' },
-          privateNotes: '予約番号は非公開メモ（fixture）',
-        }),
-        activity('fx_act_omicho', '近江町市場で食べ歩き', 'free_walk', JST, '2026-11-01T06:00:00Z', '2026-11-01T07:00:00Z', {
-          areaName: '近江町市場周辺',
-          placeId: 'fx_omicho',
-        }),
+        activity('fx_act_hotel', 'ホテルにチェックイン', 'lodging', JST, t(D1, '19:15'), null, { placeId: 'fx_hotel' }),
       ],
     },
     {
-      date: '2026-11-02',
+      date: D2,
       timeZone: JST,
       items: [
-        activity('fx_act_higashi', 'ひがし茶屋街を散策', 'free_walk', JST, '2026-11-02T01:00:00Z', '2026-11-02T03:00:00Z', {
-          areaName: 'ひがし茶屋街',
-          placeId: 'fx_higashi',
+        activity('fx_act_higashi', 'ひがし茶屋街', 'free_walk', JST, t(D2, '09:30'), t(D2, '11:30'), {
+          areaName: 'ひがし茶屋街', placeId: 'fx_higashi',
         }),
+        activity('fx_act_higashi_tea', '茶屋の見学', 'visit', JST, t(D2, '10:00'), t(D2, '10:45'), { parentActivityId: 'fx_act_higashi' }),
+        activity('fx_act_higashi_sweets', '和菓子と休憩', 'custom', JST, t(D2, '10:45'), t(D2, '11:15'), { parentActivityId: 'fx_act_higashi' }),
+        leg('fx_leg_k7', 'fx_higashi', 'fx_kazue', 'walk', JST, t(D2, '11:30'), t(D2, '11:35')),
+        activity('fx_act_kazue', '主計町茶屋街を歩く', 'free_walk', JST, t(D2, '11:35'), t(D2, '12:15'), {
+          areaName: '主計町茶屋街', placeId: 'fx_kazue',
+        }),
+        leg('fx_leg_k8', 'fx_kazue', 'fx_oyama', 'walk', JST, t(D2, '12:15'), t(D2, '12:35')),
+        activity('fx_act_oyama', '尾山神社', 'visit', JST, t(D2, '12:35'), t(D2, '13:15'), { placeId: 'fx_oyama' }),
+        leg('fx_leg_k9', 'fx_oyama', 'fx_nagamachi', 'walk', JST, t(D2, '13:15'), t(D2, '13:30')),
+        activity('fx_act_nagamachi', '長町武家屋敷跡', 'visit', JST, t(D2, '13:30'), t(D2, '14:30'), { placeId: 'fx_nagamachi' }),
+        leg('fx_leg_k10', 'fx_nagamachi', 'fx_kanazawa_station', 'transit', JST, t(D2, '14:30'), t(D2, '14:55'), {
+          lineName: '（fixture）路線バス', fare: yen(210),
+        }),
+        activity('fx_act_station_end', '金沢駅（到着）', 'custom', JST, t(D2, '14:55'), null, { placeId: 'fx_kanazawa_station' }),
       ],
     },
   ],
-  places: kanazawaPlaces,
+  places: kanazawaTripPlaces,
   validationState: 'needs_review',
-  warnings: ['fx_leg_3 の移動時間と運賃は未取得です'],
+  warnings: ['fx_leg_k1 の到着時刻は未取得です', '美術館の入館料と各所の営業時間は未取得です'],
   createdAt: '2026-10-24T00:00:00Z',
   updatedAt: '2026-10-24T00:00:00Z',
 };
+
+/**
+ * Route samples between the area pool places (kanazawaPlaces) (served by the fixture route provider next to the trip's own legs).
+ * Sample data, not a timetable: station→garden by bus (20 min, fare 200), garden→museum on foot (15 min), museum→sushi
+ * by transit with unknown time and fare (stays null, never 0).
+ */
+export const kanazawaRouteSamples: TravelLeg[] = [
+  leg('fx_leg_1', 'fx_kanazawa_station', 'fx_kenrokuen', 'transit', JST, '2026-11-01T00:30:00Z', '2026-11-01T00:50:00Z', {
+    lineName: '（fixture）路線バス',
+    fare: { amountMinor: 200, currency: 'JPY' },
+  }),
+  leg('fx_leg_2', 'fx_kenrokuen', 'fx_21c_museum', 'walk', JST, '2026-11-01T02:30:00Z', '2026-11-01T02:45:00Z'),
+  leg('fx_leg_3', 'fx_21c_museum', 'fx_sushi', 'transit', JST, '2026-11-01T04:20:00Z', null, { dataStatus: 'unknown', provenance: null }),
+];
 
 // ---------- Overseas: Paris, crosses the end of DST (2026-10-25 03:00 CEST -> 02:00 CET), EUR ----------
 const PARIS = 'Europe/Paris';

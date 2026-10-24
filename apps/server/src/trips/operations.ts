@@ -26,6 +26,26 @@ function missingPlace(trip: Trip, it: ItineraryItem): boolean {
   return refs.some((r) => r !== null && !known.has(r));
 }
 
+/**
+ * Nesting rule of Activity.parentActivityId: the parent is an activity of the same day, an activity cannot be its own
+ * parent, and nesting is one level only (a child cannot be a parent, so there are no cycles or grandchildren).
+ * Returns a reason or null. Pure; also used on trips that were never edited.
+ */
+export function nestingError(days: readonly TripDay[]): string | null {
+  for (const day of days) {
+    const acts = new Map<string, ItineraryItem>();
+    for (const it of day.items) if (it.type === 'activity') acts.set(it.activityId, it);
+    for (const it of day.items) {
+      if (it.type !== 'activity' || !it.parentActivityId) continue;
+      if (it.parentActivityId === it.activityId) return 'parentActivityId must not point at itself';
+      const parent = acts.get(it.parentActivityId);
+      if (!parent || parent.type !== 'activity') return 'parentActivityId must be an activity of the same day';
+      if (parent.parentActivityId) return 'nesting is limited to one level';
+    }
+  }
+  return null;
+}
+
 export function applyOperations(trip: Trip, ops: TripOperation[]): OpResult {
   const days: TripDay[] = trip.days.map((d) => ({ ...d, items: [...d.items] }));
   let title = trip.title;
@@ -77,6 +97,8 @@ export function applyOperations(trip: Trip, ops: TripOperation[]): OpResult {
       }
     }
   }
+  const nesting = structural ? nestingError(days) : null;
+  if (nesting) return { ok: false, index: Math.max(ops.length - 1, 0), reason: nesting };
   const validationState = structural ? 'needs_revalidation' : trip.validationState;
   return { ok: true, trip: { ...trip, title, days, validationState } };
 }
