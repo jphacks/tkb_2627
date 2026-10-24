@@ -8,11 +8,15 @@
 
 ```bash
 node packages/travel-data/probes/maps-probe.mjs          # 計画の表示だけ（通信なし・キー不要）
-node packages/travel-data/probes/maps-probe.mjs --live   # 実際に呼ぶ（2026-10-24 に1回実施済み）
 ```
 
+- `--live` は実際に API を呼びます。2026-10-24 に1回実施済みです。**再実行する場合は、理由を Issue #11 に書いて M1 の了承を得てから**にしてください。
+- 呼出し回数は**全体で `APPROVED_TOTAL = 20` 回まで**です。回数は実行をまたいで数えます。
+  - コミット済みの実行分は `ALREADY_USED`（現在7）に記録しています。
+  - それ以降の実行分は、Git 管理外の `.local/provider-probe/calls.json` に記録します。
+  - 計画した回数が残りを超える場合、`--live` は1回も呼ばずに拒否します。
+- 再試行はしません。タイムアウトは15秒です。429 や `RESOURCE_EXHAUSTED` が返ったら、それを記録してその場で止めます。
 - キーは環境変数か repo 直下の `.env`（Git 管理外）の `GOOGLE_MAPS_SERVER_KEY` から読みます。出力にキーは出しません。
-- 1回の実行で呼ぶのは最大 `MAX_CALLS = 20` 回です（現在の計画は7回）。再試行はせず、タイムアウトは15秒です。
 - 応答の本文は保存しません。記録するのはメタデータだけです（HTTPステータス、件数、要求した項目のうち返ってきたもの・返ってこなかったもの）。
 
 ## 呼出し計画
@@ -43,13 +47,13 @@ field mask は最小限にしています。料金ランク（SKU）は field ma
 
 ## 結果（2026-10-24 実施、`--live` 1回、7回呼出し、残り13回）
 
-応答の本文は保存していません。下の表は probe が出力したメタデータです。「日付」は、TRANSIT ではリクエストした出発時刻です。
+応答の本文は保存していません。下の表は probe が出力したメタデータです。出力そのもの（提供元の内容は含まない）は `packages/travel-data/probes/results/2026-10-24-live.json` にあります。「日付」は、TRANSIT ではリクエストした出発時刻です。
 
 | label | 取得時刻 (UTC) | 地域 | 日付 | 想定SKU | HTTP | 件数 | 返った項目 | 返らなかった項目 |
 |---|---|---|---|---|---|---|---|---|
-| kanazawa-place | 2026-10-24T07:56:34Z | 金沢（JP） | — | Text Search Pro | 200 | 1 | id, displayName, formattedAddress, location | attributions（空） |
-| kanazawa-hours | 2026-10-24T07:56:35Z | 金沢（JP） | — | Text Search Enterprise | 200 | 1 | 上記＋regularOpeningHours | attributions（空） |
-| paris-place | 2026-10-24T07:56:35Z | パリ（FR） | — | Text Search Pro | 200 | 1 | id, displayName, formattedAddress, location | attributions（空） |
+| kanazawa-place | 2026-10-24T07:56:34Z | 金沢（JP） | — | Text Search Pro | 200 | 1 | id, displayName, formattedAddress, location | attributions（応答に項目なし） |
+| kanazawa-hours | 2026-10-24T07:56:35Z | 金沢（JP） | — | Text Search Enterprise | 200 | 1 | 上記＋regularOpeningHours | attributions（応答に項目なし） |
+| paris-place | 2026-10-24T07:56:35Z | パリ（FR） | — | Text Search Pro | 200 | 1 | id, displayName, formattedAddress, location | attributions（応答に項目なし） |
 | kanazawa-drive | 2026-10-24T07:56:35Z | 金沢（JP） | — | Compute Routes Essentials | 200 | 1 | duration, distanceMeters | — |
 | kanazawa-transit | 2026-10-24T07:56:36Z | 金沢（JP） | 2026-10-25T01:00Z（10:00 JST） | 料金表で確認 | 200 | **0** | — | **経路なし**（duration, distanceMeters, steps.travelMode, steps.transitDetails, travelAdvisory.transitFare） |
 | paris-drive | 2026-10-24T07:56:36Z | パリ（FR） | — | Compute Routes Essentials | 200 | 1 | duration, distanceMeters | — |
@@ -57,12 +61,14 @@ field mask は最小限にしています。料金ランク（SKU）は field ma
 
 わかったこと：
 
-- **日本の公共交通（R05）**：Routes API の TRANSIT は、金沢駅→兼六園でエラーにならず、**経路0件**を返しました。日本国内の公共交通は、この API では取得できないものとして扱います。
-  - D04 は、国内の公共交通を `unsupported_region` / `null` として返します。別の provider を使うかどうかは、M1 とチームが判断します。AI で補完はしません。
+- **日本の公共交通（R05）**：Routes API の TRANSIT は、金沢駅→兼六園（約2km、翌日10:00 JST）でエラーにならず、**経路0件**を返しました。
+  - わかっているのは **1区間・1時刻の結果だけ**です。0件の理由が「国内の TRANSIT 非対応」なのか「短距離で徒歩が適切」なのかは区別できていません。国内で対応しているかどうかは、公式資料でも未確認です（資料には「地域によって異なる」としか書かれていません）。
+  - D04 は、暫定的に、国内の公共交通が返らないときは `unsupported_region` / `null` として返します。AI で補完はしません。
+  - 長距離区間で確かめる場合は、M1 の了承を得て、残り13回のうち1回を使います。別の provider を使うかどうかは、M1 とチームが判断します。
 - **パリの公共交通**：路線の詳細（`transitDetails`）と運賃（`transitFare`）が返りました。ただし `transitFare` は全区間の運賃がわかる場合にだけ返るので、常にあるとは限りません。
 - **車（R06）**：金沢・パリとも、所要時間と距離が返りました。
 - **地点（R02）**：名前・住所・座標が返りました。金沢の営業時間（`regularOpeningHours`）も、Enterprise の field mask で返りました。D03 が構造化した営業時間を契約に加えるときの材料になります（M1 の #77 の判断）。
-- **`places.attributions`**：3件とも空でした。第三者の出典表示が必要なデータは、今回の結果には含まれていません。ただし、結果によっては付くので、D03 では保持して表示します。
+- **`places.attributions`**：3件とも応答にこの項目がありませんでした。第三者の出典表示が必要なデータは、今回の結果には含まれていなかったと考えられます。ただし、結果によっては付くので、D03 では保持して表示します。
 - **実際に課金された SKU**：Cloud Console の請求レポートで M1 が確認してください。TRANSIT のランクは、公式の料金表で確定していません。
 
 ## 保存・AI入力・出力の条件（M1 が最終判断）
@@ -85,7 +91,7 @@ M1 の判断が出るまでの既定は次のとおりです（Issue #11）。
 - **帰属**：
   - 第三者の出典がある場合、"only including "Google Maps" or the Google logo is not proper attribution."
   - 写真・レビューを表示する場合、"You must always credit the author"
-- **AI**：このページには、Places の内容を LLM の入力にしてよいかの記述はありません。AI が生成した要約を表示する場合に開示文が必要、という記述だけがあります。
+- **AI**：このページには、Places の内容を LLM の入力にしてよいかの記述はありません。AI に関する記述は、**Places API が提供する AI 要約**を表示する場合に開示文が必要、というものだけです。自分たちの LLM が作った要約については何も書かれていません。
 
 ### 未確認（M1 が確認・判断）
 
@@ -93,11 +99,11 @@ M1 の判断が出るまでの既定は次のとおりです（Issue #11）。
 |---|---|---|
 | 座標・名前・営業時間・経路を保存してよい期間 | Service Specific Terms（Places API / Routes API の caching） | **未確認**：このページは JavaScript で描画されるため、本文を取得できませんでした。記憶から推測した値は書きません |
 | 取得値を LLM（本人の Claude）の入力にしてよいか | Terms of Service／Service Specific Terms | **未確認**。既定は `maySendToModel=false` |
-| PDF・ICS・SNS に転載してよいか | 同上＋Places API Policies | **未確認**。既定は `mayExport=false`。E03 は `mayExport=false` を除外して出力済み |
+| PDF・ICS・SNS に転載してよいか | 同上＋Places API Policies | **未確認**。既定は `mayExport=false`。E03（ICS・Maps URL）は `mayExport=false` を除外済み。PDF と SNS は別のタスク |
 | Routes の結果を Google 以外の地図に描いてよいか | Routes API Policies | 未確認 |
 
 ## 次の担当への引継ぎ
 
 - D02（呼出し上限と保存可否の分類）：上の既定値（`place_id` だけ保存してよい、それ以外は false）で着手できます。M1 の判断で変わる部分は、設定で切り替えられるようにします。
-- D04：国内の公共交通は「取得不可」として返します。パリの公共交通は運賃なしもあり得ます。
+- D04：国内の公共交通は、暫定的に「取得不可」として返します（上記のとおり、1件の結果からの判断です）。パリの公共交通は、運賃が返らないこともあり得ます。
 - 運賃・乗り場・営業時間が返らない地域では、その値を `null` と `dataStatus: 'unknown'` のままにします。AI で補完しません（docs/01_SPEC.md）。

@@ -1,0 +1,119 @@
+{
+  "note": "D01 live run metadata only (no provider content). Printed by maps-probe.mjs --live on 2026-10-24.",
+  "approvedTotal": 20,
+  "mode": "live",
+  "calls": 7,
+  "maxCalls": 20,
+  "results": [
+    {
+      "label": "kanazawa-place",
+      "fetchedAt": "2026-10-24T07:56:34.418Z",
+      "httpStatus": 200,
+      "errorStatus": null,
+      "errorMessage": null,
+      "resultCount": 1,
+      "returnedFields": [
+        "places.id",
+        "places.displayName",
+        "places.formattedAddress",
+        "places.location"
+      ],
+      "missingFields": [
+        "places.attributions"
+      ]
+    },
+    {
+      "label": "kanazawa-hours",
+      "fetchedAt": "2026-10-24T07:56:35.069Z",
+      "httpStatus": 200,
+      "errorStatus": null,
+      "errorMessage": null,
+      "resultCount": 1,
+      "returnedFields": [
+        "places.id",
+        "places.displayName",
+        "places.formattedAddress",
+        "places.location",
+        "places.regularOpeningHours"
+      ],
+      "missingFields": [
+        "places.attributions"
+      ]
+    },
+    {
+      "label": "paris-place",
+      "fetchedAt": "2026-10-24T07:56:35.318Z",
+      "httpStatus": 200,
+      "errorStatus": null,
+      "errorMessage": null,
+      "resultCount": 1,
+      "returnedFields": [
+        "places.id",
+        "places.displayName",
+        "places.formattedAddress",
+        "places.location"
+      ],
+      "missingFields": [
+        "places.attributions"
+      ]
+    },
+    {
+      "label": "kanazawa-drive",
+      "fetchedAt": "2026-10-24T07:56:35.515Z",
+      "httpStatus": 200,
+      "errorStatus": null,
+      "errorMessage": null,
+      "resultCount": 1,
+      "returnedFields": [
+        "routes.duration",
+        "routes.distanceMeters"
+      ],
+      "missingFields": []
+    },
+    {
+      "label": "kanazawa-transit",
+      "fetchedAt": "2026-10-24T07:56:36.220Z",
+      "httpStatus": 200,
+      "errorStatus": null,
+      "errorMessage": null,
+      "resultCount": 0,
+      "returnedFields": [],
+      "missingFields": [
+        "routes.duration",
+        "routes.distanceMeters",
+        "routes.legs.steps.travelMode",
+        "routes.legs.steps.transitDetails",
+        "routes.travelAdvisory.transitFare"
+      ]
+    },
+    {
+      "label": "paris-drive",
+      "fetchedAt": "2026-10-24T07:56:36.304Z",
+      "httpStatus": 200,
+      "errorStatus": null,
+      "errorMessage": null,
+      "resultCount": 1,
+      "returnedFields": [
+        "routes.duration",
+        "routes.distanceMeters"
+      ],
+      "missingFields": []
+    },
+    {
+      "label": "paris-transit",
+      "fetchedAt": "2026-10-24T07:56:36.392Z",
+      "httpStatus": 200,
+      "errorStatus": null,
+      "errorMessage": null,
+      "resultCount": 1,
+      "returnedFields": [
+        "routes.duration",
+        "routes.distanceMeters",
+        "routes.legs.steps.travelMode",
+        "routes.legs.steps.transitDetails",
+        "routes.travelAdvisory.transitFare"
+      ],
+      "missingFields": []
+    }
+  ]
+}
