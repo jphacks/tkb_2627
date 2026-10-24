@@ -176,8 +176,11 @@ export function updateTripWithRevision(
         ? { ok: false, code: 'REVISION_CONFLICT', currentRevision: cur.revision }
         : { ok: false, code: 'NOT_FOUND' };
     }
-    insertVersion(db, next);
+    // createdAt never changes on update: take it from the row so the version document and the
+    // returned Trip are identical (the caller's createdAt is ignored).
     const stored = db.prepare('SELECT created_at FROM trips WHERE id = ?').get(next.tripId) as { created_at: string };
-    return { ok: true, revision: next.revision, trip: { ...next, createdAt: stored.created_at } };
+    const saved: Trip = { ...next, createdAt: stored.created_at };
+    insertVersion(db, saved);
+    return { ok: true, revision: saved.revision, trip: saved };
   });
 }
