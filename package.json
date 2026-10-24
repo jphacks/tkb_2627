@@ -20,6 +20,8 @@
     "setup": "node scripts/app-setup.mjs",
     "db:migrate": "tsx packages/db/src/cli.ts migrate",
     "user:create": "node scripts/create-user.mjs",
+    "db:backup": "node scripts/backup.mjs",
+    "db:restore": "node scripts/restore.mjs",
     "dev": "concurrently -k -n shared,local,web -c blue,magenta,green \"npm:dev:shared\" \"npm:dev:local\" \"npm:dev:web\"",
     "dev:shared": "tsx watch apps/server/src/main.ts",
     "dev:local": "tsx watch apps/ai-local/src/main.ts",
