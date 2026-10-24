@@ -113,6 +113,8 @@ export interface CallBudgetOptions {
   maxAttempts?: number;
   /** Wait before retry number `n` (1-based); default 500 ms * n. */
   retryDelayMs?: (n: number) => number;
+  /** Longest one attempt may take, in ms (default 15 s). A call that ignores its signal still frees its slot then. */
+  callTimeoutMs?: number;
   /** Cancels the whole budget, e.g. when the HTTP request that started it is closed. */
   signal?: AbortSignal;
 }
@@ -134,8 +136,10 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 
 /**
  * Provider calls allowed for one input (one search, one plan generation): a hard call count, the shared daily quota
- * and concurrency gate, bounded retries, cancellation, and one shared call for identical requests in flight (a user
- * pressing the button repeatedly does not multiply calls).
+ * and concurrency gate, bounded retries, a per-attempt timeout, cancellation, and one shared call for identical
+ * requests in flight within this input (repeated presses while a search runs do not multiply calls).
+ * It does not limit a user across separate requests: per-user limits belong to the server (T05); the shared
+ * DailyQuota is the last guard before the GCP quota.
  */
 export class CallBudget {
   private used = 0;
@@ -143,11 +147,13 @@ export class CallBudget {
   private readonly inFlight = new Map<string, Promise<unknown>>();
   private readonly maxAttempts: number;
   private readonly retryDelayMs: (n: number) => number;
+  private readonly callTimeoutMs: number;
 
   constructor(private readonly options: CallBudgetOptions) {
     if (!Number.isInteger(options.maxCalls) || options.maxCalls < 0) throw new RangeError('maxCalls must be a non-negative integer');
     this.maxAttempts = Math.min(3, Math.max(1, Math.floor(options.maxAttempts ?? 2)));
     this.retryDelayMs = options.retryDelayMs ?? (n => 500 * n);
+    this.callTimeoutMs = options.callTimeoutMs ?? 15_000;
     if (options.signal?.aborted) this.controller.abort();
     else options.signal?.addEventListener('abort', () => this.cancel(), { once: true });
   }
@@ -174,29 +180,48 @@ export class CallBudget {
    * the same promise without another call. Retries only PolicyErrors marked retryable (never 429 / quota).
    */
   run<T>(sku: string, key: string, call: (signal: AbortSignal) => Promise<T>): Promise<T> {
-    const existing = this.inFlight.get(key);
+    const id = `${sku}\u0000${key}`;
+    const existing = this.inFlight.get(id);
     if (existing) return existing as Promise<T>;
-    const promise = this.attempt(sku, call).finally(() => this.inFlight.delete(key));
-    this.inFlight.set(key, promise);
+    const promise = this.attempt(sku, call).finally(() => this.inFlight.delete(id));
+    this.inFlight.set(id, promise);
     return promise;
+  }
+
+  /** Runs one attempt; settles on abort or timeout even if `call` ignores its signal. */
+  private once<T>(call: (signal: AbortSignal) => Promise<T>, signal: AbortSignal): Promise<T> {
+    const attempt = AbortSignal.any([signal, AbortSignal.timeout(this.callTimeoutMs)]);
+    return new Promise<T>((resolve, reject) => {
+      const onAbort = () =>
+        reject(signal.aborted ? cancelled() : new PolicyError('PROVIDER_UNAVAILABLE', 'provider call timed out', true));
+      if (attempt.aborted) return onAbort();
+      attempt.addEventListener('abort', onAbort, { once: true });
+      call(attempt).then(resolve, reject).finally(() => attempt.removeEventListener('abort', onAbort));
+    });
   }
 
   private async attempt<T>(sku: string, call: (signal: AbortSignal) => Promise<T>): Promise<T> {
     const signal = this.controller.signal;
+    let lastError: unknown = null;
+    const limitReached = () =>
+      // During retries, report the failure that caused them rather than the limit.
+      lastError ?? new PolicyError('PROVIDER_RATE_LIMIT', 'call limit for this input reached', false);
     for (let n = 1; ; n += 1) {
       if (signal.aborted) throw cancelled();
-      if (this.used >= this.options.maxCalls) throw new PolicyError('PROVIDER_RATE_LIMIT', 'call limit for this input reached', false);
+      if (this.used >= this.options.maxCalls) throw limitReached();
       // Charge only once a slot is held, so a call cancelled while waiting costs nothing.
       const release = await this.options.gate.acquire(signal);
       try {
-        if (this.used >= this.options.maxCalls) throw new PolicyError('PROVIDER_RATE_LIMIT', 'call limit for this input reached', false);
+        if (signal.aborted) throw cancelled();
+        if (this.used >= this.options.maxCalls) throw limitReached();
         this.options.quota.take(sku);
         this.used += 1;
-        return await call(signal);
+        return await this.once(call, signal);
       } catch (e) {
         if (signal.aborted) throw cancelled();
         const retry = e instanceof PolicyError && e.retryable && e.code !== 'PROVIDER_RATE_LIMIT' && n < this.maxAttempts;
         if (!retry) throw e;
+        lastError = e;
       } finally {
         release();
       }

@@ -37,23 +37,29 @@ function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): num
 }
 
 const invalid = (message: string) => new PolicyError('VALIDATION_FAILED', message, false);
+const positive = (n: number) => Number.isFinite(n) && n > 0;
 
 /**
  * Checks a search rectangle and the number of places asked for before any provider call (K19: 422 for an area that
  * is too large). Throws VALIDATION_FAILED; returns the sizes and the number of billed pages otherwise.
  */
 export function checkArea(rect: Rect, items: number, limits: AreaLimits = DEFAULT_AREA_LIMITS): AreaCheck {
+  if (!positive(limits.maxSideKm) || !positive(limits.pageSize) || !Number.isInteger(limits.maxItems) || limits.maxItems < 1) {
+    throw new RangeError('invalid area limits');
+  }
   const { south, west, north, east } = rect;
   if (![south, west, north, east].every(Number.isFinite)) throw invalid('範囲の座標が数値ではありません。');
   if (south < -90 || north > 90 || west < -180 || east > 180) throw invalid('範囲の座標が有効な緯度経度ではありません。');
   if (south >= north) throw invalid('範囲の南端が北端より北にあります。');
   if (west >= east) throw invalid('範囲の西端が東端より東にあります（日付変更線をまたぐ範囲は未対応です）。');
+  if (east - west > 180) throw invalid('範囲が広すぎます（経度差180度超）。');
   if (!Number.isInteger(items) || items < 1 || items > limits.maxItems) {
     throw invalid(`取得件数は1〜${limits.maxItems}件で指定してください。`);
   }
-  // Width is measured along the parallel nearest the equator, where the rectangle is widest.
+  // Width is measured along the parallel nearest the equator, where the rectangle is widest. Along the parallel,
+  // not great-circle: the shortest path between the corners would understate a wide rectangle.
   const widestLat = south <= 0 && north >= 0 ? 0 : Math.min(Math.abs(south), Math.abs(north)) * Math.sign(south);
-  const widthKm = distanceKm(widestLat, west, widestLat, east);
+  const widthKm = EARTH_KM * Math.cos(rad(widestLat)) * rad(east - west);
   const heightKm = distanceKm(south, west, north, west);
   if (widthKm > limits.maxSideKm || heightKm > limits.maxSideKm) {
     throw invalid(`範囲が広すぎます（一辺${limits.maxSideKm}km まで）。`);

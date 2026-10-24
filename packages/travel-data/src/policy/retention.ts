@@ -22,7 +22,8 @@ export const DEFAULT_SOURCE_POLICIES: Readonly<Record<string, SourcePolicy>> = {
     source: 'google_places',
     attribution: 'Google Maps',
     // Places API Policies: "the place ID ... is exempt from the caching restrictions" (docs/provider-probe.md).
-    storableFields: { providerPlaceId: null },
+    // D03 puts Google's place ID in PlaceInfo.placeId, so that contract field is the storable one.
+    storableFields: { placeId: null },
     mayStore: false,
     maySendToModel: false,
     mayExport: false,
@@ -51,7 +52,7 @@ export const DEFAULT_SOURCE_POLICIES: Readonly<Record<string, SourcePolicy>> = {
 export type FieldUse = 'store' | 'display_only';
 
 function policyFor(source: string, policies: Readonly<Record<string, SourcePolicy>>): SourcePolicy {
-  const policy = policies[source];
+  const policy = Object.hasOwn(policies, source) ? policies[source] : undefined;
   if (!policy) throw new RangeError(`no data policy for source "${source}"`);
   return policy;
 }
@@ -59,7 +60,7 @@ function policyFor(source: string, policies: Readonly<Record<string, SourcePolic
 /** Whether a field from `source` may be persisted. An unknown source has no policy and is rejected. */
 export function classifyField(source: string, field: string, policies = DEFAULT_SOURCE_POLICIES): FieldUse {
   const { storableFields } = policyFor(source, policies);
-  return field in storableFields || '*' in storableFields ? 'store' : 'display_only';
+  return Object.hasOwn(storableFields, field) || Object.hasOwn(storableFields, '*') ? 'store' : 'display_only';
 }
 
 const toUtc = (ms: number): UtcInstant => new Date(ms).toISOString().replace(/\.000Z$/, 'Z');
@@ -81,9 +82,9 @@ export function provenanceFor(source: string, fetchedAtMs: number, policies = DE
   };
 }
 
-/** True once `retainUntil` has passed. No provenance (our own user data) never expires. */
+/** True once `retainUntil` has passed; an unreadable date counts as expired. No provenance (our own user data) never expires. */
 export function isExpired(provenance: Provenance | null, nowMs: number): boolean {
-  return provenance?.retainUntil != null && Date.parse(provenance.retainUntil) < nowMs;
+  return provenance?.retainUntil != null && !(Date.parse(provenance.retainUntil) >= nowMs);
 }
 
 /** Splits items into those still within their retention and those to drop (R30). */

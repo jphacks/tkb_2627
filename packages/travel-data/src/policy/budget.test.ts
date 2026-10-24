@@ -26,13 +26,57 @@ describe('CallBudget', () => {
     expect(call).toHaveBeenCalledTimes(2);
   });
 
+  it('never exceeds the per-input limit when many different requests start at once', async () => {
+    const b = budget({ maxCalls: 2, gate: new Gate(5) });
+    const call = vi.fn(async () => {
+      await new Promise(r => setTimeout(r, 5));
+      return 'ok';
+    });
+    const codes = await Promise.all(Array.from({ length: 10 }, (_, i) => codeOf(b.run('search', `k${i}`, call))));
+    expect(call).toHaveBeenCalledTimes(2);
+    expect(codes.filter(c => c === 'resolved')).toHaveLength(2);
+    expect(codes.filter(c => c === 'PROVIDER_RATE_LIMIT')).toHaveLength(8);
+  });
+
+  it('does not share a result between different SKUs with the same key', async () => {
+    const b = budget({ quota: new DailyQuota({ search: 10, details: 10 }) });
+    const [a, c] = await Promise.all([b.run('search', 'k', async () => 'A'), b.run('details', 'k', async () => 'B')]);
+    expect([a, c]).toEqual(['A', 'B']);
+  });
+
+  it('frees the slot when a call ignores its signal and times out', async () => {
+    const gate = new Gate(1);
+    const b = budget({ gate, callTimeoutMs: 20, maxAttempts: 1 });
+    expect(await codeOf(b.run('search', 'hang', () => new Promise(() => {})))).toBe('PROVIDER_UNAVAILABLE');
+    expect(await budget({ gate }).run('search', 'next', async () => 'ok')).toBe('ok');
+  });
+
+  it('settles at once on cancel even if the call ignores its signal', async () => {
+    const b = budget();
+    const running = b.run('search', 'deaf', () => new Promise(() => {}));
+    await Promise.resolve();
+    b.cancel();
+    expect(await codeOf(running)).toBe('CANCELLED');
+  });
+
+  it('reports the failure behind the retries when the input limit is reached during them', async () => {
+    const b = budget({ maxCalls: 2, maxAttempts: 3 });
+    expect(await codeOf(b.run('search', 'x', async () => { throw providerError(503); }))).toBe('PROVIDER_UNAVAILABLE');
+    expect(b.callsUsed).toBe(2);
+  });
+
   it('stops at the per-input call limit, counting retries', async () => {
     const b = budget({ maxCalls: 3 });
     const ok = async () => 'ok';
-    await b.run('search', 'a', ok);
+    let n = 0;
+    const flakyOnce = async () => {
+      n += 1;
+      if (n === 1) throw providerError(503);
+      return 'ok';
+    };
+    await b.run('search', 'a', flakyOnce); // 2 calls: one failure and its retry
     await b.run('search', 'b', ok);
-    await b.run('search', 'c', ok);
-    expect(await codeOf(b.run('search', 'd', ok))).toBe('PROVIDER_RATE_LIMIT');
+    expect(await codeOf(b.run('search', 'c', ok))).toBe('PROVIDER_RATE_LIMIT');
     expect(b.remaining).toBe(0);
   });
 

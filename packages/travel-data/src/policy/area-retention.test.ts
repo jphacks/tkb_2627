@@ -41,7 +41,21 @@ describe('checkArea (矩形の要素数)', () => {
     // 0.27 degrees of longitude is ~30 km at the equator but ~19 km at 50 degrees.
     expect(() => checkArea({ south: 50, west: 0, north: 50.1, east: 0.27 }, 1)).not.toThrow();
     expect(() => checkArea({ south: -0.05, west: 0, north: 0.05, east: 0.28 }, 1)).toThrow(PolicyError);
-    expect(() => checkArea({ south: -50.1, west: 0, north: -50, east: 0.27 }, 1)).not.toThrow();
+    // With a 3000 km limit, 35.5 degrees is ~3027 km at 40 degrees but ~1976 km at 60: the edge nearer the equator counts.
+    const wide = { maxSideKm: 3000, maxItems: 30, pageSize: 20 };
+    expect(() => checkArea({ south: 40, west: 0, north: 60, east: 35.5 }, 1, wide)).toThrow(PolicyError);
+    expect(() => checkArea({ south: -60, west: 0, north: -40, east: 35.5 }, 1, wide)).toThrow(PolicyError);
+    expect(() => checkArea({ south: -60, west: 0, north: -40, east: 34 }, 1, wide)).not.toThrow();
+  });
+
+  it('rejects rectangles spanning most of the globe in longitude (not the short way round)', () => {
+    expect(() => checkArea({ south: 0, west: -180, north: 0.1, east: 180 }, 5)).toThrow(PolicyError);
+    expect(() => checkArea({ south: 36.5, west: -179.9, north: 36.6, east: 179.9 }, 5)).toThrow(PolicyError);
+  });
+
+  it('refuses invalid limits instead of computing nonsense', () => {
+    expect(() => checkArea(KANAZAWA, 1, { maxSideKm: 30, maxItems: 30, pageSize: 0 })).toThrow(RangeError);
+    expect(() => checkArea(KANAZAWA, 1, { maxSideKm: Number.NaN, maxItems: 30, pageSize: 20 })).toThrow(RangeError);
   });
 });
 
@@ -49,7 +63,10 @@ describe('data policy (保存可能な内容の分類・期限切れ)', () => {
   const fetched = Date.parse('2026-10-24T08:00:00Z');
 
   it("follows M1's defaults for Google: only the provider place ID may be stored, nothing to the model or exports", () => {
-    expect(classifyField('google_places', 'providerPlaceId')).toBe('store');
+    // The contract field PlaceInfo.placeId carries Google's place ID (D03), the one exempt from caching limits.
+    expect(classifyField('google_places', 'placeId')).toBe('store');
+    for (const f of ['constructor', 'toString', '__proto__']) expect(classifyField('google_places', f)).toBe('display_only');
+    expect(() => classifyField('toString', 'x')).toThrow(RangeError);
     for (const f of ['name', 'location', 'openingHours', 'photo']) expect(classifyField('google_places', f)).toBe('display_only');
     expect(classifyField('google_routes', 'durationSeconds')).toBe('display_only');
     expect(classifyField('fixture', 'name')).toBe('store');
@@ -74,6 +91,7 @@ describe('data policy (保存可能な内容の分類・期限切れ)', () => {
     expect(isExpired(g, Date.parse('2026-10-24T08:59:59Z'))).toBe(false);
     expect(isExpired(g, Date.parse('2026-10-24T09:00:01Z'))).toBe(true);
     expect(isExpired(null, Date.now())).toBe(false);
+    expect(isExpired({ ...g, retainUntil: 'not-a-date' }, fetched)).toBe(true); // unreadable counts as expired
 
     const items = [
       { id: 'google', provenance: g },
