@@ -8,7 +8,9 @@ import { createLiveTripEditApi, createMockTripEditApi, type TripEditApi } from '
 import { DiffView, EditError, NO_OPERATIONS_REASON } from '../edit/DiffView.tsx';
 import { titleLookup } from '../edit/ops.ts';
 import { tripScreenHash, type TripScreenRoute } from '../edit/route.ts';
-import { KIND_LABEL, LEG_MODE_LABEL, VALUE_UNKNOWN, durationText, fareText, formatLocalTime } from '../itinerary/model.ts';
+import { LEG_MODE_LABEL, VALUE_UNKNOWN, durationText, fareText } from '../itinerary/model.ts';
+import { ItineraryTable } from '../itinerary/ItineraryTable.tsx';
+import { tableRows } from '../itinerary/table.ts';
 import { SKIPPED, buildReplanRequest, requestLocation, type GeoLike } from './geo.ts';
 import '../../components/u01.css';
 import '../edit/edit.css';
@@ -82,6 +84,9 @@ export function TravelView(p: TravelViewProps) {
   const idx = Math.min(Math.max(p.dayIndex, 0), Math.max(p.trip.days.length - 1, 0));
   const day = p.trip.days[idx];
   const titleOf = useMemo(() => titleLookup(p.trip), [p.trip]);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const toggleRow = (key: string) => setExpanded(x => { const n = new Set(x); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+  const rows = useMemo(() => (day ? tableRows(day, p.trip.places) : []), [day, p.trip.places]);
   const result = p.replan.state === 'ok' ? p.replan.result : null;
   return (
     <>
@@ -106,27 +111,15 @@ export function TravelView(p: TravelViewProps) {
         ))}
       </div>
       {day && (
-        <ol className="ed-list" aria-label={`${idx + 1}日目の予定`}>
-          {day.items.map(item => {
-            if (item.type === 'leg') return <li key={item.legId} className="ed-item ed-leg">移動（{LEG_MODE_LABEL[item.mode]}）{durationText(item.durationSeconds)}</li>;
-            const id = item.activityId;
-            return (
-              <li key={id} className="ed-item">
-                <p className="ed-title">{item.title}{p.completed.has(id) ? '（完了）' : ''}</p>
-                <p className="ed-meta">
-                  {KIND_LABEL[item.kind]} / {formatLocalTime(item.start, day.date)} - {formatLocalTime(item.end, day.date)}
-                  {item.fixed ? ' / 予約・固定' : ''}
-                  {item.start === null ? ' / 時刻未定' : ''}
-                </p>
-                <div className="ed-actions">
-                  <button type="button" className="btn" aria-pressed={p.completed.has(id)} onClick={() => p.onToggle('completed', id)}>完了にする</button>
-                  <button type="button" className="btn" aria-pressed={p.pinned.has(id)} onClick={() => p.onToggle('pinned', id)}>今回は動かさない</button>
-                  {item.fixed && <button type="button" className="btn" aria-pressed={p.missed.has(id)} onClick={() => p.onToggle('missed', id)}>間に合わなかった</button>}
-                </div>
-              </li>
-            );
-          })}
-        </ol>
+        <ItineraryTable key={idx} rows={rows} dayDate={day.date} expanded={expanded} onToggleRow={toggleRow}
+          stayBadge={r => (p.completed.has(r.key) ? <span className="ed-flag">完了</span> : null)}
+          stayExtra={r => (
+            <div className="ed-actions">
+              <button type="button" className="btn" aria-pressed={p.completed.has(r.key)} onClick={() => p.onToggle('completed', r.key)}>完了にする</button>
+              <button type="button" className="btn" aria-pressed={p.pinned.has(r.key)} onClick={() => p.onToggle('pinned', r.key)}>今回は動かさない</button>
+              {r.item.fixed && <button type="button" className="btn" aria-pressed={p.missed.has(r.key)} onClick={() => p.onToggle('missed', r.key)}>間に合わなかった</button>}
+            </div>
+          )} />
       )}
       <p className="ed-note">完了・固定・間に合わなかったの印は、この再計画の計算にだけ使います（旅程には保存しません）。</p>
 

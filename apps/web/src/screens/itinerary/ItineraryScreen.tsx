@@ -1,25 +1,23 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ApiError, Trip } from '@tkb/contracts';
 import { FIXTURE_NOTICE } from '@tkb/fixtures';
 import { ErrorBox } from '../../components/ErrorBox.tsx';
 import { MockBanner } from '../../components/MockBanner.tsx';
 import { ScreenHeader } from '../../components/ScreenHeader.tsx';
-import { UNKNOWN, formatDay, formatMoney } from '../../lib/format.ts';
+import { formatDay } from '../../lib/format.ts';
 import type { Selection } from '../../lib/places.ts';
 import { createMockApi, type MockApi } from '../../mocks/index.ts';
 import { createLiveTripEditApi, createMockTripEditApi, describeEditError, isRevisionConflict, type TripEditApi } from '../edit/api.ts';
 import { applyOperations } from '../edit/ops.ts';
 import { fetchTrip, fetchTripFromMock, type TripLoad } from './api.ts';
+import { ItineraryTable } from './ItineraryTable.tsx';
 import { MapPanel } from './MapPanel.tsx';
 import { readBrowserMapsKey } from './mapsKey.ts';
 import {
-  DAY_MODE_LABEL, KIND_LABEL, attributionFor, dayTransportMode, mapPoints, syncSelection, toggleSelection, unlocatedPlaces,
+  DAY_MODE_LABEL, attributionFor, dayTransportMode, mapPoints, syncSelection, toggleSelection, unlocatedPlaces,
 } from './model.ts';
 import { itineraryHash, type ItineraryRoute } from './route.ts';
-import {
-  blockOf, childDetails, insertBeforeKey, keyboardTarget, legDetails, planMoves, stayDetails, tableRows,
-  type ChildRow, type DetailLine, type LegRow, type StayRow,
-} from './table.ts';
+import { blockOf, planMoves, tableRows } from './table.ts';
 import '../../components/u01.css';
 import './itinerary.css';
 
@@ -105,8 +103,6 @@ export function ItineraryBody({ load, dayIndex, onSelectDay, onRetry, mapsKey, o
   );
 }
 
-type Drag = { key: string; before: string | null | undefined; mode: 'pointer' | 'keyboard'; order: string[] };
-
 export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, mapsKey, onBack, initialSelection = null, initialExpanded = [], editor, hideHeader = false, previewNote }: {
   trip: Trip;
   source: TripLoad['source'] | 'preview';
@@ -129,12 +125,10 @@ export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, m
   const day = trip.days[idx];
   const [selection, setSelection] = useState<Selection>(initialSelection);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set(initialExpanded));
-  const [drag, setDrag] = useState<Drag | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
   const points = useMemo(() => (day ? mapPoints(day, trip.places) : []), [day, trip.places]);
   const rows = useMemo(() => (day ? tableRows(day, trip.places) : []), [day, trip.places]);
-  const stayKeys = useMemo(() => rows.flatMap(r => (r.kind === 'stay' ? [r.key] : [])), [rows]);
   const sync = useMemo(() => (day ? syncSelection(selection, day) : null), [selection, day]);
   const attribution = useMemo(() => attributionFor(trip), [trip]);
   const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
@@ -145,7 +139,7 @@ export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, m
     if (sync?.focusItemKey && selection?.kind === 'place') rowRefs.current.get(sync.focusItemKey)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
   }, [sync, selection]);
 
-  const changeDay = (i: number) => { setSelection(null); setDrag(null); setNotice(null); onSelectDay(i); };
+  const changeDay = (i: number) => { setSelection(null); setNotice(null); onSelectDay(i); };
   const toggleOpen = (key: string) => setExpanded(s => { const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n; });
 
   // D: clicking a row (or a map marker) shows its details: the row opens and is selected.
@@ -184,59 +178,6 @@ export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, m
     setNotice({ kind: 'info', text: `並べ替えを保存しました（版 ${r.data.revision}）。移動の時刻と所要時間は再計算が必要です。` });
   };
 
-  // R1: pointer based drag (mouse and touch) from the handle.
-  const dropFromPoint = (e: React.PointerEvent, d: Drag): Drag => {
-    const el = document.elementFromPoint?.(e.clientX, e.clientY)?.closest?.('[data-stay-key]') as HTMLElement | null;
-    const overKey = el?.dataset.stayKey;
-    if (!el || !overKey) return d;
-    const rect = el.getBoundingClientRect();
-    const after = el.dataset.detail === '1' || e.clientY > rect.top + rect.height / 2;
-    return { ...d, before: insertBeforeKey(stayKeys, d.key, overKey, after) };
-  };
-  const onHandlePointerDown = (e: React.PointerEvent, key: string) => {
-    if (saving || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    e.preventDefault();
-    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    setDrag({ key, before: undefined, mode: 'pointer', order: stayKeys });
-  };
-  const onHandlePointerMove = (e: React.PointerEvent) => {
-    if (drag?.mode === 'pointer') setDrag(dropFromPoint(e, drag));
-  };
-  const onHandlePointerUp = (e: React.PointerEvent) => {
-    if (drag?.mode !== 'pointer') return;
-    const final = dropFromPoint(e, drag);
-    setDrag(null);
-    if (final.before !== undefined) void commitMove(final.key, final.before);
-  };
-  // Keyboard alternative: Enter/Space picks the row up, arrow keys move it, Enter/Space drops, Escape cancels.
-  const onHandleKeyDown = (e: React.KeyboardEvent, key: string) => {
-    if (saving) return;
-    if (!drag || drag.mode !== 'keyboard' || drag.key !== key) {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDrag({ key, before: undefined, mode: 'keyboard', order: stayKeys }); }
-      return;
-    }
-    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      const dir = e.key === 'ArrowUp' ? -1 : 1;
-      const before = keyboardTarget(drag.order, key, dir);
-      if (before === undefined) return;
-      const order = drag.order.filter(k => k !== key);
-      order.splice(before === null ? order.length : order.indexOf(before), 0, key);
-      setDrag({ ...drag, before, order });
-    } else if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      const final = drag;
-      setDrag(null);
-      if (final.before !== undefined) void commitMove(final.key, final.before);
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      setDrag(null);
-    }
-  };
-
-  const dragTitle = drag ? rows.find(r => r.key === drag.key && r.kind === 'stay')?.key : null;
-  const dragName = dragTitle ? (rows.find(r => r.key === dragTitle) as StayRow).item.title : '';
-
   return (
     <>
       {!hideHeader && <ScreenHeader title={trip.title} {...(onBack ? { onBack } : {})} />}
@@ -272,32 +213,11 @@ export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, m
             </div>
             <div className="it-tablecol">
               {editable && <p className="meta it-hint">左の「⠿」をドラッグ（またはEnterで持ち上げて↑↓キー、Enterで置く）で並べ替えられます。行を押すと詳細が開きます。</p>}
-              <p className="u1-sr" role="status" aria-live="polite">
-                {drag ? `「${dragName}」を移動中。${drag.before === undefined ? '移動先を選んでください。' : drag.before === null ? '最後に置きます。' : `「${(rows.find(r => r.key === drag.before) as StayRow | undefined)?.item.title ?? ''}」の前に置きます。`}` : ''}
-              </p>
               {saving && <p role="status" className="u1-loading">並べ替えを保存中…</p>}
               {notice && <p role={notice.kind === 'error' ? 'alert' : 'status'} className={notice.kind === 'error' ? 'it-notice it-error' : 'it-notice'}>{notice.text}</p>}
-              <table className="it-table" aria-label="行程表">
-                <thead><tr><th scope="col" className="it-col-time">時刻</th><th scope="col">内容</th></tr></thead>
-                <tbody>
-                  {rows.length === 0 && <tr><td colSpan={2} className="u1-empty">この日の予定はありません。</td></tr>}
-                  {rows.map(r => (
-                    <Fragment key={r.key}>
-                      {r.kind === 'stay' ? (
-                        <StayTableRows row={r} open={expanded.has(r.key)} selected={sync?.itemKeys.has(r.key) ?? false} editable={editable}
-                          dragging={drag?.key === r.key} dropBefore={drag !== null && drag.before === r.key} dayDate={day.date}
-                          setRef={el => { if (el) rowRefs.current.set(r.key, el); else rowRefs.current.delete(r.key); }}
-                          onToggle={() => selectRow(r.key)}
-                          onHandlePointerDown={e => onHandlePointerDown(e, r.key)} onHandlePointerMove={onHandlePointerMove}
-                          onHandlePointerUp={onHandlePointerUp} onHandleCancel={() => setDrag(null)} onHandleKeyDown={e => onHandleKeyDown(e, r.key)} />
-                      ) : (
-                        <LegTableRows row={r} open={expanded.has(r.key)} selected={sync?.itemKeys.has(r.key) ?? false} dayDate={day.date} onToggle={() => selectRow(r.key)} />
-                      )}
-                    </Fragment>
-                  ))}
-                  {drag !== null && drag.before === null && <tr className="it-drop-end" aria-hidden="true"><td colSpan={2}>ここに置く</td></tr>}
-                </tbody>
-              </table>
+              <ItineraryTable key={idx} rows={rows} dayDate={day.date} expanded={expanded} selectedKeys={sync?.itemKeys}
+                onToggleRow={selectRow} saving={saving} {...(editable ? { onReorder: (k: string, b: string | null) => void commitMove(k, b) } : {})}
+                setRowRef={(k, el) => { if (el) rowRefs.current.set(k, el); else rowRefs.current.delete(k); }} />
             </div>
           </section>
         </>
@@ -308,133 +228,6 @@ export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, m
 
 function apiMessage(e: ApiError): string {
   return isRevisionConflict(e) ? describeEditError(e) : `保存できませんでした。${describeEditError(e)}`;
-}
-
-function Unknown({ text }: { text: string }) {
-  return text === UNKNOWN ? <span className="u1-unknown">{text}</span> : <>{text}</>;
-}
-
-/** Time text such as 「9:00〜10:00」 with any 未取得 part marked. */
-function TimeText({ text }: { text: string }) {
-  return text.includes(UNKNOWN) ? <>{text.split(UNKNOWN).flatMap((part, i, a) => (i < a.length - 1 ? [part, <span key={i} className="u1-unknown">{UNKNOWN}</span>] : [part]))}</> : <>{text}</>;
-}
-
-function DetailList({ lines, label }: { lines: DetailLine[]; label: string }) {
-  return (
-    <dl className="it-dl" aria-label={label}>
-      {lines.map(l => (
-        <Fragment key={l.label}>
-          <dt>{l.label}</dt>
-          <dd>{l.unknown ? <span className="u1-unknown">{l.value}</span> : l.value}</dd>
-        </Fragment>
-      ))}
-    </dl>
-  );
-}
-
-function StayTableRows({ row, open, selected, editable, dragging, dropBefore, dayDate, setRef, onToggle, onHandlePointerDown, onHandlePointerMove, onHandlePointerUp, onHandleCancel, onHandleKeyDown }: {
-  row: StayRow;
-  open: boolean;
-  selected: boolean;
-  editable: boolean;
-  dragging: boolean;
-  dropBefore: boolean;
-  dayDate: string;
-  setRef: (el: HTMLTableRowElement | null) => void;
-  onToggle: () => void;
-  onHandlePointerDown: (e: React.PointerEvent) => void;
-  onHandlePointerMove: (e: React.PointerEvent) => void;
-  onHandlePointerUp: (e: React.PointerEvent) => void;
-  onHandleCancel: () => void;
-  onHandleKeyDown: (e: React.KeyboardEvent) => void;
-}) {
-  void dayDate;
-  const a = row.item;
-  const detailId = `it-d-${row.key}`;
-  return (
-    <>
-      <tr ref={setRef} data-stay-key={row.key} className={`it-stay${selected ? ' it-on' : ''}${dragging ? ' it-dragging' : ''}${dropBefore ? ' it-drop-before' : ''}`}>
-        <th scope="row" className="it-time"><TimeText text={row.range} /></th>
-        <td>
-          <div className="it-cell">
-            {editable && (
-              <button type="button" className="it-handle" aria-label={`「${a.title}」を並べ替える`} aria-pressed={dragging}
-                onPointerDown={onHandlePointerDown} onPointerMove={onHandlePointerMove} onPointerUp={onHandlePointerUp}
-                onPointerCancel={onHandleCancel} onKeyDown={onHandleKeyDown}>⠿</button>
-            )}
-            <button type="button" className="it-rowbtn" aria-expanded={open} aria-controls={detailId} onClick={onToggle}>
-              {row.number !== null
-                ? <span className="it-num" aria-label={`地図の地点${row.number}`}>{row.number}</span>
-                : <span className="it-num it-num-none" aria-label="地図に表示なし">–</span>}
-              <span className="it-rowtext">
-                <span className="it-title">{a.title}</span>
-                <span className="meta">
-                  {KIND_LABEL[a.kind]}{a.fixed ? '・固定予定' : ''}
-                  ・費用 <Unknown text={a.cost === null ? UNKNOWN : formatMoney(a.cost)} />
-                  {row.children.length > 0 ? `・中の予定 ${row.children.length}件` : ''}
-                </span>
-              </span>
-              <span className="it-chev" aria-hidden="true">{open ? '▲' : '▼'}</span>
-            </button>
-          </div>
-        </td>
-      </tr>
-      {open && (
-        <tr id={detailId} className="it-detail" data-stay-key={row.key} data-detail="1">
-          <td colSpan={2}>
-            <DetailList lines={stayDetails(row)} label={`${a.title}の詳細`} />
-            {row.children.length > 0 && (
-              <table className="it-subtable" aria-label={`${a.title}の中の予定（時間順）`}>
-                <thead><tr><th scope="col" className="it-col-time">時刻</th><th scope="col">内容</th></tr></thead>
-                <tbody>{row.children.map(c => <ChildTableRow key={c.key} child={c} />)}</tbody>
-              </table>
-            )}
-            {row.children.length === 0 && <p className="meta">この予定の中の細かい予定はありません（取得できていない場合も、作らずにそのままにしています）。</p>}
-          </td>
-        </tr>
-      )}
-    </>
-  );
-}
-
-function ChildTableRow({ child }: { child: ChildRow }) {
-  return (
-    <tr className="it-child">
-      <th scope="row" className="it-time"><TimeText text={child.range} /></th>
-      <td>
-        <span className="it-title">{child.item.title}</span>
-        <DetailList lines={childDetails(child).filter(l => l.label !== '時間')} label={`${child.item.title}の詳細`} />
-      </td>
-    </tr>
-  );
-}
-
-/** A travel leg is two thin rows: the start row (departure time) and the end row (arrival time). */
-function LegTableRows({ row, open, selected, dayDate, onToggle }: { row: LegRow; open: boolean; selected: boolean; dayDate: string; onToggle: () => void }) {
-  const detailId = `it-d-${row.key}`;
-  const cls = `it-conn${selected ? ' it-on' : ''}${row.stale ? ' it-stale' : ''}`;
-  return (
-    <>
-      <tr className={`${cls} it-conn-start`} data-leg-key={row.key}>
-        <th scope="row" className="it-time"><span className="it-tm">出発 </span><TimeText text={row.departure} /></th>
-        <td>
-          <button type="button" className="it-connbtn" aria-expanded={open} aria-controls={detailId} onClick={onToggle}>
-            <span aria-hidden="true">↓</span> {row.fromName}から <span className="it-legmode">{row.summary}</span>
-            {row.stale && <span className="it-stale-tag">要再計算</span>}
-          </button>
-        </td>
-      </tr>
-      <tr className={`${cls} it-conn-end`} data-leg-key={row.key}>
-        <th scope="row" className="it-time"><span className="it-tm">到着 </span><TimeText text={row.arrival} /></th>
-        <td className="meta">{row.toName}へ</td>
-      </tr>
-      {open && (
-        <tr id={detailId} className="it-detail" data-detail-leg="1">
-          <td colSpan={2}><DetailList lines={legDetails(row, dayDate)} label={`${row.fromName}から${row.toName}への移動の詳細`} /></td>
-        </tr>
-      )}
-    </>
-  );
 }
 
 function UnlocatedNote({ names }: { names: { number: number; name: string }[] }) {

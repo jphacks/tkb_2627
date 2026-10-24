@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useMemo, useReducer, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import type { AlternativeCandidate, AlternativesResult, ApiError, Trip, TripOperation, TripPatchResult } from '@tkb/contracts';
 import { ErrorBox } from '../../components/ErrorBox.tsx';
 import { MockBanner } from '../../components/MockBanner.tsx';
 import { ScreenHeader } from '../../components/ScreenHeader.tsx';
 import { formatDay } from '../../lib/format.ts';
-import { KIND_LABEL, TIME_UNKNOWN, formatLocalTime } from '../itinerary/model.ts';
+import { TIME_UNKNOWN } from '../itinerary/model.ts';
+import { ItineraryTable } from '../itinerary/ItineraryTable.tsx';
+import { tableRows } from '../itinerary/table.ts';
 import { createLiveTripEditApi, createMockTripEditApi, type TripEditApi } from './api.ts';
 import { DiffView, EditError, NO_OPERATIONS_REASON, TRAVEL_LABEL } from './DiffView.tsx';
-import { applyOperations, itemIdOf, moveStepOp, newFreeActivity, titleLookup } from './ops.ts';
+import { applyOperations, itemIdOf, newFreeActivity, reorderOps, titleLookup } from './ops.ts';
 import { describeOp, initialPending, pendingReducer } from './pending.ts';
 import { tripScreenHash, type TripScreenRoute } from './route.ts';
 import '../../components/u01.css';
@@ -28,7 +30,6 @@ export interface EditViewProps {
   onDay: (i: number) => void;
   onAdd: (op: TripOperation) => void;
   onRemove: (itemId: string) => void;
-  onMove: (itemId: string, dir: -1 | 1) => void;
   onUndo: () => void;
   onClear: () => void;
   onPreview: () => void;
@@ -105,10 +106,13 @@ export function EditView(p: EditViewProps) {
   const baseIds = useMemo(() => new Set(p.trip.days.flatMap(d => d.items.map(itemIdOf))), [p.trip]);
   const lookupAll = (id: string) => (baseTitleOf(id) !== id ? baseTitleOf(id) : titleOf(id));
 
-  const onKey = (e: KeyboardEvent, id: string) => {
-    if (!e.altKey) return;
-    if (e.key === 'ArrowUp') { e.preventDefault(); p.onMove(id, -1); }
-    if (e.key === 'ArrowDown') { e.preventDefault(); p.onMove(id, 1); }
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const toggleRow = (key: string) => setExpanded(x => { const n = new Set(x); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+  const rows = useMemo(() => (day ? tableRows(day, p.working.places) : []), [day, p.working.places]);
+
+  // R1: a drag becomes K10 `move` operations on the pending list (a stay moves together with its children).
+  const reorder = (key: string, before: string | null) => {
+    for (const op of reorderOps(p.working, idx, key, before)) p.onAdd(op);
   };
 
   return (
@@ -136,34 +140,15 @@ export function EditView(p: EditViewProps) {
       </div>
       {day ? (
         <>
-          <ol className="ed-list" aria-label={`${idx + 1}日目の予定`}>
-            {day.items.length === 0 && <li className="u1-empty">この日の予定はありません。</li>}
-            {day.items.map(item => {
-              const id = itemIdOf(item);
-              if (item.type === 'leg') {
-                return <li key={id} className="ed-item ed-leg">移動区間（編集不可・位置のみ保持）</li>;
-              }
-              const isNew = !baseIds.has(id);
-              const first = moveStepOp(p.working, id, idx, -1) === null;
-              const last = moveStepOp(p.working, id, idx, 1) === null;
-              return (
-                <li key={id} className={`ed-item${isNew ? ' ed-new' : ''}`} tabIndex={0} onKeyDown={e => onKey(e, id)} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">
-                  <p className="ed-title">{isNew && <span className="ed-flag">未保存</span>}{item.title}</p>
-                  <p className="ed-meta">
-                    {KIND_LABEL[item.kind]} / {formatLocalTime(item.start, day.date)} - {formatLocalTime(item.end, day.date)}
-                    {item.fixed ? ' / 予約・固定' : ''}
-                    {item.cost === null ? ' / 費用不明' : ''}
-                  </p>
-                  <div className="ed-actions">
-                    <button type="button" className="btn" disabled={first} onClick={() => p.onMove(id, -1)} aria-label={`${item.title} を上へ`}>↑ 上へ</button>
-                    <button type="button" className="btn" disabled={last} onClick={() => p.onMove(id, 1)} aria-label={`${item.title} を下へ`}>↓ 下へ</button>
-                    <button type="button" className="btn" onClick={() => p.onRemove(id)} aria-label={`${item.title} を削除`}>削除</button>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-          <p className="ed-note">キーボード: 予定にフォーカスして Alt+↑ / Alt+↓ で移動できます。</p>
+          <p className="ed-note">左の「⠿」をドラッグ（またはEnterで持ち上げて↑↓キー、Enterで置く）で並べ替えられます。行を押すと詳細が開きます。並べ替えは「未保存の編集」に入り、保存するまで確定しません。</p>
+          <ItineraryTable key={idx} rows={rows} dayDate={day.date} expanded={expanded} onToggleRow={toggleRow} onReorder={reorder}
+            stayBadge={r => (baseIds.has(r.key) ? null : <span className="ed-flag">未保存</span>)}
+            stayExtra={r => (
+              <button type="button" className="btn" onClick={() => {
+                for (const c of r.children) p.onRemove(c.key);
+                p.onRemove(r.key);
+              }} aria-label={`${r.item.title} を削除`}>削除</button>
+            )} />
           <AddForm key={idx} day={day} dayIndex={idx} onAdd={p.onAdd} />
         </>
       ) : <p className="u1-empty">日程がありません。</p>}
@@ -270,7 +255,6 @@ export function EditScreen({ route, api: apiProp, onBack }: { route: TripScreenR
         trip={trip} working={working} pending={pending.ops} dayIndex={dayIndex} onDay={setDayIndex}
         onAdd={push}
         onRemove={id => push({ op: 'remove', itemId: id })}
-        onMove={(id, dir) => { const op = moveStepOp(working, id, dayIndex, dir); if (op) push(op); }}
         onUndo={() => { dispatch({ type: 'undo' }); setAlt({ state: 'idle' }); }}
         onClear={() => { dispatch({ type: 'clear' }); setAlt({ state: 'idle' }); }}
         onPreview={() => void preview()} alt={alt} onApply={c => void apply(c)}
