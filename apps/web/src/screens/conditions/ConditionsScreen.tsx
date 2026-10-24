@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { TimeZone } from '@tkb/contracts';
 import type { Capabilities, DataStatus, GenerateRequest, JobAccepted, PlaceInfo, TransportMode } from '@tkb/contracts';
 import { ErrorBox, type ErrorInfo } from '../../components/ErrorBox.tsx';
 import { ScreenHeader } from '../../components/ScreenHeader.tsx';
 import { TRANSPORT_LABEL, UNKNOWN_LABEL } from '../../components/labels.ts';
-import { REQUIRED_FIELDS, TIME_ZONE_SUGGESTIONS, type ConditionForm } from '../condition.ts';
+import { REQUIRED_FIELDS, type ConditionForm } from '../condition.ts';
 import { describeError, type ApiResult, type ConditionsApi, type DataSource } from './api.ts';
 import {
   BUDGET_CURRENCIES,
@@ -27,6 +27,8 @@ import {
   type ConditionsFieldKey,
   type ConditionsForm,
 } from './model.ts';
+import { DEFAULT_ZONE, buildZoneGroups, zoneForArea, zoneLabel } from './tz.ts';
+import './tz.css';
 
 const DATA_STATUS_LABEL: Record<DataStatus, string> = {
   verified: '確認済み',
@@ -54,6 +56,8 @@ const AI_REASON_LABEL: Record<string, string> = {
   CLI_NOT_AUTHENTICATED: 'Claude Code CLI にログインしていません。',
   TERMS_NOT_CONFIRMED: '利用条件の確認が済んでいません。',
 };
+
+const defaultConditions: ConditionsForm = { ...emptyConditions, base: { ...emptyConditions.base, timeZone: DEFAULT_ZONE } };
 
 const toErrorInfo = (r: Extract<ApiResult<unknown>, { ok: false }>): ErrorInfo => ({
   message: describeError(r.error),
@@ -133,7 +137,16 @@ export function ConditionsView(props: ConditionsViewProps) {
   const errorKeys = Object.keys(shown) as ConditionsFieldKey[];
   const b = form.base;
   const setBase = <K extends keyof ConditionForm>(key: K, value: ConditionForm[K]) => onChange({ ...form, base: { ...b, [key]: value } });
+  const setArea = (area: string) => {
+    // 地域から既知のゾーンが分かり、利用者が変えていない（空・既定・前の地域由来）なら、そのゾーンを選んでおく。
+    const next = zoneForArea(area);
+    const cur = b.timeZone.trim();
+    const untouched = cur === '' || cur === DEFAULT_ZONE || cur === zoneForArea(b.area);
+    onChange({ ...form, base: { ...b, area, ...(next && untouched ? { timeZone: next } : {}) } });
+  };
   const zone = b.timeZone.trim();
+  const zoneGroups = useMemo(() => buildZoneGroups(props.now), [props.now]);
+  const zoneInGroups = zoneGroups.some(g => g.zones.some(o => o.value === zone));
   const dates = tripDates(b.startDate, b.endDate);
   const overrides = effectiveModeByDate(form);
   const today = zone ? todayIn(zone, props.now) : null;
@@ -184,15 +197,23 @@ export function ConditionsView(props: ConditionsViewProps) {
       <div className="u1-field">
         <label htmlFor="u3-area">地域（必須）</label>
         <input id="u3-area" type="text" value={b.area} placeholder="例: 金沢 / Paris" autoComplete="off" aria-invalid={Boolean(shown.area)}
-          onChange={e => setBase('area', e.target.value)} />
+          onChange={e => setArea(e.target.value)} />
         {shown.area && <p className="u1-fielderr">{shown.area}</p>}
       </div>
 
       <div className="u1-field">
         <label htmlFor="u3-tz">タイムゾーン（旅行先・IANA名・必須）</label>
-        <input id="u3-tz" type="text" list="u3-tz-list" value={b.timeZone} autoComplete="off" placeholder="例: Asia/Tokyo"
-          aria-invalid={Boolean(shown.timeZone)} aria-describedby="u3-tz-note" onChange={e => setBase('timeZone', e.target.value)} />
-        <datalist id="u3-tz-list">{TIME_ZONE_SUGGESTIONS.map(z => <option key={z} value={z} />)}</datalist>
+        <select id="u3-tz" className="u3-tz" value={zone} aria-invalid={Boolean(shown.timeZone)} aria-describedby="u3-tz-chosen u3-tz-note"
+          onChange={e => setBase('timeZone', e.target.value)}>
+          {zone === '' && <option value="" disabled>選択してください</option>}
+          {zone !== '' && !zoneInGroups && <option value={zone}>{zone}（一覧にありません）</option>}
+          {zoneGroups.map(g => (
+            <optgroup key={g.label} label={g.label}>
+              {g.zones.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </optgroup>
+          ))}
+        </select>
+        <p id="u3-tz-chosen" className="u3-tz-chosen">{zone !== '' ? `選択中: ${zoneLabel(zone, props.now)}` : 'タイムゾーンを選んでください'}</p>
         <p id="u3-tz-note" className="meta">日付は旅行先の現地日付です{today ? `（現地の今日: ${today}）` : ''}。端末のタイムゾーンでは変換しません。</p>
         {shown.timeZone && <p className="u1-fielderr">{shown.timeZone}</p>}
       </div>
@@ -369,7 +390,7 @@ export function ConditionsView(props: ConditionsViewProps) {
           {busy ? '送信中…' : aiUnavailable ? '候補を生成する（現在利用不可）' : '候補を生成する'}
         </button>
         <button type="button" className="btn" onClick={() => onChange(sampleConditions)}>サンプルを入力</button>
-        <button type="button" className="btn" onClick={() => onChange(emptyConditions)}>クリア</button>
+        <button type="button" className="btn" onClick={() => onChange(defaultConditions)}>クリア</button>
       </div>
       <p className="meta">送信前の要求内容は契約K01（GenerateRequest）で検証します。食事の希望: 「{MEAL_PREFERENCE}」、散策の希望: 「{FREE_WALK_PREFERENCE}」として送ります。</p>
     </form>
@@ -377,7 +398,7 @@ export function ConditionsView(props: ConditionsViewProps) {
 }
 
 /** Stateful U03 screen. onStarted hands the accepted job to the next screen (U05 progress). */
-export function ConditionsScreen({ api, onStarted, initialForm = emptyConditions, now }: {
+export function ConditionsScreen({ api, onStarted, initialForm = defaultConditions, now }: {
   api: ConditionsApi;
   onStarted?: (accepted: JobAccepted, request: GenerateRequest) => void;
   initialForm?: ConditionsForm;
