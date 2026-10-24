@@ -3,7 +3,7 @@ import type { ApiError, JobStatus } from '@tkb/contracts';
 import { kanazawaPlaces } from '@tkb/fixtures';
 import { createMockApi } from '../../mocks/index.ts';
 import {
-  BACKOFF_MS, MAX_CONSECUTIVE_ERRORS, MAX_POLLS, applyErrorMessage, buildApplyRequest, canRetry, freshIdempotencyKey, initialPoll,
+  BACKOFF_MS, MAX_CONSECUTIVE_ERRORS, MAX_POLLS, applyErrorMessage, buildApplyRequest, aiReasonMessage, canRetry, createRetryKeys, freshIdempotencyKey, initialPoll, modeChipLabel,
   jobErrorMessage, nextDelayMs, pollReducer, shouldPoll, summarizeCandidate, type PollEvent, type PollState,
 } from './model.ts';
 
@@ -150,5 +150,25 @@ describe('candidate summary and apply body', () => {
   it('apply request is exactly {batchId, candidateId, tripId:null, expectedRevision:null}', () => {
     expect(buildApplyRequest('b1', 'c1')).toEqual({ batchId: 'b1', candidateId: 'c1', tripId: null, expectedRevision: null });
     expect(Object.keys(buildApplyRequest('b1', 'c1')).sort()).toEqual(['batchId', 'candidateId', 'expectedRevision', 'tripId']);
+  });
+});
+
+describe('retry keys and mode labels', () => {
+  it('reuses the key until done() (network failure then re-press), then issues a new one', () => {
+    let n = 0;
+    const k = createRetryKeys(() => `r${n++}abcdefgh`);
+    const first = k.acquire();
+    expect(k.acquire()).toBe(first);
+    k.done();
+    expect(k.acquire()).not.toBe(first);
+  });
+  it('labels per dataMode, AI reasons and neutral states', () => {
+    expect(modeChipLabel({ status: 'done', dataMode: 'fixture', ai: { available: true, reason: null } })).toContain('実在の情報ではありません');
+    expect(modeChipLabel({ status: 'done', dataMode: 'mixed', ai: { available: true, reason: null } })).toBe('場所はfixture、経路は実データ');
+    expect(modeChipLabel({ status: 'done', dataMode: 'live', ai: { available: true, reason: null } })).toBe('実データ');
+    expect(modeChipLabel({ status: 'loading' })).toBe('接続状態を確認中');
+    expect(modeChipLabel({ status: 'error' })).toBe('接続状態を取得できません');
+    expect(aiReasonMessage('CLI_NOT_FOUND')).toContain('CLI');
+    expect(aiReasonMessage('NEW_CODE')).toContain('未知');
   });
 });

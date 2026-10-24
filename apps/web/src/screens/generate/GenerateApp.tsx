@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { GenerateRequest, JobAccepted } from '@tkb/contracts';
 import { MockBanner } from '../../components/MockBanner.tsx';
 import { ScenarioSwitcher } from '../../components/ScenarioSwitcher.tsx';
@@ -7,7 +7,8 @@ import { createLiveConditionsApi, createMockConditionsApi, type DataSource } fro
 import { ConditionsScreen } from '../conditions/ConditionsScreen.tsx';
 import { itineraryHash } from '../itinerary/route.ts';
 import { createLiveGenerateApi, createMockGenerateApi } from './api.ts';
-import { CompareScreen, ProgressScreen } from './GenerateScreens.tsx';
+import { CompareScreen, LiveBanner, ModeChip, ProgressScreen } from './GenerateScreens.tsx';
+import type { ModeCapState } from './model.ts';
 import '../../components/u01.css';
 
 type Step =
@@ -28,6 +29,17 @@ export function GenerateApp({ initialSource = 'mock' }: { initialSource?: DataSo
     const mock = createMockApi({ scenario });
     return { cond: createMockConditionsApi(mock, scenario), flow: createMockGenerateApi(mock) };
   }, [source, scenario]);
+  const [modeCap, setModeCap] = useState<ModeCapState>({ status: 'loading' });
+  useEffect(() => {
+    if (source !== 'live') return undefined;
+    let alive = true;
+    setModeCap({ status: 'loading' });
+    void apis.cond.capabilities().then(r => {
+      if (!alive) return;
+      setModeCap(r.ok ? { status: 'done', dataMode: r.data.dataMode, ai: { available: r.data.aiGeneration.available, reason: r.data.aiGeneration.reason } } : { status: 'error' });
+    });
+    return () => { alive = false; };
+  }, [source, apis]);
   const reset = () => setStep({ name: 'conditions' });
 
   return (
@@ -35,10 +47,7 @@ export function GenerateApp({ initialSource = 'mock' }: { initialSource?: DataSo
       {source === 'mock' ? (
         <MockBanner />
       ) : (
-        <div role="status" className="u1-banner" style={{ background: 'var(--accbg)' }}>
-          <span className="u1-banner-tag" style={{ background: 'var(--acc)' }}>LIVE</span>
-          <span>実APIに接続しています。生成すると本人の生成ジョブが作られ、採用すると共有サーバーに旅程が保存されます。</span>
-        </div>
+        <LiveBanner state={modeCap} />
       )}
       <div className="u1-scenario">
         <label htmlFor="u5-source">接続先（レビュー用）</label>
@@ -52,6 +61,7 @@ export function GenerateApp({ initialSource = 'mock' }: { initialSource?: DataSo
         {step.name === 'conditions' && (
           <ConditionsScreen key={`${source}:${scenario}`} api={apis.cond} onStarted={(accepted, request) => setStep({ name: 'progress', accepted, request })} />
         )}
+        {source === 'live' && step.name !== 'conditions' && <ModeChip state={modeCap} />}
         {step.name === 'progress' && (
           <ProgressScreen
             key={step.accepted.jobId} api={apis.flow} accepted={step.accepted} request={step.request}
