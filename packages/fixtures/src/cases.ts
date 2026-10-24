@@ -112,6 +112,7 @@ function withCarLegs(days: Days): Days {
             platform: null,
             transfers: null,
             fare: null,
+            transit: null,
             dataStatus: 'unknown' as const,
             provenance: null,
           }

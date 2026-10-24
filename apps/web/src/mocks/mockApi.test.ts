@@ -276,6 +276,28 @@ describe('mock api: K01/K02/K21 jobs', () => {
     }
   });
 
+  it('car legs never carry transit stop names from the source transit legs', async () => {
+    const sourceLeg = domesticTrip.days.flatMap(d => d.items).find(i => i.type === 'leg' && i.mode === 'transit');
+    if (!sourceLeg || sourceLeg.type !== 'leg') throw new Error('fixture has no transit leg');
+    const original = sourceLeg.transit;
+    const hadTransit = 'transit' in sourceLeg;
+    sourceLeg.transit = { boardingStop: '金沢駅', alightingStop: '兼六園下', transferStops: ['香林坊'] };
+    try {
+      const api = createMockApi();
+      const { jobId } = data(await api.generate({ constraints: { ...GENERATE.constraints, transportMode: 'car' } }));
+      const batchId = (await pollToEnd(api, jobId)).at(-1)?.batchId ?? '';
+      const cars = data(await api.getPlanBatch(batchId)).candidates.flatMap(c => c.days.flatMap(d => d.items)).filter(i => i.type === 'leg' && i.mode === 'car');
+      expect(cars.length).toBeGreaterThan(0);
+      for (const l of cars) {
+        if (l.type !== 'leg') continue;
+        expect(l.transit).toBeNull();
+      }
+    } finally {
+      if (hadTransit) sourceLeg.transit = original;
+      else delete sourceLeg.transit;
+    }
+  });
+
   it('Idempotency-Key: the same key and body returns the same job, a different body is 409, no key makes a new job', async () => {
     const api = createMockApi();
     const key = 'idem_key_0001';
