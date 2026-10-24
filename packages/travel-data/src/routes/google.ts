@@ -20,8 +20,20 @@ const TRANSIT_FIELDS = [
 ];
 const TRAVEL_MODE = { transit: 'TRANSIT', car: 'DRIVE', walk: 'WALK' } as const;
 
-/** Time zones where the provider returned no transit at all in D01 (Kanazawa 2 km and Kanazawa-Tokyo, #84/#89). */
-const NO_TRANSIT_ZONES = new Set(['Asia/Tokyo']);
+/**
+ * Rough boxes around Japan (Honshu-Shikoku-Kyushu, Hokkaido, Okinawa and the southern islands). The provider
+ * returned no transit there in D01 (Kanazawa 2 km and Kanazawa-Tokyo, #84/#89). "Coordinates are enough" (M1, #92):
+ * a few islands of neighbouring countries in the Sea of Japan also fall inside, which only matters for transit.
+ */
+const JAPAN_BOXES = [
+  { south: 30.0, north: 41.6, west: 129.5, east: 142.2 },
+  { south: 41.3, north: 45.6, west: 139.3, east: 146.0 },
+  { south: 24.0, north: 30.0, west: 122.9, east: 131.5 },
+];
+/** Whether a coordinate is in Japan by the boxes above. */
+export function inJapan(lat: number, lng: number): boolean {
+  return JAPAN_BOXES.some(b => lat >= b.south && lat <= b.north && lng >= b.west && lng <= b.east);
+}
 
 // ---- Response shape (only the fields we ask for in the field mask; all optional) ----
 interface GMoney {
@@ -83,10 +95,33 @@ export function toMoney(fare: GMoney | undefined): Money | null {
   return Number.isSafeInteger(amountMinor) ? { amountMinor, currency: fare.currencyCode } : null;
 }
 
+const stopName = (stop: GStop | undefined): string | null => stop?.name?.trim() || null;
+
+/**
+ * K06 TravelLeg.transit (R05): boarding stop of the first transit step, alighting stop of the last, and the stations
+ * where one step ends and the next begins. Unknown names stay null or are left out of transfers; never guessed.
+ */
+function transitStops(transit: GStep[]): NonNullable<TravelLeg['transit']> {
+  const transferStops = transit.slice(0, -1).flatMap(s => {
+    const name = stopName(s.transitDetails?.stopDetails?.arrivalStop);
+    return name === null ? [] : [name];
+  });
+  return {
+    boardingStop: stopName(transit[0]?.transitDetails?.stopDetails?.departureStop),
+    alightingStop: stopName(transit.at(-1)?.transitDetails?.stopDetails?.arrivalStop),
+    transferStops,
+  };
+}
+
 export interface GoogleRoutesOptions {
   apiKey: string;
   fetch?: typeof fetch;
   now?: () => number;
+  /**
+   * Refuse transit between two places in Japan without calling (M1, #92), to save the transit quota: the provider
+   * returned none there. Default true; set false once Japanese transit is supported.
+   */
+  refuseJapanTransit?: boolean;
 }
 
 /**
@@ -108,6 +143,8 @@ export class GoogleRoutesProvider implements RouteProvider {
   async route(request: RouteRequest, budget: CallBudget): Promise<RouteResult> {
     const { from, to, mode } = request;
     if (!from.location || !to.location) return { leg: null, reason: 'missing_location' };
+    const bothInJapan = inJapan(from.location.lat, from.location.lng) && inJapan(to.location.lat, to.location.lng);
+    if (mode === 'transit' && bothInJapan && (this.options.refuseJapanTransit ?? true)) return { leg: null, reason: 'unsupported_region' };
     const departureMs = Date.parse(request.departureUtc);
     if (Number.isNaN(departureMs)) throw new PolicyError('VALIDATION_FAILED', 'departureUtc is not a valid instant', false);
     const now = this.now();
@@ -160,10 +197,7 @@ export class GoogleRoutesProvider implements RouteProvider {
     }
 
     const route = json.routes?.[0];
-    if (!route) {
-      const unsupported = mode === 'transit' && NO_TRANSIT_ZONES.has(from.timeZone) && NO_TRANSIT_ZONES.has(to.timeZone);
-      return { leg: null, reason: unsupported ? 'unsupported_region' : 'no_route' };
-    }
+    if (!route) return { leg: null, reason: mode === 'transit' && bothInJapan ? 'unsupported_region' : 'no_route' };
     return { leg: this.toLeg(request, route), reason: null };
   }
 
@@ -204,6 +238,7 @@ export class GoogleRoutesProvider implements RouteProvider {
       platform: null,
       transfers: isTransit && transit.length > 0 ? transit.length - 1 : null,
       fare: isTransit ? toMoney(route.travelAdvisory?.transitFare) : null,
+      transit: isTransit && transit.length > 0 ? transitStops(transit) : null,
       dataStatus: 'verified',
       provenance: provenanceFor('google_routes', this.now()),
     };
