@@ -1,4 +1,5 @@
 import { PlaceInfo } from '@tkb/contracts';
+import { parseOpeningHours } from '@tkb/planner';
 import { kanazawaPlaces } from '@tkb/fixtures';
 import { describe, expect, it, vi } from 'vitest';
 import { CallBudget, DailyQuota, Gate } from '../policy/budget.ts';
@@ -51,6 +52,21 @@ describe('openingHoursText', () => {
     expect(openingHoursText({ periods: [{ open: { day: 0, hour: 0, minute: 0 } }] })).toBe('24時間');
   });
 
+  it('produces text that the D06 parser reads, and turns 0:00 to the next 0:00 into 24時間', () => {
+    const outputs = [
+      openingHoursText({ periods: everyDay(9, 0, 17, 30) }),
+      openingHoursText({ periods: [0, 1, 2, 3, 4, 5, 6].map(d => day(d, 18, 0, 2, 0, (d + 1) % 7)) }),
+      openingHoursText({ periods: [0, 1, 2, 3, 4, 5, 6].flatMap(d => [day(d, 17, 0, 22, 0), day(d, 11, 30, 14, 0)]) }), // out of order
+      openingHoursText({ periods: [0, 1, 2, 3, 4, 5, 6].map(d => day(d, 0, 0, 0, 0, (d + 1) % 7)) }),
+    ];
+    expect(outputs).toEqual(['9:00-17:30', '18:00-2:00', '11:30-14:00, 17:00-22:00', '24時間']);
+    for (const text of outputs) expect(parseOpeningHours(text), text!).not.toBeNull();
+  });
+
+  it('does not read a period closing two days later as a daily pattern', () => {
+    expect(openingHoursText({ periods: [0, 1, 2, 3, 4, 5, 6].map(d => day(d, 9, 0, 17, 0, (d + 2) % 7)), weekdayDescriptions: ['x'] })).toBe('x');
+  });
+
   it("keeps the provider's descriptions when days differ or a day is closed, and null when nothing is usable", () => {
     expect(openingHoursText(louvre.regularOpeningHours)).toBe('Monday: 9:00 AM – 6:00 PM / Tuesday: Closed');
     const differing = [...everyDay(9, 0, 17, 0).slice(0, 6), day(6, 10, 0, 16, 0)];
@@ -79,8 +95,10 @@ describe('GooglePlacesProvider', () => {
       dataStatus: 'verified',
       provenance: { source: 'google_places', attribution: 'Google Maps', mayStore: false, maySendToModel: false, mayExport: false },
     });
-    // Third-party data must be credited beyond "Google Maps".
+    // Third-party data must be credited beyond "Google Maps", once each.
     expect(r.places[1]!.provenance.attribution).toBe('Google Maps / Some Data Partner');
+    const twice = await provider(() => json({ places: [{ ...louvre, attributions: [...louvre.attributions, ...louvre.attributions] }] })).p.searchText({ query: 'x', timeZone: 'Europe/Paris', maxResults: 1 }, budget());
+    expect(twice.places[0]!.provenance.attribution).toBe('Google Maps / Some Data Partner');
     expect(r.places[1]!.openingHours).toContain('Tuesday: Closed');
 
     const headers = fetchMock.mock.calls[0]![1]!.headers as Record<string, string>;
@@ -135,6 +153,16 @@ describe('GooglePlacesProvider', () => {
       maxResultCount: 5,
     });
     await expect(p.searchNearby({ around, radiusMeters: 20_000, maxResults: 5 }, budget())).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    await expect(p.searchNearby({ around, radiusMeters: 500, includedTypes: ['Restaurant!'], maxResults: 5 }, budget())).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // With hours: Nearby Enterprise SKU and the hours field.
+    const q = new DailyQuota(SAFE_DEFAULT_LIMITS.dailyPerSku, () => NOW);
+    const ent = provider(() => json({ places: [] }));
+    await ent.p.searchNearby({ around, radiusMeters: 500, maxResults: 5, withHours: true }, budget({ quota: q }));
+    expect((ent.fetchMock.mock.calls[0]![1]!.headers as Record<string, string>)['X-Goog-FieldMask']).toContain('places.regularOpeningHours');
+    expect(q.remaining(SKU.placesNearbyEnterprise)).toBe(19);
+    expect(q.remaining(SKU.placesNearbyPro)).toBe(20);
     expect(await p.searchNearby({ around: { ...around, location: null }, radiusMeters: 500, maxResults: 5 }, budget())).toEqual({ places: [], reason: 'missing_location', dropped: 0 });
   });
 
@@ -177,5 +205,17 @@ describe('FixturePlacesProvider', () => {
     expect(near.places.map(x => x.placeId)).toEqual(['fx_21c_museum']);
     expect((await p.searchText({ query: 'zzz', timeZone: 'Asia/Tokyo', maxResults: 5 }, b)).reason).toBe('no_results');
     expect(b.callsUsed).toBe(0);
+  });
+
+  it('honours the area and the requested types, and refuses the same input as the Google provider', async () => {
+    const b = budget();
+    const p = new FixturePlacesProvider();
+    // 'e' matches Paris places too, but only Kanazawa ones are inside the rectangle.
+    const inKanazawa = await p.searchText({ query: 'e', timeZone: 'Asia/Tokyo', area: KANAZAWA, maxResults: 10 }, b);
+    expect(inKanazawa.places.every(x => x.timeZone === 'Asia/Tokyo')).toBe(true);
+    const food = await p.searchNearby({ around: kanazawaPlaces[0]!, radiusMeters: 5000, includedTypes: ['restaurant'], maxResults: 10 }, b);
+    expect(food.places.map(x => x.kind)).toEqual(['restaurant']);
+    await expect(p.searchText({ query: 'x'.repeat(201), timeZone: 'Asia/Tokyo', maxResults: 5 }, b)).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    await expect(p.searchText({ query: '兼六', timeZone: 'Asia/Tokyo', maxResults: 99 }, b)).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
   });
 });

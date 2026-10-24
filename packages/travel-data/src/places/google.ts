@@ -32,7 +32,10 @@ export type PlacesUnknownReason = 'no_results' | 'missing_location' | 'rate_limi
 
 export interface PlacesResult {
   places: PlaceInfo[];
-  /** Set when nothing came back, with why. Empty is not the same as failed (K19). */
+  /**
+   * Why there are no places: `no_results` when the provider returned none, or a failure. Empty is not the same as
+   * failed (K19). It stays null when results came back but were all dropped (see `dropped`).
+   */
   reason: PlacesUnknownReason | null;
   /** Results dropped because they lacked a valid ID or a name. */
   dropped: number;
@@ -49,6 +52,12 @@ export interface TextSearchRequest {
   withHours?: boolean;
   languageCode?: string;
   regionCode?: string;
+}
+
+/** K06 place adapter; Google and fixture implement it. Calls go through the input's CallBudget (D02). */
+export interface PlacesProvider {
+  searchText(request: TextSearchRequest, budget: CallBudget): Promise<PlacesResult>;
+  searchNearby(request: NearbySearchRequest, budget: CallBudget): Promise<PlacesResult>;
 }
 
 export interface NearbySearchRequest {
@@ -105,7 +114,7 @@ export interface GooglePlacesOptions {
  * null (photos are out of scope for now: photo names expire and need separate billed calls), opening hours are null
  * unless asked for and returned. Provenance: google_places (only placeId may be stored; not for the model or export).
  */
-export class GooglePlacesProvider {
+export class GooglePlacesProvider implements PlacesProvider {
   private readonly fetchFn: typeof fetch;
   private readonly now: () => number;
 
@@ -117,10 +126,7 @@ export class GooglePlacesProvider {
 
   /** Text Search for a query, optionally restricted to a rectangle (R02). */
   async searchText(request: TextSearchRequest, budget: CallBudget): Promise<PlacesResult> {
-    const query = request.query.trim();
-    if (!query || query.length > 200) throw new PolicyError('VALIDATION_FAILED', 'query must be 1-200 characters', false);
-    checkCount(request.maxResults);
-    if (request.area) checkArea(request.area, request.maxResults);
+    const query = validateTextSearch(request);
     const body = {
       textQuery: query,
       pageSize: request.maxResults,
@@ -137,11 +143,8 @@ export class GooglePlacesProvider {
   /** Nearby Search around a place for alternatives (R10); the place itself is excluded. */
   async searchNearby(request: NearbySearchRequest, budget: CallBudget): Promise<PlacesResult> {
     const { around } = request;
+    validateNearbySearch(request);
     if (!around.location) return { places: [], reason: 'missing_location', dropped: 0 };
-    checkCount(request.maxResults);
-    if (!(Number.isFinite(request.radiusMeters) && request.radiusMeters > 0 && request.radiusMeters <= MAX_NEARBY_RADIUS_M)) {
-      throw new PolicyError('VALIDATION_FAILED', `radiusMeters must be over 0 and at most ${MAX_NEARBY_RADIUS_M}`, false);
-    }
     const body = {
       locationRestriction: { circle: { center: { latitude: around.location.lat, longitude: around.location.lng }, radius: request.radiusMeters } },
       maxResultCount: request.maxResults,
@@ -204,10 +207,37 @@ export class GooglePlacesProvider {
   }
 }
 
+const invalid = (message: string) => new PolicyError('VALIDATION_FAILED', message, false);
+
 function checkCount(n: number): void {
-  if (!Number.isInteger(n) || n < 1 || n > MAX_PLACES_PER_CALL) {
-    throw new PolicyError('VALIDATION_FAILED', `maxResults must be 1-${MAX_PLACES_PER_CALL}`, false);
+  if (!Number.isInteger(n) || n < 1 || n > MAX_PLACES_PER_CALL) throw invalid(`maxResults must be 1-${MAX_PLACES_PER_CALL}`);
+}
+
+function checkCodes(languageCode?: string, regionCode?: string): void {
+  if (languageCode !== undefined && !/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(languageCode)) throw invalid('invalid languageCode');
+  if (regionCode !== undefined && !/^[A-Z]{2}$/.test(regionCode)) throw invalid('invalid regionCode');
+}
+
+/** Shared by the Google and fixture providers: the same input is refused in both modes. Returns the trimmed query. */
+export function validateTextSearch(request: TextSearchRequest): string {
+  const query = request.query.trim();
+  if (!query || query.length > 200) throw invalid('query must be 1-200 characters');
+  checkCount(request.maxResults);
+  checkCodes(request.languageCode, request.regionCode);
+  if (request.area) checkArea(request.area, request.maxResults);
+  return query;
+}
+
+/** Shared by the Google and fixture providers. A place without coordinates is not an input error (missing_location). */
+export function validateNearbySearch(request: NearbySearchRequest): void {
+  checkCount(request.maxResults);
+  checkCodes(request.languageCode);
+  if (!(Number.isFinite(request.radiusMeters) && request.radiusMeters > 0 && request.radiusMeters <= MAX_NEARBY_RADIUS_M)) {
+    throw invalid(`radiusMeters must be over 0 and at most ${MAX_NEARBY_RADIUS_M}`);
   }
+  const types = request.includedTypes ?? [];
+  // A malformed type would come back as a 400 and look like a provider failure.
+  if (types.length > 50 || types.some(t => !/^[a-z_]{1,64}$/.test(t))) throw invalid('includedTypes must be up to 50 Places type names');
 }
 
 /** One provider place → PlaceInfo, or null when it lacks what the contract requires (ID, name). Bad coordinates become null. */
@@ -220,7 +250,7 @@ function toPlaceInfo(p: GPlace, timeZone: TimeZone, withHours: boolean, fetchedA
     typeof lat === 'number' && typeof lng === 'number' && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 ? { lat, lng } : null;
   const provenance = provenanceFor('google_places', fetchedAt);
   // Third-party providers must be credited beyond "Google Maps" (Places API Policies).
-  const others = (p.attributions ?? []).map(a => a.provider?.trim()).filter((s): s is string => Boolean(s));
+  const others = [...new Set((p.attributions ?? []).map(a => a.provider?.trim()).filter((s): s is string => Boolean(s)))];
   return {
     placeId: p.id,
     name,

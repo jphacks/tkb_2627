@@ -27,15 +27,19 @@ export function openingHoursText(hours: GOpeningHours | undefined): string | nul
   if (periods.length === 1 && !periods[0]!.close && periods[0]!.open?.day === 0 && (periods[0]!.open.hour ?? 0) === 0 && (periods[0]!.open.minute ?? 0) === 0) {
     return '24時間';
   }
-  if (periods.length === 0 || periods.some(p => !p.open || !p.close || p.open.day === undefined)) return fallback;
+  if (periods.length === 0 || periods.some(p => !p.open || !p.close || p.open.day === undefined || p.close.day === undefined)) return fallback;
+  // A period must close on its opening day or the next one; anything longer is not a daily pattern.
+  if (periods.some(p => p.close!.day !== p.open!.day && p.close!.day !== (p.open!.day! + 1) % 7)) return fallback;
 
-  const byDay = new Map<number, string[]>();
+  const byDay = new Map<number, { start: number; text: string }[]>();
   for (const p of periods) {
     const ranges = byDay.get(p.open!.day!) ?? [];
-    ranges.push(`${hm(p.open!)}-${hm(p.close!)}`);
+    ranges.push({ start: (p.open!.hour ?? 0) * 60 + (p.open!.minute ?? 0), text: `${hm(p.open!)}-${hm(p.close!)}` });
     byDay.set(p.open!.day!, ranges);
   }
   if (byDay.size !== 7) return fallback; // a day without hours: closed that day, so not the same every day
-  const days = [...byDay.values()].map(r => r.join(', '));
-  return days.every(d => d === days[0]) ? days[0]! : fallback;
+  const days = [...byDay.values()].map(r => [...r].sort((a, b) => a.start - b.start).map(x => x.text).join(', '));
+  if (!days.every(d => d === days[0])) return fallback;
+  // Open from 0:00 to the next 0:00 every day is open around the clock.
+  return days[0] === '0:00-0:00' ? '24時間' : days[0]!;
 }
