@@ -1,0 +1,31 @@
+{
+  "note": "D04 live check approved by M1 (#14): 2 calls through GoogleRoutesProvider. Shape only (step counts, which parts are present, whether computed times agree with the duration); no provider content.",
+  "approvedTotal": 20,
+  "usedBefore": 10,
+  "calls": 2,
+  "parisTransit": {
+    "fetchedAt": "2026-10-24T10:25:09.702Z",
+    "reason": null,
+    "rawSteps": 12,
+    "rawTransitSteps": 1,
+    "rawStepsWithStaticDuration": 12,
+    "rawFare": true,
+    "timed": true,
+    "timesAgreeWithDuration": 0,
+    "hasLineName": true,
+    "transfers": 0,
+    "hasFare": true,
+    "transit": {
+      "boardingStop": true,
+      "alightingStop": true,
+      "transferStops": 0
+    }
+  },
+  "kanazawaCar": {
+    "fetchedAt": "2026-10-24T10:25:10.496Z",
+    "reason": null,
+    "hasDuration": true,
+    "departure": null,
+    "transit": null
+  }
+}
