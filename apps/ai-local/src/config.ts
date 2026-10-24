@@ -5,6 +5,12 @@ export interface PersonalConfig {
   bind: string;
   port: number;
   allowClaudeExecution: boolean;
+  /** CLAUDE_TERMS_ACK=true: "A01 ack on #25 by M4 and M1" (owner's own PC/account only, no relaying). Without it the runner stays fake. */
+  claudeTermsAck: boolean;
+  /** CLAUDE_BIN (default 'claude'). */
+  claudeBin: string;
+  /** CLAUDE_MODEL (default 'sonnet'). */
+  claudeModel: string;
   sharedBaseUrl: string;
   /** The single shared-server userId allowed to use this entry (A01: owner's own account only). null = deny all. */
   ownerUserId: string | null;
@@ -51,6 +57,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): PersonalConfig
     bind,
     port,
     allowClaudeExecution: env.ALLOW_CLAUDE_EXECUTION === 'true',
+    claudeTermsAck: env.CLAUDE_TERMS_ACK === 'true',
+    claudeBin: env.CLAUDE_BIN?.trim() || 'claude',
+    claudeModel: env.CLAUDE_MODEL?.trim() || 'sonnet',
     sharedBaseUrl: env.SHARED_BASE_URL ?? 'http://127.0.0.1:4310',
     ownerUserId: owner || null,
     aiQueueLimit: posInt(env.AI_QUEUE_LIMIT, 8, 'AI_QUEUE_LIMIT'),
