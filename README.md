@@ -67,14 +67,39 @@ Node.js 22以降。`npm run check`, `npm test`, `npm run doctor`, `npm run guide
 ### Claudeと利用条件
 旅程生成はClaudeを希望。本人用App Serverから公式Claude Codeに接続する実機・利用条件を最初に検証し、第三者によるPro枠の利用を公開しない。Ollamaや従量課金APIへ無断で切り替えない。本人用入口は外部公開せず、共有サーバーはDB/SNS閲覧・編集の権限管理を担う。
 
-### 旅行アプリの起動（M1のB03で実装済み）
-Node.js 22.13以降（推奨24）。`npm run`で利用できるscriptを確認できます。
+### 旅行アプリの起動
+Node.js 22.13以降（推奨24）を使います。利用できるscriptは`npm run`で確認できます。
 
 ```bash
 npm ci              # 依存の導入（lockfileどおり）
 npm run setup       # data/ を作り、SQLiteのmigrationを適用
 npm run dev         # 共有API :4310、本人用 :4311（127.0.0.1のみ）、Web http://127.0.0.1:5173
-npm run test:all    # キット検査 + キットのテスト + 型チェック + アプリの単体テスト
+npm run test:all    # キット検査、秘密情報検査、lint、キットのテスト、型チェック、アプリの単体テスト
 ```
 
-現時点の画面はfixtureの旅程ビューアと接続状態の表示だけです。Claudeによる生成、旅行APIへの実接続、ログイン、SNSは未実装です（`ops/tasks.json`とGitHub Issueで追跡）。
+**利用者の作成（招待制）**：パスワードは引数ではなく、環境変数か非表示の入力で渡します。
+```bash
+read -rs TKB_NEW_PASSWORD; export TKB_NEW_PASSWORD
+npm run user:create -- --login demo-a --name "デモA"
+```
+
+**本人用App Server（:4311）**：
+1. `.env.ai-local`の`PERSONAL_OWNER_USER_ID`に、自分のアプリ利用者ID（`user_…`）を設定します。
+2. 起動時に端末へ表示される一度限りのペアリングコードで、ブラウザと対応づけます（`POST /local/v1/pair`）。
+3. 実際のClaude実行は`ALLOW_CLAUDE_EXECUTION=false`のままにします（A01の確認とA04まで）。
+
+**実装状況（2026-10-24時点）**：画面はfixtureの旅程ビューアと接続状態の表示だけです（UIはU01以降）。各機能のAPIの状態は次のとおりです。
+
+| 機能 | 状態 |
+|---|---|
+| 認証（S02） | 統合済み |
+| グループ（S03） | 統合済み |
+| SNS投稿・フィード（S05） | 統合済み |
+| 共有入口の公開準備（O01） | 統合済み |
+| 本人用の入口とジョブ（A02） | 統合済み |
+| 旅程API（S04） | レビュー中 |
+| 複製（S06） | 統合済み |
+| Claudeによる実生成 | 未実装 |
+| 旅行APIへの実接続 | 未実装 |
+
+詳細は`ops/tasks.json`とGitHub Issueで追跡しています。公開の手順は`docs/deployment.md`にあります。
