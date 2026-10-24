@@ -7,3 +7,6 @@
 .u5-card button.btn { margin-top: auto; }
 .u5-progress progress { width: 100%; max-width: 480px; }
 .u5-done a.btn { display: inline-block; text-decoration: none; margin-top: 6px; }
+
+/* The step wrapper takes focus only so screen readers follow the jump (UI review on #33); no ring on it. */
+.u5-step:focus { outline: none; }
