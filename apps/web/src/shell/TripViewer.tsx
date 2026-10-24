@@ -107,7 +107,7 @@ export function TripViewer({ trips }: { trips: Trip[] }) {
           <h3>地点リスト</h3>
           <p className="note">地図SDKは未接続です。番号付きの地点リストで代替しています。</p>
           <ol className="list">
-            {numbered.map(({ number, place }) => {
+            {numbered.map(({ place }) => {
               const on = hl.placeIds.has(place.placeId);
               return (
                 <li key={place.placeId}>

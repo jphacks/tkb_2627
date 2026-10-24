@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { ROOT, loadInputs } from './lib.mjs';
+const oi=process.argv.indexOf('--out');
+const OUT=oi>0?path.resolve(process.argv[oi+1]??(()=>{throw new Error('--out requires a directory')})()):ROOT;
 const read=n=>JSON.parse(fs.readFileSync(path.join(ROOT,n),'utf8'));
 const {plan,requirements}=loadInputs();
 const modelFiles=['system','contracts','workflows','data-model','code-model'];
@@ -16,7 +18,7 @@ const raw=JSON.stringify(data).replace(/</g,'\\u003c');
 const template=fs.readFileSync(path.join(ROOT,'templates/guide.html'),'utf8');
 for(const [mode,file,title] of [['system','SYSTEM_DESIGN.html','JPHacks | C4システム設計 v5'],['development','DEVELOPMENT_GUIDE.html','JPHacks | 4人の開発手順 v5']]){
  const html=template.replace('__TITLE__',title).replaceAll('__MODE__',mode).replace('__DATA__',raw);
- fs.writeFileSync(path.join(ROOT,file),html);
- if(mode==='development'){fs.mkdirSync(path.join(ROOT,'dashboard'),{recursive:true});fs.writeFileSync(path.join(ROOT,'dashboard/index.html'),html);}
+ fs.mkdirSync(OUT,{recursive:true});fs.writeFileSync(path.join(OUT,file),html);
+ if(mode==='development'){fs.mkdirSync(path.join(OUT,'dashboard'),{recursive:true});fs.writeFileSync(path.join(OUT,'dashboard/index.html'),html);}
  console.log(file+' built from model '+modelHash.slice(0,12));
 }

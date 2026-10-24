@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { ROOT, loadInputs, validatePlan, topological, planMetrics, progressFor,
   normalizeRepo, marker, issueIndex, issueState, taskBody, mergeGeneratedBody } from '../scripts/lib.mjs';
@@ -96,8 +97,10 @@ test('six agent files are supplied with role headers', () => {
   assert.equal(names.length,6); for(const n of names){const s=fs.readFileSync(path.join(ROOT,'.claude/agents',n),'utf8');assert.match(s,/^---\nname:/); assert.match(s,/\nmodel: /);}
 });
 test('dashboard builds standalone HTML and includes all tasks', () => {
-  const r=spawnSync(process.execPath,['scripts/render-dashboard.mjs'],{cwd:ROOT,encoding:'utf8',timeout:10000});
-  assert.equal(r.status,0,r.stderr); const html=fs.readFileSync(path.join(ROOT,'dashboard/index.html'),'utf8');
+  const out=fs.mkdtempSync(path.join(os.tmpdir(),'tkb-dash-'));
+  const r=spawnSync(process.execPath,['scripts/render-dashboard.mjs','--out',out],{cwd:ROOT,encoding:'utf8',timeout:10000});
+  assert.equal(r.status,0,r.stderr); const html=fs.readFileSync(path.join(out,'dashboard/index.html'),'utf8');
+  fs.rmSync(out,{recursive:true,force:true});
   assert.ok(!html.includes('__DATA__')); assert.ok(!/<script[^>]+src=/i.test(html));
   const raw=html.match(/<script type="application\/json" id="design-data">([\s\S]*?)<\/script>/)?.[1];
   assert.equal(JSON.parse(raw).tasks.length,54);
