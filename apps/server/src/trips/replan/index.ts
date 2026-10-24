@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { FastifyInstance, FastifyReply } from 'fastify';
-import { ApiError, ERROR_HTTP_STATUS, Id, Trip, TripDiff, TravelLeg, type ErrorCode } from '@tkb/contracts';
+import { ApiError, ERROR_HTTP_STATUS, Id, ReplanResult, type ErrorCode } from '@tkb/contracts';
 import { getTripForOwner, type Db } from '@tkb/db';
 import { PolicyError, type RouteUnknownReason } from '@tkb/travel-data';
 import { requireActor } from '../../platform/auth/index.ts';
@@ -13,7 +13,7 @@ import { LegBook } from '../alternatives/leg-book.ts';
 import { unsourcedServiceLeg } from '../alternatives/ops-between.ts';
 import { planReplan, ReplanError } from './plan.ts';
 import { recordingRoutes } from './routes.ts';
-import { parseReplanRequest, type ReplanResult } from './schema.ts';
+import { parseReplanRequest } from './schema.ts';
 
 export type { ReplanResult } from './schema.ts';
 
@@ -95,15 +95,15 @@ export function registerReplan(app: FastifyInstance, db: Db, config: Pick<Shared
       }
       const candidateId = 'rpl_' + createHash('sha256').update(`${trip.tripId}|${trip.revision}|${c.kind}|${JSON.stringify(c.trip.days)}`).digest('hex').slice(0, 24);
       // Not stored, not sent to a model. Live legs stay in `trip` for display only; `operations` never carries them.
-      const result: ReplanResult = {
+      const result = ReplanResult.parse({
         tripId: trip.tripId,
         baseRevision: trip.revision,
         now: new Date(nowMs).toISOString().replace(/\.\d{3}Z$/, 'Z'),
         dayIndex: out.dayIndex,
         start: out.start,
-        startLeg: out.startLeg ? TravelLeg.parse(out.startLeg) : null,
-        candidates: [{ ...c, candidateId, trip: Trip.parse(c.trip), diff: TripDiff.parse(c.diff) }],
-      };
+        startLeg: out.startLeg,
+        candidates: [{ ...c, candidateId }],
+      });
       return result;
     } catch (e) {
       if (e instanceof ReplanError) return fail(reply, req.id, e.code, e.message, false, e.details);
