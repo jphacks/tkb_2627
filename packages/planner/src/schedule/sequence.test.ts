@@ -153,6 +153,24 @@ describe('sequenceDay', () => {
     expect(r.validation.feasible).toBe(true);
   });
 
+  it('keeps a completed activity where it was, even when it is not fixed (R12)', () => {
+    // Already visited 09:00-09:30 JST at the cafe (no opening hours, so nothing else would hold it at 09:00).
+    const done = stop('done', 'cafe', { status: 'completed', start: { utc: '2026-07-01T00:00:00Z', timeZone: 'Asia/Tokyo' }, end: { utc: '2026-07-01T00:30:00Z', timeZone: 'Asia/Tokyo' } });
+    // Day window opens at 08:00: re-placing the visit would move it to 08:00-08:30.
+    const r = sequenceDay(base({ dayStart: '08:00', startPlaceId: null, stops: [{ activity: done, stayMinutes: 30 }, { activity: stop('s', 'sushi'), stayMinutes: 60 }] }));
+    expect(r.day.items.find(i => i.type === 'activity' && i.activityId === 'done')).toEqual(done);
+    expect(timeline(r)).toEqual(['done 09:00-09:30', '→sushi', 's 11:00-12:00']);
+    expect(r.validation.feasible).toBe(true);
+  });
+
+  it('does not place a skipped stop and reports it as excluded', () => {
+    const gone = stop('gone', 'garden', { status: 'skipped', fixed: true, start: { utc: '2026-07-01T00:00:00Z', timeZone: 'Asia/Tokyo' }, end: { utc: '2026-07-01T01:00:00Z', timeZone: 'Asia/Tokyo' } });
+    const r = sequenceDay(base({ stops: [{ activity: gone, stayMinutes: 60 }, { activity: stop('m', 'museum'), stayMinutes: 60 }] }));
+    expect(r.excluded).toEqual([{ activityId: 'gone', reason: 'skipped' }]);
+    expect(timeline(r)).toEqual(['→museum', 'm 10:00-11:00']);
+    expect(r.validation.issues.map(i => i.code)).not.toContain('fixed_activity_missing');
+  });
+
   it('works on B04 mock places and is deterministic', () => {
     const fixtureLegs: TravelLeg[] = [
       { ...makeLeg('fx_l1'), fromPlaceId: 'fx_kanazawa_station', toPlaceId: 'fx_kenrokuen', durationSeconds: 1200, dataStatus: 'fixture' },

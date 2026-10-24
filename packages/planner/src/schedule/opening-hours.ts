@@ -31,6 +31,8 @@ export function parseOpeningHours(text: string | null): OpeningRange[] | null {
     let close = ch * 60 + cm;
     if (close === open) return null;
     if (close < open) close += DAY_MINUTES;
+    // 0:00-24:00 is open around the clock, like 24時間: a stay may cross midnight.
+    if (open === 0 && close === DAY_MINUTES) close = 2 * DAY_MINUTES;
     ranges.push({ open, close });
   }
   ranges.sort((a, b) => a.open - b.open);

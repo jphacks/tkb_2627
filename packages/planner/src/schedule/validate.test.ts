@@ -183,6 +183,14 @@ describe('validateSchedule', () => {
     expect(validateSchedule({ days: [sameInstant], places, fixedActivities: [fixed] }).issues).toEqual([]);
   });
 
+  it('warns, without failing the plan, when a fixed activity was skipped (R12)', () => {
+    const day = good();
+    day.items[2] = { ...(day.items[2] as Activity), fixed: true, status: 'skipped' };
+    const r = validateSchedule({ days: [day], places });
+    expect(r.issues.map(i => [i.code, i.severity, i.refs])).toEqual([['fixed_activity_skipped', 'warning', ['vb']]]);
+    expect(r).toMatchObject({ feasible: true, validationState: 'needs_review' });
+  });
+
   it('checks trip dates in the day time zone', () => {
     const r = validateSchedule({ days: [good()], places, constraints: { startDate: '2026-07-02', endDate: '2026-07-03' } });
     expect(new Set(codes(r))).toEqual(new Set(['outside_trip_dates']));

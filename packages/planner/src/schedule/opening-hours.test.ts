@@ -55,6 +55,7 @@ describe('fitsOpeningHours / earliestOpenStart', () => {
     expect(fitsOpeningHours(bar, 60, 150)).toBe(false); // ends 2:30
     expect(fitsOpeningHours(bar, 1380, 1500)).toBe(true); // 23:00-1:00
     expect(fitsOpeningHours(parseOpeningHours('24時間')!, 1380, 1500)).toBe(true);
+    expect(fitsOpeningHours(parseOpeningHours('0:00-24:00')!, 1380, 1500)).toBe(true);
   });
 
   it('finds the earliest start that fits, or null', () => {

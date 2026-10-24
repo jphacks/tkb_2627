@@ -39,7 +39,8 @@ export type ScheduleIssueCode =
   | 'leg_missing'
   | 'opening_hours_unknown'
   | 'day_mismatch'
-  | 'budget_unverified';
+  | 'budget_unverified'
+  | 'fixed_activity_skipped';
 
 export interface ScheduleIssue {
   code: ScheduleIssueCode;
@@ -145,7 +146,11 @@ export function validateSchedule(input: ScheduleInput): ScheduleValidation {
     let legsSince: TravelLeg[] = [];
 
     for (const item of day.items) {
-      if (item.type === 'activity' && item.status === 'skipped') continue;
+      if (item.type === 'activity' && item.status === 'skipped') {
+        // R12: dropping a fixed activity (a reservation) is allowed but must be visible.
+        if (item.fixed) add('fixed_activity_skipped', [item.activityId], dayIndex, `固定予定「${item.title}」が取りやめになっています。`);
+        continue;
+      }
       const ref = itemId(item);
 
       // Interval and time order.

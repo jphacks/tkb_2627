@@ -29,7 +29,7 @@ export interface SequenceInput {
   travel: TravelLookup;
 }
 
-export type ExclusionReason = 'closed' | 'does_not_fit' | 'travel_unknown' | 'stay_unknown' | 'fixed_time_unknown';
+export type ExclusionReason = 'closed' | 'does_not_fit' | 'travel_unknown' | 'stay_unknown' | 'fixed_time_unknown' | 'skipped';
 
 export interface SequenceResult {
   day: TripDay;
@@ -44,7 +44,8 @@ export interface SequenceResult {
 
 const toUtc = (ms: number): UtcInstant => new Date(ms).toISOString().replace(/\.000Z$/, 'Z');
 const minutesOf = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
-const pinned = (s: SequenceStop) => s.activity.fixed;
+/** Fixed and completed activities keep their times (R03/R12); only planned, non-fixed stops are placed. */
+const pinned = (s: SequenceStop) => s.activity.fixed || s.activity.status === 'completed';
 const timed = (a: Activity) => a.start !== null && a.end !== null;
 
 /** Day bounds never widen the window: a DST overlap/gap takes the later instant for the start, the earlier for the end. */
@@ -76,7 +77,7 @@ export function sequenceDay(input: SequenceInput): SequenceResult {
   const places = new Map(input.places.map(p => [p.placeId, p]));
   const zoned = (ms: number) => ({ utc: toUtc(ms), timeZone: input.timeZone });
   const dayEnd = boundMs(input.date, input.dayEnd, input.timeZone, 'end');
-  const fixed = input.stops.filter(pinned).map(s => s.activity);
+  const fixed = input.stops.filter(s => pinned(s) && s.activity.status !== 'skipped').map(s => s.activity);
   const anchors = fixed.filter(timed).sort((a, b) => parseUtc(a.start!.utc) - parseUtc(b.start!.utc));
 
   const items: ItineraryItem[] = [];
@@ -108,6 +109,10 @@ export function sequenceDay(input: SequenceInput): SequenceResult {
 
   for (const stop of input.stops) {
     const a = stop.activity;
+    if (a.status === 'skipped') {
+      excluded.push({ activityId: a.activityId, reason: 'skipped' });
+      continue;
+    }
     if (pinned(stop)) {
       if (!timed(a)) excluded.push({ activityId: a.activityId, reason: 'fixed_time_unknown' });
       continue;
