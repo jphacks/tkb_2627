@@ -13,7 +13,8 @@
   "scripts": {
     "check": "node scripts/check-plan.mjs && node scripts/check-model.mjs",
     "test": "node --test tests/*.test.mjs tests/contracts/*.test.mjs",
-    "doctor": "node scripts/doctor.mjs",
+    "review": "node scripts/review.mjs",
+    "doctor":"node scripts/doctor.mjs",
     "guide": "node scripts/render-dashboard.mjs",
     "progress": "node scripts/github-sync.mjs snapshot --repo jphacks/tkb_2627 && node scripts/render-dashboard.mjs --publish",
     "master": "node scripts/make-master.mjs",

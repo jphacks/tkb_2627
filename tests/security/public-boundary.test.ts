@@ -115,7 +115,9 @@ describe('T05-1 shared entry never reaches the personal AI entry', () => {
 
 describe('T05-2 SSRF: no path lets a client choose an outbound URL', () => {
   it('server and ai-local sources never call fetch/http(s).request/net.connect except the single shared-client call', () => {
-    const files = sourceFiles(['apps/server/src', 'apps/ai-local/src', 'packages/ai/src', 'packages/db/src', 'packages/contracts/src', 'packages/planner/src', 'packages/exports/src', 'packages/travel-data/src', 'packages/fixtures/src', 'scripts'], { skipTests: true });
+    // `npm run review` (dev tooling) probes ports and calls the loopback servers it starts itself; checked separately below.
+    const REVIEW_TOOLING = ['scripts/review.mjs', 'scripts/lib/review-core.mjs'];
+    const files = sourceFiles(['apps/server/src', 'apps/ai-local/src', 'packages/ai/src', 'packages/db/src', 'packages/contracts/src', 'packages/planner/src', 'packages/exports/src', 'packages/travel-data/src', 'packages/fixtures/src', 'scripts'], { skipTests: true }).filter(f => !REVIEW_TOOLING.includes(rel(f)));
     expect(files.length).toBeGreaterThan(10);
     const hits: string[] = [];
     for (const f of files) {
@@ -125,6 +127,14 @@ describe('T05-2 SSRF: no path lets a client choose an outbound URL', () => {
       expect(t, rel(f)).not.toMatch(/\brequire\s*\(/);
     }
     expect(hits).toEqual(['apps/ai-local/src/shared-client/index.ts: fetch(']);
+  });
+
+  it('review tooling only addresses loopback and never a Google / external host', () => {
+    const t = read(sourceFiles(['scripts']).find(f => rel(f) === 'scripts/review.mjs')!);
+    const urls = [...t.matchAll(/https?:\/\/[^\s'"`)]+/g)].map(m => m[0]);
+    expect(urls.length).toBeGreaterThan(0);
+    for (const u of urls) expect(u, u).toMatch(/^http:\/\/(127\.0\.0\.1|\$\{)/);
+    expect(t).not.toMatch(/googleapis|maps\.google/);
   });
 
   it('the only outbound call target is baseUrl + a constant path; client-controlled values never reach the URL', () => {
