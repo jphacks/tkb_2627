@@ -9,10 +9,11 @@ export interface SharedConfig {
   providerMode: DataMode;
 }
 
+const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+
 export function loadEnvFile(): void {
-  const root = fileURLToPath(new URL('../../../../', import.meta.url));
   try {
-    process.loadEnvFile(resolve(root, '.env'));
+    process.loadEnvFile(resolve(REPO_ROOT, '.env'));
   } catch {
     /* .env is optional */
   }
@@ -30,7 +31,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): SharedConfig {
   return {
     bind: env.SHARED_BIND ?? '127.0.0.1',
     port,
-    databasePath: env.DATABASE_PATH ?? './data/travel.sqlite',
+    // Relative to the repo root so the server and `npm run db:migrate` share one file.
+    databasePath: (p => (p === ':memory:' ? p : resolve(REPO_ROOT, p)))(env.DATABASE_PATH ?? './data/travel.sqlite'),
     providerMode: mode,
   };
 }

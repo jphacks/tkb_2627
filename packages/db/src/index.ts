@@ -63,3 +63,4 @@ export function checkConnection(db: Db): boolean {
     return false;
   }
 }
+export * from './repo.ts';
