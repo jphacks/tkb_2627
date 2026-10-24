@@ -50,7 +50,7 @@ export const PlanBatchCreate = z.strictObject({
   generationId: Id,
   candidates: z.array(PlanCandidate).min(1).max(3),
   places: z.array(PlaceInfo),
-  /** K07: required to apply into a new trip. */
+  /** K07: required to apply into a new trip when baseTripId is null. */
   constraints: TripConstraints.optional(),
 });
 export type PlanBatchCreate = z.infer<typeof PlanBatchCreate>;
