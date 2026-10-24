@@ -26,7 +26,7 @@ afterEach(async () => {
 
 const day = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10); // inside the Routes transit window
 const constraints: TripConstraints = {
-  area: '金沢', startDate: day, endDate: day, timeZone: 'Asia/Tokyo', transportMode: 'transit', mustVisit: ['fx_kenrokuen'],
+  area: '金沢', startDate: day, endDate: day, timeZone: 'Asia/Tokyo', transportMode: 'car', mustVisit: ['fx_kenrokuen'],
   departure: { placeId: 'fx_kanazawa_station', label: null, time: null },
 };
 const FIVE = ['fx_kenrokuen', 'fx_21c_museum', 'fx_omicho', 'fx_higashi', 'fx_sushi'];

@@ -242,11 +242,24 @@ describe('mixed/live through fake fetch', () => {
     const fakeFetch = (async () => new Response(JSON.stringify({ routes: [{ duration: '600s', distanceMeters: 3000, legs: [{ steps: [{ transitDetails: { transitLine: { name: 'LINE_SENTINEL' } } }] }] }] }), { status: 200 })) as unknown as typeof fetch;
     const sources = createContextSources({ providerMode: 'mixed' }, { GOOGLE_MAPS_SERVER_KEY: 'k' }, { fetch: fakeFetch });
     const { post } = mini(sources);
-    const c = PlanningContext.parse((await post(body({ legs: [leg()] }))).json());
+    // Driving: Japanese transit is refused before calling (D04, M1 on #92), so the live leg is checked by car.
+    const c = PlanningContext.parse((await post(body({ legs: [leg({ mode: 'car' })] }))).json());
     expect(c.dataMode).toBe('mixed');
     expect(c.legs).toHaveLength(1);
     expect(c.legs[0]!.provenance).toMatchObject({ source: 'google_routes', mayStore: false, maySendToModel: false, mayExport: false });
     expect(c.legs[0]!.platform).toBeNull(); // never invented
+  });
+
+  it('mixed: Japanese transit is refused before calling Routes (D04, M1 on #92): no live leg, no call', async () => {
+    let calls = 0;
+    const fakeFetch = (async () => {
+      calls += 1;
+      return new Response(JSON.stringify({ routes: [{ duration: '600s' }] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const sources = createContextSources({ providerMode: 'mixed' }, { GOOGLE_MAPS_SERVER_KEY: 'k' }, { fetch: fakeFetch });
+    const c = PlanningContext.parse((await mini(sources).post(body({ legs: [leg()] }))).json());
+    expect(c.legs).toEqual([]);
+    expect(calls).toBe(0);
   });
 
   it('a Routes failure makes the leg unknown (no leg, "legs" in unknown) and the body carries no provider text', async () => {

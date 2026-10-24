@@ -28,7 +28,9 @@ afterEach(async () => {
 
 const fixProv = { source: 'fixture', fetchedAt: null, attribution: null, maySendToModel: true, mayStore: true, mayExport: true, retainUntil: null };
 const place = (n: number): PlaceInfo => ({
-  placeId: `P${n}`, name: `Place ${n}`, kind: 'spot', location: { lat: 35.1111 + n * 0.0123, lng: 139.2222 + n * 0.0071 }, timeZone: tz,
+  // Coordinates are kept outside D04's Japan boxes on purpose: Japanese transit is refused before calling Routes (M1, #92/#113),
+  // and these tests exercise live transit (calls, fares) through a fake fetch.
+  placeId: `P${n}`, name: `Place ${n}`, kind: 'spot', location: { lat: 35.1111 + n * 0.0123, lng: 147.2222 + n * 0.0071 }, timeZone: tz,
   openingHours: null, description: null, photo: null, dataStatus: 'fixture', provenance: fixProv,
 });
 /** Minutes after 09:00 JST on 2026-11-01. */

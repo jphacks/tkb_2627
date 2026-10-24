@@ -20,8 +20,24 @@ const TRANSIT_FIELDS = [
 ];
 const TRAVEL_MODE = { transit: 'TRANSIT', car: 'DRIVE', walk: 'WALK' } as const;
 
-/** Time zones where the provider returned no transit at all in D01 (Kanazawa 2 km and Kanazawa-Tokyo, #84/#89). */
-const NO_TRANSIT_ZONES = new Set(['Asia/Tokyo']);
+/**
+ * Rough boxes around Japan (Honshu-Shikoku-Kyushu, Hokkaido, Okinawa and the Nansei islands, Tsushima, Goto and
+ * Ogasawara). The provider returned no transit there in D01 (Kanazawa 2 km and Kanazawa-Tokyo, #84/#89).
+ * "Coordinates are enough" (M1, #92): a few coastal points of neighbouring countries also fall inside (e.g. Ulleungdo,
+ * Homigot, the Kunashir area), which only matters for transit between two such points.
+ */
+const JAPAN_BOXES = [
+  { south: 30.0, north: 41.6, west: 129.5, east: 142.2 },
+  { south: 41.3, north: 45.6, west: 139.3, east: 146.0 },
+  { south: 24.0, north: 30.0, west: 122.9, east: 131.5 },
+  { south: 34.05, north: 34.75, west: 129.1, east: 129.5 }, // Tsushima
+  { south: 32.5, north: 33.5, west: 128.5, east: 129.5 }, // Goto, Ikitsuki
+  { south: 24.0, north: 27.8, west: 140.8, east: 142.4 }, // Ogasawara
+];
+/** Whether a coordinate is in Japan by the boxes above. */
+export function inJapan(lat: number, lng: number): boolean {
+  return JAPAN_BOXES.some(b => lat >= b.south && lat <= b.north && lng >= b.west && lng <= b.east);
+}
 
 // ---- Response shape (only the fields we ask for in the field mask; all optional) ----
 interface GMoney {
@@ -83,10 +99,34 @@ export function toMoney(fare: GMoney | undefined): Money | null {
   return Number.isSafeInteger(amountMinor) ? { amountMinor, currency: fare.currencyCode } : null;
 }
 
+const stopName = (stop: GStop | undefined): string | null => (typeof stop?.name === 'string' ? stop.name.trim() || null : null);
+
+/**
+ * K06 TravelLeg.transit (R05): boarding stop of the first transit step, alighting stop of the last, and the stations
+ * where one transit step ends (the arrival stop). With a walk between two lines only the station left is listed, and an
+ * unknown name is left out, so transferStops can be shorter than `transfers`. Never guessed.
+ */
+function transitStops(transit: GStep[]): NonNullable<TravelLeg['transit']> {
+  const transferStops = transit.slice(0, -1).flatMap(s => {
+    const name = stopName(s.transitDetails?.stopDetails?.arrivalStop);
+    return name === null ? [] : [name];
+  });
+  return {
+    boardingStop: stopName(transit[0]?.transitDetails?.stopDetails?.departureStop),
+    alightingStop: stopName(transit.at(-1)?.transitDetails?.stopDetails?.arrivalStop),
+    transferStops,
+  };
+}
+
 export interface GoogleRoutesOptions {
   apiKey: string;
   fetch?: typeof fetch;
   now?: () => number;
+  /**
+   * Refuse transit between two places in Japan without calling (M1, #92), to save the transit quota: the provider
+   * returned none there. Default true; set false once Japanese transit is supported.
+   */
+  refuseJapanTransit?: boolean;
 }
 
 /**
@@ -110,6 +150,8 @@ export class GoogleRoutesProvider implements RouteProvider {
     if (!from.location || !to.location) return { leg: null, reason: 'missing_location' };
     const departureMs = Date.parse(request.departureUtc);
     if (Number.isNaN(departureMs)) throw new PolicyError('VALIDATION_FAILED', 'departureUtc is not a valid instant', false);
+    const bothInJapan = inJapan(from.location.lat, from.location.lng) && inJapan(to.location.lat, to.location.lng);
+    if (mode === 'transit' && bothInJapan && (this.options.refuseJapanTransit ?? true)) return { leg: null, reason: 'unsupported_region' };
     const now = this.now();
     if (mode === 'transit' && !(departureMs >= now - TRANSIT_PAST_MS && departureMs <= now + TRANSIT_FUTURE_MS)) {
       return { leg: null, reason: 'out_of_date_range' };
@@ -160,10 +202,7 @@ export class GoogleRoutesProvider implements RouteProvider {
     }
 
     const route = json.routes?.[0];
-    if (!route) {
-      const unsupported = mode === 'transit' && NO_TRANSIT_ZONES.has(from.timeZone) && NO_TRANSIT_ZONES.has(to.timeZone);
-      return { leg: null, reason: unsupported ? 'unsupported_region' : 'no_route' };
-    }
+    if (!route) return { leg: null, reason: mode === 'transit' && bothInJapan ? 'unsupported_region' : 'no_route' };
     return { leg: this.toLeg(request, route), reason: null };
   }
 
@@ -204,6 +243,7 @@ export class GoogleRoutesProvider implements RouteProvider {
       platform: null,
       transfers: isTransit && transit.length > 0 ? transit.length - 1 : null,
       fare: isTransit ? toMoney(route.travelAdvisory?.transitFare) : null,
+      transit: isTransit && transit.length > 0 ? transitStops(transit) : null,
       dataStatus: 'verified',
       provenance: provenanceFor('google_routes', this.now()),
     };
