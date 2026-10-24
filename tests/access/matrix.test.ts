@@ -122,8 +122,9 @@ describe('read-only matrix on one shared world', () => {
     });
   });
 
-  describe('missing routes (E02 pending): PDF / photo delivery do not exist yet', () => {
-    // When E02 lands these become real, permission-checked routes; replace this block then (see FINDINGS.md).
+  describe('routes that do not exist: legacy PDF paths and photo delivery', () => {
+    // PDF export lives at /trips/:id/exports and /exports/:id and is covered in exports.test.ts. These legacy paths and
+    // photo delivery (not implemented) must stay 404; replace the photo row when photo delivery lands (see FINDINGS.md).
     it.each([
       ['GET', '/api/v1/trips/trip_acc_a/pdf'],
       ['GET', '/api/v1/trips/trip_acc_a/export'],
