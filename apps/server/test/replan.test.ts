@@ -242,4 +242,17 @@ describe('A06 replan smoke', () => {
     expect(byId(c.trip, 'hotel')).toEqual(hotel);
     expect(c.warnings).toContain(LATE('hotel'));
   });
+
+  it('keeps the day\'s first leg to a completed stop (travel history), and says untimed stops go last', async () => {
+    const first = { ...legOf(5, 1, 600), legId: 'L_dep' };
+    const { post, patch, db } = mini([first, ...items()], 90);
+    const r = await post({ expectedRevision: 1, location: unavailable, completedActivityIds: ['a1'] });
+    expect(r.statusCode, r.payload).toBe(200);
+    const c = (r.json() as ReplanResult).candidates[0]!;
+    expect(c.trip.days[0]!.items[0]).toEqual(first);
+    expect(JSON.stringify(c.operations)).not.toContain('L_dep');
+    expect(c.summary).toContain('末尾');
+    expect((await patch(1, c.operations)).statusCode).toBe(200);
+    expect(getTripForOwner(db, 't_a06', 'user_a')!.days[0]!.items[0]).toEqual(first);
+  });
 });
