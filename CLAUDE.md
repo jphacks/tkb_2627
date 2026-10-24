@@ -62,3 +62,7 @@ M1は4人のGitHubのIssue担当・契約変更・mergeを調整する。各PC�
   - reviewerは1つのPRにつき1回。指摘を直した後の再レビューは、直した箇所だけを見せる。
   - マスタープロンプトやdocs全体を読み直さない。タスクID、依存先、writePaths、契約の該当節だけを読む。
   - テストは、まず変更した範囲だけを実行する（例：`npx vitest run apps/web`）。全体（`npm run test:all`）はPRの直前に1回だけ。
+- **進捗を必ずGitHubに残す**：着手したら、Issueに開始ログ（taskId、branch、writePaths）を書き、`status:doing`にする。PRを出したら`status:review`にする。引継ぎは1コメントにまとめる。M1が進捗HTMLに反映する。
+- **UIの要望は必ず守る**：UIを作る・直すときは、`docs/ui/reviews/`とIssueのレビューコメントを受入条件にする。
+- **画面レビューは4人で分担する**（`npm run review`、`REVIEW.md`）：M1はU08 #36とE01 #37、M2はU04 #32とU06 #34、M3はU03 #31とU07 #35、M4はU05 #33。
+- Claude Codeを起動すると、`.claude/settings.json`のSessionStartフックが、締切とこのルールを表示する。
