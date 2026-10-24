@@ -7,6 +7,7 @@ import { CandidateBlueprint, GenerationInput, PlanBlueprint } from '@tkb/contrac
 import { domesticTrip, kanazawaPlaces, samplePlanBlueprint } from '@tkb/fixtures';
 import {
   ClaudeCodeRunner,
+  checkClaudeCli,
   PLAN_BLUEPRINT_JSON_SCHEMA,
   buildChildEnv,
   buildPrompt,
@@ -68,7 +69,7 @@ const env = (mode: string, extra: Record<string, string> = {}): NodeJS.ProcessEn
   ...extra,
 });
 const runner = (mode: string, o: Partial<ConstructorParameters<typeof ClaudeCodeRunner>[0]> = {}) =>
-  new ClaudeCodeRunner({ bin, model: 'sonnet', timeoutMs: 10_000, killGraceMs: 200, tmpRoot: dir, env: env(mode), ...o });
+  new ClaudeCodeRunner({ bin, model: 'sonnet', timeoutMs: 10_000, killGraceMs: 200, tmpRoot: dir, env: env(mode), preflight: async () => ({ found: true, loggedIn: true, authMethod: 'claude.ai', reason: null }), ...o });
 const recorded = () => JSON.parse(readFileSync(rec, 'utf8')) as { argv: string[]; cwd: string; envKeys: string[]; stdin: string };
 const run = (mode: string, o = {}) => runner(mode, o).run(input, new AbortController().signal);
 
@@ -320,5 +321,67 @@ describe('PLAN_BLUEPRINT_JSON_SCHEMA', () => {
     expect([...cand.required].sort()).toEqual(optional(CandidateBlueprint.shape));
     expect(s.additionalProperties).toBe(false);
     expect(cand.additionalProperties).toBe(false);
+  });
+});
+
+const AUTH_FAKE = `#!/usr/bin/env node
+const fs = require('node:fs');
+fs.writeFileSync(process.env.FAKE_REC, JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd(), envKeys: Object.keys(process.env) }));
+switch (process.env.FAKE_AUTH) {
+  case 'ok': return console.log(JSON.stringify({ loggedIn: true, authMethod: 'claude.ai', subscriptionType: 'max', email: 'me@example.com', orgName: 'SECRETORG' }));
+  case 'out': return console.log(JSON.stringify({ loggedIn: false, authMethod: 'none' }));
+  case 'apikey': return console.log(JSON.stringify({ loggedIn: true, authMethod: 'api_key' }));
+  case 'garbage': return console.log('<<< not json');
+  case 'hang': return setInterval(() => {}, 1000);
+}
+`;
+
+describe.skipIf(process.platform === 'win32')('checkClaudeCli (W1 preflight)', () => {
+  let d: string;
+  let b: string;
+  let r: string;
+  beforeAll(() => {
+    d = mkdtempSync(join(tmpdir(), 'tkb-auth-test-'));
+    b = join(d, 'fake-claude');
+    r = join(d, 'rec.json');
+    writeFileSync(b, AUTH_FAKE);
+    chmodSync(b, 0o755);
+  });
+  afterAll(() => rmSync(d, { recursive: true, force: true }));
+  const chk = (mode: string, o: Record<string, unknown> = {}, extra: Record<string, string> = {}) =>
+    checkClaudeCli({ bin: b, tmpRoot: d, timeoutMs: 3000, env: { PATH: process.env.PATH, FAKE_AUTH: mode, FAKE_REC: r, ...extra }, ...o });
+
+  it('logged in via claude.ai is ok, keeps only whitelisted fields, runs exact args in a removed cwd', async () => {
+    const res = await chk('ok');
+    expect(res).toEqual({ found: true, loggedIn: true, authMethod: 'claude.ai', subscriptionType: 'max', reason: null });
+    expect(JSON.stringify(res)).not.toMatch(/example\.com|SECRETORG/);
+    const rec = JSON.parse(readFileSync(r, 'utf8')) as { argv: string[]; cwd: string };
+    expect(rec.argv).toEqual(['auth', 'status', '--json']);
+    expect(existsSync(rec.cwd)).toBe(false);
+  });
+  it('logged out, api-key method and garbage output are CLI_NOT_AUTHENTICATED', async () => {
+    expect((await chk('out')).reason).toBe('CLI_NOT_AUTHENTICATED');
+    const k = await chk('apikey');
+    expect(k).toMatchObject({ found: true, loggedIn: true, authMethod: 'api_key', reason: 'CLI_NOT_AUTHENTICATED' });
+    expect((await chk('garbage')).reason).toBe('CLI_NOT_AUTHENTICATED');
+  });
+  it('timeout is not ok; missing binary is CLI_NOT_FOUND', async () => {
+    expect((await chk('hang', { timeoutMs: 300, killGraceMs: 100 })).reason).toBe('CLI_NOT_AUTHENTICATED');
+    expect(await checkClaudeCli({ bin: join(d, 'nope'), tmpRoot: d, env: { PATH: process.env.PATH } })).toEqual({ found: false, reason: 'CLI_NOT_FOUND' });
+  });
+  it('billing env refuses without spawning', async () => {
+    const res = await chk('ok', {}, { ANTHROPIC_API_KEY: 'x' });
+    expect(res.reason).toBe('CLI_NOT_AUTHENTICATED');
+  });
+  it('run() refuses when the preflight is not ok and does not spawn; default preflight uses the fake CLI', async () => {
+    const calls: string[] = [];
+    const refused = await run('success', { preflight: async () => ({ found: true, loggedIn: false, reason: 'CLI_NOT_AUTHENTICATED' as const }), spawnImpl: ((...a: unknown[]) => { calls.push(String(a[0])); throw new Error('no'); }) as never });
+    expect(refused.error?.code).toBe('CLI_NOT_AUTHENTICATED');
+    expect(calls).toEqual([]);
+    const nf = await run('success', { preflight: async () => ({ found: false, reason: 'CLI_NOT_FOUND' as const }) });
+    expect(nf.error?.code).toBe('CLI_EXIT');
+    // default preflight: the AUTH_FAKE only answers auth status, so a logged-out fake blocks run()
+    const dflt = new ClaudeCodeRunner({ bin: b, model: 'sonnet', timeoutMs: 3000, tmpRoot: d, env: { PATH: process.env.PATH, FAKE_AUTH: 'out', FAKE_REC: r } });
+    expect((await dflt.run(input, new AbortController().signal)).error?.code).toBe('CLI_NOT_AUTHENTICATED');
   });
 });

@@ -32,6 +32,18 @@ export class SessionStore {
     return s;
   }
 
+  /** A live session that holds an upstream login for `userId` (used by restart recovery). Never returns another user's. */
+  findUpstream(userId: string): LocalSession | null {
+    for (const [id, s] of this.sessions) {
+      if (this.now() > s.expiresAt) {
+        this.sessions.delete(id);
+        continue;
+      }
+      if (s.upstream?.userId === userId) return s;
+    }
+    return null;
+  }
+
   get(id: string | undefined): LocalSession | null {
     if (!id) return null;
     const s = this.sessions.get(id);

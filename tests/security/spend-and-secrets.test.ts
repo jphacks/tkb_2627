@@ -56,6 +56,13 @@ describe('T05-3 no unauthorised billing', () => {
     }
   });
 
+  it('W2: `new ClaudeCodeRunner(` appears in exactly one non-test source file (the runner factory)', () => {
+    const hits = sourceFiles(['apps', 'packages', 'scripts'], { skipTests: true })
+      .filter(f => /new\s+ClaudeCodeRunner\(/.test(read(f)))
+      .map(rel);
+    expect(hits).toEqual(['apps/ai-local/src/runner-factory.ts']);
+  });
+
   it('no dependency on an LLM/provider SDK in any package.json or the lockfile', () => {
     for (const p of ['package.json', 'apps/server/package.json', 'apps/ai-local/package.json', 'apps/web/package.json', 'packages/ai/package.json', 'packages/planner/package.json', 'packages/travel-data/package.json']) {
       if (existsSync(join(ROOT, p))) expect(read(join(ROOT, p)), p).not.toMatch(/@anthropic-ai|"openai"|@google\/generative-ai|@google\/genai|langchain|ollama/i);

@@ -199,6 +199,20 @@ export function registerTrips(app: FastifyInstance, db: Db, _config: SharedConfi
     return reply.status(out.status).send(PlanBatchCreated.parse(out.created));
   });
 
+  // K07 addition (A04 step 2): owner-scoped lookup by generationId, used by the personal entry's restart recovery.
+  // Returns only the batchId; another owner's batch is indistinguishable from a missing one.
+  app.get('/api/v1/plan-batches', pre, async (req, reply) => {
+    const { userId } = requireActor(req);
+    const q = (req.query ?? {}) as Record<string, unknown>;
+    const gid = Id.safeParse(q.generationId);
+    if (Object.keys(q).length !== 1 || !gid.success) return fail(reply, req.id, 'VALIDATION_FAILED', 'Invalid request.');
+    const row = db
+      .prepare('SELECT id FROM plan_batches WHERE owner_id = ? AND generation_id = ?')
+      .get(userId, gid.data) as { id: string } | undefined;
+    if (!row) return fail(reply, req.id, 'NOT_FOUND', 'Not found.');
+    return { batchId: row.id };
+  });
+
   app.get('/api/v1/plan-batches/:id', pre, async (req, reply) => {
     const { userId } = requireActor(req);
     const id = Id.safeParse((req.params as { id: string }).id);
