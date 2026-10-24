@@ -31,6 +31,8 @@ const ACTIONS: FlowAction[] = [
   { type: 'generationSucceeded', batchId: 'b1' },
   { type: 'generationEnded', jobId: 'j1' },
   { type: 'generationEnded', jobId: 'j2' },
+  { type: 'jobObservedSucceeded', jobId: 'j1' },
+  { type: 'jobObservedSucceeded', jobId: 'j2' },
   { type: 'viewJob', jobId: 'j1' },
   { type: 'viewJob', jobId: 'j2' },
   { type: 'submitStarted' },
@@ -237,7 +239,7 @@ describe('flow reducer: active job invariants', () => {
   });
 
   it('only job-related actions change the known jobs', () => {
-    const changing = new Set<FlowAction['type']>(['generationStarted', 'generationEnded', 'generationSucceeded', 'viewJob', 'candidateApplied', 'restart']);
+    const changing = new Set<FlowAction['type']>(['generationStarted', 'generationEnded', 'generationSucceeded', 'jobObservedSucceeded', 'viewJob', 'candidateApplied', 'restart']);
     for (const { state, path } of STATES) {
       for (const action of ACTIONS) {
         if (changing.has(action.type)) continue;

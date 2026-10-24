@@ -173,6 +173,29 @@ describe('flow reducer', () => {
       expect(late.otherJobs.map(j => j.jobId)).toEqual(['j1']);
     });
 
+    it('jobObservedSucceeded marks the job finished without moving the screen, so it stops blocking a new submission', () => {
+      const p = toProgress('j1');
+      expect(flowReducer(p, { type: 'submitStarted' })).toBe(p); // unfinished: refused
+      const seen = flowReducer(p, { type: 'jobObservedSucceeded', jobId: 'j1' });
+      expect(seen.screen).toEqual(p.screen);
+      expect(seen.activeJob?.succeeded).toBe(true);
+      // 戻る to the conditions: the finished job is still reachable and does not block
+      const cond = flowReducer(seen, { type: 'back' });
+      expect(cond.activeJob?.jobId).toBe('j1');
+      expect(flowReducer(cond, { type: 'submitStarted' }).submitting).toBe(true);
+      expect(flowReducer(cond, { type: 'viewJob', jobId: 'j1' }).screen).toMatchObject({ name: 'progress', jobId: 'j1' });
+      // repeated or unknown observations change nothing
+      expect(flowReducer(seen, { type: 'jobObservedSucceeded', jobId: 'j1' })).toBe(seen);
+      expect(flowReducer(p, { type: 'jobObservedSucceeded', jobId: 'nope' })).toBe(p);
+    });
+
+    it('viewJob keeps the job it leaves, also a finished one (its result is not lost)', () => {
+      const start = { ...initialFlow, tab: 'new' as const, screen: { name: 'condition' as const }, activeJob: { jobId: 'j1', pollAfterMs: 700, succeeded: true }, otherJobs: [{ jobId: 'j2', pollAfterMs: 700, succeeded: false }] };
+      const viewed = flowReducer(start, { type: 'viewJob', jobId: 'j2' });
+      expect(viewed.activeJob?.jobId).toBe('j2');
+      expect(viewed.otherJobs).toEqual([{ jobId: 'j1', pollAfterMs: 700, succeeded: true }]);
+    });
+
     it('viewJob ignores an unknown job id', () => {
       const p = toProgress('j1');
       expect(flowReducer(p, { type: 'viewJob', jobId: 'nope' })).toBe(p);

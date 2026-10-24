@@ -60,6 +60,8 @@ export type FlowAction =
   | { type: 'generationSucceeded'; batchId: string }
   /** The job was observed failed or cancelled (or was cancelled by the user): nothing is left to resume. Does not move the screen. */
   | { type: 'generationEnded'; jobId: string }
+  /** The job was seen succeeded (progress screen poll, or a cancel reply of 200 succeeded). Marks it finished; does not move the screen. */
+  | { type: 'jobObservedSucceeded'; jobId: string }
   /** Show the progress screen of a known job (続きを確認). */
   | { type: 'viewJob'; jobId: string }
   | { type: 'candidateApplied'; tripId: string }
@@ -170,12 +172,20 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
       return { ...state, activeJob: promoted, otherJobs: promoted ? rest.slice(0, -1) : rest };
     }
 
+    case 'jobObservedSucceeded': {
+      const target = knownJobs(state).find(j => j.jobId === action.jobId);
+      if (!target || target.succeeded) return state;
+      const mark = (j: ActiveJob): ActiveJob => (j.jobId === action.jobId ? { ...j, succeeded: true } : j);
+      return { ...state, activeJob: state.activeJob ? mark(state.activeJob) : null, otherJobs: state.otherJobs.map(mark) };
+    }
+
     case 'viewJob': {
       const target = knownJobs(state).find(j => j.jobId === action.jobId);
       if (!target) return state;
       const active = state.activeJob;
       let others = state.otherJobs.filter(j => j.jobId !== action.jobId);
-      if (active && active.jobId !== target.jobId && !active.succeeded) others = [...others, active];
+      // The job being left stays reachable, also a finished one (its result must not be lost by looking at another job).
+      if (active && active.jobId !== target.jobId) others = [...others, active];
       return { ...state, tab: 'new', screen: progressOf(target), history: [TAB_ROOT.new], activeJob: target, otherJobs: others };
     }
 

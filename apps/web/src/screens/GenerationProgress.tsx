@@ -87,7 +87,7 @@ export function ProgressView(p: ProgressViewProps) {
   );
 }
 
-export function GenerationProgress({ api, jobId, pollAfterMs, onSucceeded, onBack, onSettled }: {
+export function GenerationProgress({ api, jobId, pollAfterMs, onSucceeded, onBack, onSettled, onObservedSucceeded }: {
   api: MockApi;
   jobId: string;
   pollAfterMs: number;
@@ -95,6 +95,8 @@ export function GenerationProgress({ api, jobId, pollAfterMs, onSucceeded, onBac
   onBack: () => void;
   /** The job was observed failed or cancelled, so there is nothing left to resume (the flow forgets it). */
   onSettled?: (() => void) | undefined;
+  /** The job was seen succeeded with a batch (even if the user never presses 候補を比較する): the flow marks it finished. */
+  onObservedSucceeded?: (() => void) | undefined;
 }) {
   const [status, setStatus] = useState<JobStatus | null>(null);
   const [pollError, setPollError] = useState<ApiError | null>(null);
@@ -176,6 +178,14 @@ export function GenerationProgress({ api, jobId, pollAfterMs, onSucceeded, onBac
       onSettled?.();
     }
   }, [state, onSettled]);
+  const batchId = status?.batchId ?? cancelOutcome?.batchId ?? null;
+  const observed = useRef(false);
+  useEffect(() => {
+    if (state === 'succeeded' && batchId && !observed.current) {
+      observed.current = true;
+      onObservedSucceeded?.();
+    }
+  }, [state, batchId, onObservedSucceeded]);
 
   return (
     <section aria-label="生成の進行状況">
@@ -183,7 +193,7 @@ export function GenerationProgress({ api, jobId, pollAfterMs, onSucceeded, onBac
       <ProgressView
         state={state}
         stage={status?.stage ?? null}
-        batchId={status?.batchId ?? cancelOutcome?.batchId ?? null}
+        batchId={batchId}
         jobError={status?.error ?? null}
         pollError={pollError}
         note={note}

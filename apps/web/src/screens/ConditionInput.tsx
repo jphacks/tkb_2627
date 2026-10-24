@@ -15,6 +15,7 @@ import {
   type ConditionForm,
   type FieldKey,
 } from './condition.ts';
+import { cancelJobs, cancelOutcomeMessages, type CancelOutcome } from './cancelJobs.ts';
 import type { ActiveJob } from './flow.ts';
 import type { SubmissionKeys } from './idempotency.ts';
 
@@ -171,52 +172,66 @@ export function ConditionFormView({ form, onChange, onSubmit, submitted, busy, b
 }
 
 /**
- * Shown on the condition screen while a generation is still known to the flow (D1). An unfinished job blocks a new
- * generation: the user either continues watching it or explicitly cancels it. Nothing is ever cancelled automatically.
+ * Shown on the condition screen while a generation is still known to the flow (D1). A job whose end has not been
+ * seen blocks a new generation: the user either continues watching it or explicitly cancels it. Nothing is ever
+ * cancelled automatically, and a job is never described as running unless it was seen running.
  */
-export function RunningJobNotice({ jobs, cancelling, cancelError, cancelledNote, onContinue, onCancelAndNew }: {
+export function RunningJobNotice({ jobs, cancelling, cancelError, outcome, onContinue, onCancelAndNew }: {
   jobs: ActiveJob[];
   cancelling: boolean;
   cancelError: ErrorInfo | null;
-  /** True right after the user cancelled the running job(s) and may now start a new generation. */
-  cancelledNote: boolean;
+  /** What the last 取り消して新しく作る really did (the server may have finished or failed the job first). */
+  outcome: CancelOutcome | null;
   onContinue: (jobId: string) => void;
   onCancelAndNew: () => void;
 }) {
   const unfinished = jobs.filter(j => !j.succeeded);
   const first = unfinished[0] ?? jobs[0];
-  if (!first) {
-    return cancelledNote ? <p className="note" role="status">生成を取り消しました。条件を確認して、新しく生成できます。</p> : null;
-  }
+  const messages = outcome ? cancelOutcomeMessages(outcome) : [];
+  const outcomeEl = messages.length > 0 ? (
+    <div className="note" role="status">
+      {messages.map(m => <p key={m}>{m}</p>)}
+    </div>
+  ) : null;
+  if (!first) return outcomeEl;
   if (unfinished.length === 0) {
     return (
-      <div className="note u1-running" role="status" aria-label="前回の生成">
-        <p><strong>前回の生成は完了しています。</strong>候補を確認できます。新しく生成すると、この結果は一覧から外れます。</p>
-        <div className="u1-actions">
-          <button type="button" className="btn" onClick={() => onContinue(first.jobId)}>続きを確認</button>
-        </div>
-      </div>
+      <>
+        {outcomeEl}
+        <section className="note u1-running" aria-labelledby="u1-running-title">
+          <p>
+            <strong id="u1-running-title">前回の生成は完了しています。</strong>
+            候補を確認できます。新しく生成すると、この画面からは開けなくなります（作成済みの候補はサーバーに保存されたままです）。
+          </p>
+          <div className="u1-actions">
+            <button type="button" className="btn" onClick={() => onContinue(first.jobId)}>続きを確認</button>
+          </div>
+        </section>
+      </>
     );
   }
   return (
-    <div className="note u1-running" role="status" aria-label="生成中の候補">
-      <p>
-        <strong>前の生成がまだ進行中です。</strong>
-        完了するか取り消すまで、新しい生成は始められません。
-        {unfinished.length > 1 && `（進行中: ${unfinished.length}件）`}
-      </p>
-      <div className="u1-actions">
-        <button type="button" className="btn u1-primary" onClick={() => onContinue(first.jobId)}>続きを確認</button>
-        <button type="button" className="btn" onClick={onCancelAndNew} disabled={cancelling}>
-          {cancelling ? '取消中…' : '取り消して新しく作る'}
-        </button>
-      </div>
-      {cancelError && <ErrorBox title="取消できませんでした" error={cancelError} />}
-    </div>
+    <>
+      {outcomeEl}
+      <section className="note u1-running" aria-labelledby="u1-running-title">
+        <p>
+          <strong id="u1-running-title">前回の生成の結果をまだ確認していません。</strong>
+          進行中の可能性があります。結果を確認するか取り消すまで、新しい生成は始められません。
+          {unfinished.length > 1 && `（未確認: ${unfinished.length}件）`}
+        </p>
+        <div className="u1-actions">
+          <button type="button" className="btn u1-primary" onClick={() => onContinue(first.jobId)}>続きを確認</button>
+          <button type="button" className="btn" onClick={onCancelAndNew} disabled={cancelling}>
+            {cancelling ? '取消中…' : '取り消して新しく作る'}
+          </button>
+        </div>
+        {cancelError && <ErrorBox title="取消できませんでした" error={cancelError} />}
+      </section>
+    </>
   );
 }
 
-export function ConditionInput({ api, form, onFormChange, jobs, submitting, submitError, keys, onSubmitStart, onStarted, onSubmitFailed, onViewJob, onJobEnded }: {
+export function ConditionInput({ api, form, onFormChange, jobs, submitting, submitError, keys, onSubmitStart, onStarted, onSubmitFailed, onViewJob, onJobEnded, onJobSucceeded }: {
   api: MockApi;
   form: ConditionForm;
   onFormChange: (next: ConditionForm) => void;
@@ -231,24 +246,29 @@ export function ConditionInput({ api, form, onFormChange, jobs, submitting, subm
   onSubmitFailed: (error: ErrorInfo) => void;
   onViewJob: (jobId: string) => void;
   onJobEnded: (jobId: string) => void;
+  /** A cancel request found the job already succeeded: keep it as a finished job. */
+  onJobSucceeded: (jobId: string) => void;
 }) {
   const [submitted, setSubmitted] = useState(false);
   const [focusToken, setFocusToken] = useState(0);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<ErrorInfo | null>(null);
-  const [cancelledNote, setCancelledNote] = useState(false);
+  const [outcome, setOutcome] = useState<CancelOutcome | null>(null);
+  // Synchronous guard against a fast double click: the flow's submitting flag only updates after a render.
+  const sending = useRef(false);
   const unfinished = jobs.filter(j => !j.succeeded);
   const blocked = submitting || unfinished.length > 0;
 
   const submit = async () => {
     setSubmitted(true);
-    setCancelledNote(false);
+    setOutcome(null);
     const { request } = validateCondition(form);
     if (!request) {
       setFocusToken(n => n + 1);
       return;
     }
-    if (blocked) return; // the button is disabled too; this covers Enter in a field
+    if (blocked || sending.current) return; // the button is disabled too; this covers Enter in a field and fast double clicks
+    sending.current = true;
     onSubmitStart();
     try {
       // One Idempotency-Key per submission: a retry of the same request returns the same job (no duplicate).
@@ -263,26 +283,20 @@ export function ConditionInput({ api, form, onFormChange, jobs, submitting, subm
       }
     } catch (e) {
       onSubmitFailed({ message: e instanceof Error ? e.message : '予期しないエラーが発生しました。', code: 'INTERNAL' });
+    } finally {
+      sending.current = false;
     }
   };
 
-  /** Explicit cancel of every unfinished job, then a new generation becomes possible. */
+  /** Explicit cancel of every unfinished job. The server's reply decides what is reported and what is forgotten. */
   const cancelAndNew = async () => {
     setCancelling(true);
     setCancelError(null);
-    setCancelledNote(false);
+    setOutcome(null);
     try {
-      for (const job of unfinished) {
-        const r = await api.cancelJob(job.jobId);
-        // 200 (already finished) / 202 (cancel accepted) / 404 (the job no longer exists): nothing is left to resume.
-        if (r.ok || r.status === 404) {
-          onJobEnded(job.jobId);
-        } else {
-          setCancelError(r.error);
-          return;
-        }
-      }
-      setCancelledNote(true);
+      const result = await cancelJobs(api, unfinished, { ended: onJobEnded, succeeded: onJobSucceeded });
+      setOutcome(result.outcome);
+      setCancelError(result.error);
     } catch (e) {
       setCancelError({ message: e instanceof Error ? e.message : '予期しないエラーが発生しました。', code: 'INTERNAL' });
     } finally {
@@ -293,7 +307,7 @@ export function ConditionInput({ api, form, onFormChange, jobs, submitting, subm
   return (
     <section aria-label="条件入力">
       <ScreenHeader title="旅の条件を入力" />
-      <RunningJobNotice jobs={jobs} cancelling={cancelling} cancelError={cancelError} cancelledNote={cancelledNote}
+      <RunningJobNotice jobs={jobs} cancelling={cancelling} cancelError={cancelError} outcome={outcome}
         onContinue={onViewJob} onCancelAndNew={() => void cancelAndNew()} />
       <ConditionFormView form={form} onChange={onFormChange} onSubmit={() => void submit()} submitted={submitted} busy={submitting}
         blocked={blocked} submitError={submitError} focusToken={focusToken} />

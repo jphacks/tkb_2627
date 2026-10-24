@@ -12,8 +12,9 @@ import type { JobStatus, Trip } from '@tkb/contracts';
 import { createMockApi, type MockApi, type MockResult, type MockScenario } from '../mocks/index.ts';
 import { CompareView } from './CandidateCompare.tsx';
 import { emptyForm, sampleForm, validateCondition, type ConditionForm } from './condition.ts';
-import { flowReducer, initialFlow, knownJobs, type FlowAction, type FlowState } from './flow.ts';
+import { flowReducer, initialFlow, knownJobs, unfinishedJobs, type FlowAction, type FlowState } from './flow.ts';
 import { createSubmissionKeys } from './idempotency.ts';
+import { cancelJobs, cancelOutcomeMessages } from './cancelJobs.ts';
 import { ProgressView } from './GenerationProgress.tsx';
 import { GuideView } from './Guide.tsx';
 import { ShareView } from './Share.tsx';
@@ -76,6 +77,13 @@ function createController(scenario: MockScenario = 'normal', extra: { pollsPerSt
         if (TERMINAL_JOB_STATES.includes(status.state)) return seen;
       }
       throw new Error('job never reached a terminal state');
+    },
+    /** ConditionInput.cancelAndNew: the real cancelJobs path with the same flow wiring as U01App. */
+    cancelAndNew() {
+      return cancelJobs(api, unfinishedJobs(flow), {
+        ended: jobId => dispatch({ type: 'generationEnded', jobId }),
+        succeeded: jobId => dispatch({ type: 'jobObservedSucceeded', jobId }),
+      });
     },
     /** CandidateCompare.adopt */
     async adopt(batchId: string, candidateId: string) {
@@ -415,6 +423,99 @@ describe('journey: cancel, failure and retry', () => {
   });
 });
 
+describe('journey: what the condition screen may claim about a job (N1)', () => {
+  async function toRunning(c: ReturnType<typeof createController>) {
+    c.dispatch({ type: 'selectTab', tab: 'new' });
+    const sent = await c.submit(sampleForm);
+    if (!sent.sent || !sent.result.ok) throw new Error('submit');
+    return sent.result.data.jobId;
+  }
+
+  it('seeing 完了 on the progress screen and pressing 戻る does not leave a "running" job: a new submission is allowed and 続きを確認 shows the result', async () => {
+    const c = createController('normal');
+    const jobId = await toRunning(c);
+    const statuses = await c.pollToEnd(jobId);
+    const last = statuses[statuses.length - 1] as JobStatus;
+    expect(last.state).toBe('succeeded');
+    c.dispatch({ type: 'jobObservedSucceeded', jobId }); // GenerationProgress.onObservedSucceeded
+    c.dispatch({ type: 'back' });
+    expect(c.flow.screen).toEqual({ name: 'condition' });
+    expect(unfinishedJobs(c.flow)).toEqual([]);
+    c.dispatch({ type: 'viewJob', jobId }); // 続きを確認
+    expect(c.flow.screen).toMatchObject({ name: 'progress', jobId });
+    expect(must(await c.api.getJob(jobId)).batchId).toBe(last.batchId);
+    c.dispatch({ type: 'back' });
+    expect((await c.submit(sampleForm)).sent).toBe(true);
+  });
+
+  it('cancel on a job that had already succeeded: reported as finished (not cancelled), kept, and its batch is still reachable', async () => {
+    const c = createController('normal');
+    const jobId = await toRunning(c);
+    const statuses = await c.pollToEnd(jobId); // finished in the background; the flow has not seen it
+    const batchId = (statuses[statuses.length - 1] as JobStatus).batchId;
+    if (!batchId) throw new Error('batch');
+    c.dispatch({ type: 'back' });
+    expect(unfinishedJobs(c.flow).map(j => j.jobId)).toEqual([jobId]); // unconfirmed, so it blocks and is not called "running"
+
+    const { outcome, error } = await c.cancelAndNew();
+    expect(error).toBeNull();
+    expect(outcome.alreadySucceeded).toEqual([jobId]);
+    expect(outcome.cancelled).toEqual([]);
+    const messages = cancelOutcomeMessages(outcome);
+    expect(messages).toEqual(['取り消す前に完了していました。候補を確認できます。']);
+    expect(messages.join('')).not.toContain('生成を取り消しました');
+    // still known and finished; the candidates open via 続きを確認
+    expect(knownJobs(c.flow)).toEqual([{ jobId, pollAfterMs: 700, succeeded: true }]);
+    c.dispatch({ type: 'viewJob', jobId });
+    expect(must(await c.api.getJob(jobId)).batchId).toBe(batchId);
+    expect(must(await c.api.getPlanBatch(batchId)).candidates.length).toBe(3);
+  });
+
+  it('cancel on a job that had already failed: reported as failed, forgotten, no false "取り消しました"', async () => {
+    const c = createController('error');
+    const jobId = await toRunning(c);
+    const statuses = await c.pollToEnd(jobId);
+    expect((statuses[statuses.length - 1] as JobStatus).state).toBe('failed');
+    c.dispatch({ type: 'back' });
+    const { outcome, error } = await c.cancelAndNew();
+    expect(error).toBeNull();
+    expect(outcome.alreadyFailed).toEqual([jobId]);
+    const text = cancelOutcomeMessages(outcome).join('');
+    expect(text).toContain('取り消す前に生成が失敗していました');
+    expect(text).not.toContain('生成を取り消しました');
+    expect(knownJobs(c.flow)).toEqual([]);
+    expect((await c.submit(sampleForm)).sent).toBe(true);
+  });
+
+  it('cancel on a running job: really cancelled, forgotten, and a new generation is possible', async () => {
+    const c = createController('normal');
+    const jobId = await toRunning(c);
+    must(await c.api.getJob(jobId));
+    c.dispatch({ type: 'back' });
+    const { outcome, error } = await c.cancelAndNew();
+    expect(error).toBeNull();
+    expect(outcome.cancelled).toEqual([jobId]);
+    expect(cancelOutcomeMessages(outcome)).toEqual(['生成を取り消しました。何も保存されていません。']);
+    expect(must(await c.api.getJob(jobId)).state).toBe('cancelled');
+    expect(knownJobs(c.flow)).toEqual([]);
+    expect((await c.submit(sampleForm)).sent).toBe(true);
+  });
+
+  it('a cancel that is refused (409 saving) or whose job is gone (404) is handled without losing or inventing anything', async () => {
+    const fail = (status: number) => ({ cancelJob: async () => ({ ok: false as const, status, source: 'mock' as const, error: { code: status === 404 ? 'NOT_FOUND' : 'CONFLICT', message: 'x', retryable: false, requestId: 'r' } }) });
+    const kept: string[] = [];
+    const none = { ended: (id: string) => kept.push('ended:' + id), succeeded: (id: string) => kept.push('succeeded:' + id) };
+    const refused = await cancelJobs(fail(409) as never, [{ jobId: 'j1' }], none);
+    expect(refused.error?.code).toBe('CONFLICT');
+    expect(kept).toEqual([]); // nothing forgotten
+    const gone = await cancelJobs(fail(404) as never, [{ jobId: 'j1' }], none);
+    expect(gone.error).toBeNull();
+    expect(gone.outcome.gone).toEqual(['j1']);
+    expect(kept).toEqual(['ended:j1']);
+    expect(cancelOutcomeMessages(gone.outcome)).toEqual(['前の生成はサーバーに見つかりませんでした。']);
+  });
+});
+
 describe('journey: empty scenario', () => {
   it('empty list -> new -> generate -> adopt -> the list now has the trip', async () => {
     const c = createController('empty');
@@ -478,6 +579,7 @@ describe('journey: concurrency of the user and the network', () => {
     expect(c.generateCalls).toHaveLength(1);
     expect(knownJobs(c.flow).map(j => j.jobId)).toEqual([done.result.data.jobId]);
     expect(c.flow.submitting).toBe(false);
+    // (the component adds a synchronous ref guard against a fast double click; the flow-level refusal is what is tested here)
     // with the job running, a further submission is refused until it is finished or explicitly cancelled
     c.dispatch({ type: 'selectTab', tab: 'new' });
     c.dispatch({ type: 'back' });

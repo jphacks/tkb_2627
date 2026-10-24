@@ -21,6 +21,7 @@ import {
 import { TripViewer } from '../shell/TripViewer.tsx';
 import { CandidateCard, CompareView } from './CandidateCompare.tsx';
 import { ConditionFormView, RunningJobNotice } from './ConditionInput.tsx';
+import { emptyOutcome, type CancelOutcome } from './cancelJobs.ts';
 import { emptyForm, sampleForm, type ConditionForm } from './condition.ts';
 import { ProgressView, type ProgressViewProps } from './GenerationProgress.tsx';
 import { GuideView } from './Guide.tsx';
@@ -616,23 +617,28 @@ describe('U01App: the first render in every scenario', () => {
 
 describe('condition screen while a generation is known (D1)', () => {
   const running = { jobId: 'j1', pollAfterMs: 700, succeeded: false };
-  const notice = (jobs: { jobId: string; pollAfterMs: number; succeeded: boolean }[], extra: { cancelling?: boolean; cancelledNote?: boolean } = {}) =>
+  const notice = (jobs: { jobId: string; pollAfterMs: number; succeeded: boolean }[], extra: { cancelling?: boolean; outcome?: CancelOutcome | null } = {}) =>
     renderToString(
-      <RunningJobNotice jobs={jobs} cancelling={extra.cancelling ?? false} cancelError={null} cancelledNote={extra.cancelledNote ?? false}
+      <RunningJobNotice jobs={jobs} cancelling={extra.cancelling ?? false} cancelError={null} outcome={extra.outcome ?? null}
         onContinue={noop} onCancelAndNew={noop} />,
     );
 
   it('an unfinished job is announced with 続きを確認 and an explicit 取り消して新しく作る', () => {
     const html = notice([running]);
     const t = textOf(html);
-    expect(t).toContain('前の生成がまだ進行中です');
+    // not asserted as "running": the end of the job has not been seen
+    expect(t).toContain('前回の生成の結果をまだ確認していません');
+    expect(t).not.toContain('まだ進行中です');
     expect(t).toContain('続きを確認');
     expect(t).toContain('取り消して新しく作る');
-    expect(html).toContain('role="status"');
+    // a labelled region, not a live status message
+    expect(html).toContain('<section');
+    expect(html).toContain('aria-labelledby="u1-running-title"');
+    expect(html).toContain('id="u1-running-title"');
   });
 
   it('several unfinished jobs are counted', () => {
-    expect(textOf(notice([running, { ...running, jobId: 'j2' }]))).toContain('進行中: 2件');
+    expect(textOf(notice([running, { ...running, jobId: 'j2' }]))).toContain('未確認: 2件');
   });
 
   it('while cancelling the button is disabled and says so', () => {
@@ -643,13 +649,25 @@ describe('condition screen while a generation is known (D1)', () => {
   it('a finished job only offers 続きを確認 (it no longer blocks a new generation)', () => {
     const t = textOf(notice([{ ...running, succeeded: true }]));
     expect(t).toContain('前回の生成は完了しています');
+    expect(t).toContain('作成済みの候補はサーバーに保存されたままです');
     expect(t).toContain('続きを確認');
     expect(t).not.toContain('取り消して新しく作る');
   });
 
-  it('nothing is shown without a job, except a note right after cancelling', () => {
+  it('nothing is shown without a job, except what a cancel really did', () => {
     expect(notice([])).toBe('');
-    expect(textOf(notice([], { cancelledNote: true }))).toContain('生成を取り消しました');
+    expect(textOf(notice([], { outcome: { ...emptyOutcome(), cancelled: ['j1'] } }))).toContain('生成を取り消しました');
+    const t = textOf(notice([], { outcome: { ...emptyOutcome(), alreadyFailed: ['j1'] } }));
+    expect(t).toContain('取り消す前に生成が失敗していました');
+    expect(t).not.toContain('生成を取り消しました');
+  });
+
+  it('a cancel that found the job already succeeded says so and keeps the way to the candidates', () => {
+    const html = notice([{ ...running, succeeded: true }], { outcome: { ...emptyOutcome(), alreadySucceeded: ['j1'] } });
+    const t = textOf(html);
+    expect(t).toContain('取り消す前に完了していました。候補を確認できます。');
+    expect(t).not.toContain('生成を取り消しました');
+    expect(t).toContain('続きを確認');
   });
 
   it('the submit button is disabled while blocked, and shows 送信中… only while a request is in flight', () => {

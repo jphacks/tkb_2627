@@ -84,13 +84,15 @@ function Screen({ api, flow, dispatch, form, setForm, keys }: {
           onStarted={a => dispatch({ type: 'generationStarted', jobId: a.jobId, pollAfterMs: a.pollAfterMs })}
           onSubmitFailed={error => dispatch({ type: 'submitFailed', error })}
           onViewJob={jobId => dispatch({ type: 'viewJob', jobId })}
-          onJobEnded={jobId => dispatch({ type: 'generationEnded', jobId })} />
+          onJobEnded={jobId => dispatch({ type: 'generationEnded', jobId })}
+          onJobSucceeded={jobId => dispatch({ type: 'jobObservedSucceeded', jobId })} />
       );
     case 'progress':
       return (
         <GenerationProgress key={s.jobId} api={api} jobId={s.jobId} pollAfterMs={s.pollAfterMs} onBack={back}
           onSucceeded={batchId => dispatch({ type: 'generationSucceeded', batchId })}
-          onSettled={() => dispatch({ type: 'generationEnded', jobId: s.jobId })} />
+          onSettled={() => dispatch({ type: 'generationEnded', jobId: s.jobId })}
+          onObservedSucceeded={() => dispatch({ type: 'jobObservedSucceeded', jobId: s.jobId })} />
       );
     case 'compare':
       return <CandidateCompare api={api} batchId={s.batchId} onBack={back} onApplied={tripId => dispatch({ type: 'candidateApplied', tripId })} />;
