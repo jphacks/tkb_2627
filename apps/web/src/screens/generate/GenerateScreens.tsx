@@ -32,7 +32,7 @@ export function LiveBanner({ state }: { state: ModeCapState }) {
 
 /** Small data-mode chip shown on the progress and compare screens (live source only). */
 export function ModeChip({ state }: { state: ModeCapState }) {
-  return <p role="status" className="meta u5-mode">データ: {modeChipLabel(state)}</p>;
+  return <p className="meta u5-mode">データ: {modeChipLabel(state)}</p>;
 }
 
 export interface ProgressViewProps {
