@@ -221,6 +221,7 @@ describe('schema breakage (schemaVersion and unknown keys)', () => {
     ['GroupInviteCreate', GroupInviteCreate, {}],
     ['GroupInviteAccept', GroupInviteAccept, { token: 'x'.repeat(16) }],
     ['ExportRequest', ExportRequest, { expectedRevision: 1, format: 'pdf' }],
+    ['ExportRequest (tripId echo)', ExportRequest, { tripId: 'trip_a', expectedRevision: 1, format: 'pdf' }],
   ];
   it.each(strictCases)('%s accepts its sample and rejects an unknown key (ownerId, extra)', (_n, schema, sample) => {
     expect(ok(schema, sample)).toBe(true);
