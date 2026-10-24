@@ -82,6 +82,7 @@ export function buildCopiedTrip(snapshot: PostSnapshot, ownerId: string, req: Co
           platform: null,
           transfers: null,
           fare: null,
+          transit: null,
           dataStatus: 'unknown' as const,
           provenance: null,
         },

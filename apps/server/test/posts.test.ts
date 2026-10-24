@@ -4,6 +4,8 @@ import type { Trip } from '@tkb/contracts';
 import { fixtureTrips } from '@tkb/fixtures';
 import { createUser, insertTrip, migrate, openDatabase, updateTripWithRevision } from '@tkb/db';
 import { buildApp } from '../src/platform/app.ts';
+import { buildCopiedTrip } from '../src/social/copy/index.ts';
+import { buildSnapshot } from '../src/social/posts/snapshot.ts';
 import { registerAuth } from '../src/platform/auth/index.ts';
 import { hashPassword } from '../src/platform/auth/password.ts';
 import { loadConfig } from '../src/platform/config.ts';
@@ -52,7 +54,10 @@ function secretTrip(): Trip {
   day0.unshift({ ...(day0[0] as Extract<(typeof day0)[number], { type: 'leg' }>), legId: 'leg_home', fromPlaceId: 'home_tanaka', toPlaceId: 'fx_kanazawa_station' });
   day0.push({ ...(day0.find((i) => i.type === 'activity') as Extract<(typeof day0)[number], { type: 'activity' }>), activityId: 'act_home', placeId: 'home_tanaka', title: 'Home stop' });
   const restricted = day0.find((i) => i.type === 'leg' && i.legId === 'fx_leg_2');
-  if (restricted && restricted.type === 'leg' && restricted.provenance) restricted.provenance = { ...restricted.provenance, mayExport: false };
+  if (restricted && restricted.type === 'leg' && restricted.provenance) {
+    restricted.provenance = { ...restricted.provenance, mayExport: false };
+    restricted.transit = { boardingStop: 'PROVIDER-STOP-A', alightingStop: 'PROVIDER-STOP-B', transferStops: ['PROVIDER-STOP-T'] };
+  }
   const kenroku = t.places.find((p) => p.placeId === 'fx_kenrokuen')!;
   kenroku.photo = { url: 'https://example.com/nolicense.jpg', attribution: 'x', license: null };
   t.constraints.preferences = ['secret preference'];
@@ -63,6 +68,23 @@ function secretTrip(): Trip {
   t.places.push({ ...t.places[0]!, placeId: 'fx_unreferenced', name: 'UNREFERENCED' });
   return t;
 }
+
+describe('TravelLeg.transit in SNS snapshots and copies (K06, R05)', () => {
+  it('drops provider transit stops from a leg that may not be exported, keeps them when it may, and never copies them', () => {
+    const t = secretTrip();
+    const allowed = t.days[0]!.items.find((i) => i.type === 'leg' && i.legId === 'fx_leg_1');
+    if (allowed?.type === 'leg') allowed.transit = { boardingStop: 'OPEN-STOP-A', alightingStop: 'OPEN-STOP-B', transferStops: [] };
+    const { snapshot } = buildSnapshot(t);
+    const legs = snapshot.days.flatMap((d) => d.items).filter((i) => i.type === 'leg');
+    expect(legs.find((l) => l.legId === 'fx_leg_2')).toMatchObject({ transit: null, provenance: null });
+    expect(legs.find((l) => l.legId === 'fx_leg_1')?.transit).toEqual({ boardingStop: 'OPEN-STOP-A', alightingStop: 'OPEN-STOP-B', transferStops: [] });
+    expect(JSON.stringify(snapshot)).not.toContain('PROVIDER-STOP');
+
+    // A copy reuses nothing time-dependent from the provider, stops included.
+    const copy = buildCopiedTrip(snapshot, 'user_b', { newStartDate: '2026-12-01', timeZone: 'Asia/Tokyo' }, NOW);
+    for (const leg of copy.days.flatMap((d) => d.items).filter((i) => i.type === 'leg')) expect(leg.transit ?? null).toBeNull();
+  });
+});
 
 async function setup() {
   const { app, db } = make();
@@ -99,7 +121,7 @@ describe('SNS posts (S05)', () => {
     expect((await call(app, b, 'GET', '/api/v1/posts?scope=groups')).json().items).toHaveLength(1);
     expect((await call(app, null, 'GET', '/api/v1/posts?scope=public')).json().items).toEqual([]);
     const text = JSON.stringify(post.snapshot);
-    for (const bad of ['PRIVATE-NOTE', '千代田', 'budget', '99999', 'secret preference', 'privateNotes', 'UNREFERENCED', 'example.com/p.jpg', 'home_tanaka', '田中邸', 'leg_home', 'fx_omicho', 'nolicense']) {
+    for (const bad of ['PRIVATE-NOTE', '千代田', 'budget', '99999', 'secret preference', 'privateNotes', 'UNREFERENCED', 'example.com/p.jpg', 'home_tanaka', '田中邸', 'leg_home', 'fx_omicho', 'nolicense', 'PROVIDER-STOP']) {
       expect(text).not.toContain(bad);
     }
     expect(post.snapshot.constraints).not.toHaveProperty('departure');
@@ -108,7 +130,7 @@ describe('SNS posts (S05)', () => {
     const items: Record<string, unknown>[] = post.snapshot.days.flatMap((d: { items: Record<string, unknown>[] }) => d.items);
     expect(items.find((i) => i.activityId === 'act_home')).toBeUndefined();
     expect(text).not.toContain('Home stop');
-    expect(items.find((i) => i.legId === 'fx_leg_2')).toMatchObject({ dataStatus: 'unavailable', fare: null, provenance: null });
+    expect(items.find((i) => i.legId === 'fx_leg_2')).toMatchObject({ dataStatus: 'unavailable', fare: null, provenance: null, transit: null });
     expect(post.snapshot.places.length).toBeGreaterThan(0);
     expect(post.snapshot.places.find((p: { placeId: string }) => p.placeId === 'fx_kenrokuen').photo).toBeNull();
   });
