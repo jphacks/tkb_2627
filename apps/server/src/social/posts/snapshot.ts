@@ -78,6 +78,7 @@ export function buildSnapshot(trip: Trip): { snapshot: PostSnapshot; redactedFie
           platform: null,
           transfers: null,
           fare: null,
+          transit: null,
           dataStatus: 'unavailable',
           provenance: null,
         };

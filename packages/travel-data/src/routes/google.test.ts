@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { CallBudget, DailyQuota, Gate } from '../policy/budget.ts';
 import { SKU } from '../policy/limits.ts';
 import { FixtureRouteProvider } from './fixture.ts';
-import { GoogleRoutesProvider, parseDuration, toMoney } from './google.ts';
+import { GoogleRoutesProvider, inJapan, parseDuration, toMoney } from './google.ts';
 import type { RouteRequest } from './types.ts';
 
 const NOW = Date.parse('2026-10-24T09:00:00Z');
@@ -19,9 +19,9 @@ const budget = (over: Partial<ConstructorParameters<typeof CallBudget>[0]> = {})
   new CallBudget({ maxCalls: 8, quota: quota(), gate: new Gate(2), retryDelayMs: () => 0, ...over });
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
-function provider(respond: (init: RequestInit) => Response | Promise<Response>) {
+function provider(respond: (init: RequestInit) => Response | Promise<Response>, refuseJapanTransit?: boolean) {
   const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => respond(init!));
-  return { p: new GoogleRoutesProvider({ apiKey: 'test-key', fetch: fetchMock as unknown as typeof fetch, now: () => NOW }), fetchMock };
+  return { p: new GoogleRoutesProvider({ apiKey: 'test-key', fetch: fetchMock as unknown as typeof fetch, now: () => NOW, refuseJapanTransit }), fetchMock };
 }
 
 const req = (over: Partial<RouteRequest> = {}): RouteRequest => ({ from: louvre, to: orsay, departureUtc: '2026-10-25T09:00:00Z', mode: 'transit', ...over });
@@ -77,6 +77,8 @@ describe('GoogleRoutesProvider', () => {
       transfers: 1,
       platform: null,
       fare: { amountMinor: 215, currency: 'EUR' },
+      // R05: boarding, alighting and transfer stops as the provider named them.
+      transit: { boardingStop: 'Palais Royal', alightingStop: 'Solférino', transferStops: ['Concorde'] },
       dataStatus: 'verified',
       provenance: { source: 'google_routes', mayStore: false, maySendToModel: false, mayExport: false },
     });
@@ -102,7 +104,7 @@ describe('GoogleRoutesProvider', () => {
   it('treats an unreadable 200 as a provider fault, not as "no route" or "unsupported region"', async () => {
     for (const body of ['<html>oops</html>', 'null', '[]', '']) {
       for (const [from, to] of [[louvre, orsay], [station, kenrokuen]] as const) {
-        const { p, fetchMock } = provider(() => new Response(body, { status: 200 }));
+        const { p, fetchMock } = provider(() => new Response(body, { status: 200 }), false);
         expect(await p.route(req({ from, to }), budget()), body).toEqual({ leg: null, reason: 'provider_unavailable' });
         expect(fetchMock).toHaveBeenCalledTimes(1);
       }
@@ -123,9 +125,16 @@ describe('GoogleRoutesProvider', () => {
     }
   });
 
-  it('marks Japanese transit without a route as unsupported_region (対応外地域, D01) but driving there as normal', async () => {
-    const r = await provider(() => json({})).p.route(req({ from: station, to: kenrokuen }), budget());
-    expect(r).toEqual({ leg: null, reason: 'unsupported_region' });
+  it('refuses Japanese transit before calling (対応外地域, M1 #92), unless the flag is off, and drives there as normal', async () => {
+    const refused = provider(() => json(transitRoute));
+    const b = budget();
+    expect(await refused.p.route(req({ from: station, to: kenrokuen }), b)).toEqual({ leg: null, reason: 'unsupported_region' });
+    expect(refused.fetchMock).not.toHaveBeenCalled();
+    expect(b.callsUsed).toBe(0);
+    // Flag off: the call is made, and an empty result there is still unsupported_region.
+    const allowed = provider(() => json({}), false);
+    expect(await allowed.p.route(req({ from: station, to: kenrokuen }), budget())).toEqual({ leg: null, reason: 'unsupported_region' });
+    expect(allowed.fetchMock).toHaveBeenCalledTimes(1);
     // Only one end in Japan: not claimed as unsupported.
     expect(await provider(() => json({})).p.route(req({ from: station, to: orsay }), budget())).toEqual({ leg: null, reason: 'no_route' });
 
@@ -192,6 +201,20 @@ describe('GoogleRoutesProvider', () => {
     expect(results.every(r => r.leg?.durationSeconds === 600)).toBe(true);
     expect(car.fetchMock).toHaveBeenCalledTimes(1);
     expect(q.remaining(SKU.routesDrive)).toBe(4);
+  });
+
+  it('locates Japan by coordinates, not by neighbouring capitals', () => {
+    expect(inJapan(36.578, 136.648)).toBe(true); // Kanazawa
+    expect(inJapan(43.06, 141.35)).toBe(true); // Sapporo
+    expect(inJapan(26.21, 127.68)).toBe(true); // Naha
+    expect(inJapan(34.2, 129.29)).toBe(true); // Tsushima (Izuhara)
+    expect(inJapan(32.7, 128.84)).toBe(true); // Goto (Fukue)
+    expect(inJapan(27.09, 142.19)).toBe(true); // Ogasawara (Chichijima)
+    expect(inJapan(37.57, 126.98)).toBe(false); // Seoul
+    expect(inJapan(35.18, 129.08)).toBe(false); // Busan
+    expect(inJapan(43.12, 131.89)).toBe(false); // Vladivostok
+    expect(inJapan(25.03, 121.57)).toBe(false); // Taipei
+    expect(inJapan(48.86, 2.34)).toBe(false); // Paris
   });
 
   it('does not leak the API key through errors', async () => {
