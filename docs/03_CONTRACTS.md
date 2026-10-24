@@ -2,7 +2,7 @@
 
 自作アプリの実装先契約。一部のルートは稼働している（下記）。数値とIDは説明用。正本はmodel/contracts.json。
 
-**実装（B02）**：Zod v4のschema v1を`packages/contracts`に置いた。表現の決まり、資料間の食い違いの解決、破壊的変更の手順は`packages/contracts/README.md`を参照。2026-10-24時点で稼働しているルートは次のとおり。共有サーバー（:4310）：`GET /api/v1/health`、`GET /api/v1/capabilities`、`POST /api/v1/auth/login`、`POST /api/v1/auth/logout`、`GET /api/v1/auth/me`、`POST /api/v1/plan-batches`、`GET /api/v1/plan-batches`（`?generationId=`）、`GET /api/v1/plan-batches/{id}`、`POST /api/v1/trips/apply-candidate`、`GET /api/v1/trips`、`GET /api/v1/trips/{id}`、`PATCH /api/v1/trips/{id}`、`POST /api/v1/posts/preview`、`POST /api/v1/posts`、`GET /api/v1/posts`、`GET /api/v1/posts/{id}`、`PATCH /api/v1/posts/{id}`、`DELETE /api/v1/posts/{id}`、`POST /api/v1/posts/{id}/copy`、`POST /api/v1/groups`、`GET /api/v1/groups`、`POST /api/v1/groups/{id}/invites`、`POST /api/v1/group-invites/accept`、`DELETE /api/v1/groups/{id}/members/{userId}`。本人用App Server（:4311）：`GET /local/v1/health`、`GET /local/v1/capabilities`、`POST /local/v1/pair`、`POST /local/v1/auth/login`、`GET /local/v1/session`、`POST /local/v1/generations`、`GET /local/v1/jobs/{jobId}`、`POST /local/v1/jobs/{jobId}/cancel`。
+**実装（B02）**：Zod v4のschema v1を`packages/contracts`に置いた。表現の決まり、資料間の食い違いの解決、破壊的変更の手順は`packages/contracts/README.md`を参照。2026-10-25時点（Z01で実コードのapp.get/post/patch/deleteと照合）で稼働しているルートは次のとおり。共有サーバー（:4310）：`GET /api/v1/health`、`GET /api/v1/capabilities`、`POST /api/v1/auth/login`、`POST /api/v1/auth/logout`、`GET /api/v1/auth/me`、`POST /api/v1/plan-batches`、`GET /api/v1/plan-batches`（`?generationId=`）、`GET /api/v1/plan-batches/{id}`、`POST /api/v1/trips/apply-candidate`、`GET /api/v1/trips`、`GET /api/v1/trips/{id}`、`PATCH /api/v1/trips/{id}`、`POST /api/v1/posts/preview`、`POST /api/v1/posts`、`GET /api/v1/posts`、`GET /api/v1/posts/{id}`、`PATCH /api/v1/posts/{id}`、`DELETE /api/v1/posts/{id}`、`POST /api/v1/posts/{id}/copy`、`POST /api/v1/groups`、`GET /api/v1/groups`、`POST /api/v1/groups/{id}/invites`、`POST /api/v1/group-invites/accept`、`DELETE /api/v1/groups/{id}/members/{userId}`、`POST /api/v1/planning-context`（K05）、`POST /api/v1/trips/{id}/alternatives`（A05）、`POST /api/v1/trips/{id}/replan`（A06）、`POST /api/v1/trips/{id}/exports`、`GET /api/v1/exports/{id}`、`DELETE /api/v1/exports/{id}`、`GET /api/v1/trips/{id}/ics`、`GET /api/v1/trips/{id}/maps-links`（K18）、`GET /api/v1/guides`、`GET /api/v1/amenities`（K19）。本人用App Server（:4311）：`GET /local/v1/health`、`GET /local/v1/capabilities`、`POST /local/v1/pair`、`POST /local/v1/auth/login`、`GET /local/v1/session`、`POST /local/v1/generations`、`GET /local/v1/jobs/{jobId}`、`POST /local/v1/jobs/{jobId}/cancel`。
 
 ## K01 本人の旅程生成受付
 
@@ -1208,8 +1208,10 @@ job: queued→running→succeeded/failed/cancelled。succeededは候補の共通
   - 取得元が使えない場合（liveは未実装）は503 `UNAVAILABLE`（再試行可）です。
   - 未対応の地域は、空の`ok`にせず200で`dataStatus=unsupported_region`を返します。対応範囲で施設が無い場合は200・`items=[]`です。
   - `openNow`は常にnullです。指定されていることは、現在開設中であることを意味しません。
-  - `GET /api/v1/guides`（スポット説明）は登録していません。説明は`Trip.places`で渡ります。
+  - `GET /api/v1/guides?placeId=...&lang=ja|en|fr`（スポット説明と許諾済み写真。D07）は登録済みです（`apps/server/src/guides/spots.ts`）。認証は不要で、応答は`no-store`です。サーバーが知っている地点（fixtureの実在スポット・エリア）だけを引き、リクエスト文字列で外部取得先を変えません。placeIdやlangが不正なら422、未知の地点や説明がない場合は200・`items=[]`・`dataStatus=unknown`、取得元の障害は503 `UNAVAILABLE`、liveの上限超過は429 `RATE_LIMITED`です。fixtureモードはfixture、それ以外はWikipediaを取得元にします。
+  - 現状の差：`GET /api/v1/amenities`は、`PROVIDER_MODE`にかかわらず常にfixtureの提供元を使います（`LiveAmenitiesProvider`は実装済みですがサーバーに接続していません）。公式の避難所データは未接続で、実在の災害情報は返しません。
 - **互換の追加（schemaVersion 1のまま）**：
+  - `Activity.parentActivityId`（U04 R4、A04/D06/K07）：エリアの親予定の`activityId`を指す任意項目（`null`または省略可）。1階層だけで、親は同じ日の予定。子は展開した親の中だけに表示し、地図には番号を付けません。K07は親子の入れ子を検証します。ICS・Mapsでは子を経由地にしません。
   - `TripConstraints.transportModeByDate`（R6、日ごとの交通手段。指定のない日は`transportMode`を使う。公開snapshotにも含める）
   - `TravelLeg.transit`（R05、乗車駅・降車駅・乗換駅の名前。取得できなければ`null`または空配列で、推測しない）
 - **K12/K15**：グループが存在しない場合と非所属の場合は、どちらも422にします（グループの存在を漏らさないため）。K13の確定時に所属を失っていた場合は404です。
