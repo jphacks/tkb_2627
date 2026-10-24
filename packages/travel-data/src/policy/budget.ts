@@ -28,6 +28,7 @@ export type Clock = () => number;
  * Calls per SKU per day, shared by every input, set below the GCP project quota so we stop before Google does
  * (the GCP quota and budget alert are not a stop switch for our own usage, docs/08). A SKU without a limit gets 0.
  * The day boundary follows `timeZone` (default America/Los_Angeles, where Google Cloud per-day quotas reset).
+ * Counts live in memory: a restart starts the day from 0 again (see policy/README.md).
  */
 export class DailyQuota {
   private readonly counts = new Map<string, number>();
