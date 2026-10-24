@@ -73,6 +73,7 @@ function vtimezone(timeZone: string, from: number, to: number): string[] {
     // DTSTART is the local time of the change, read with the offset in force before it.
     return [`BEGIN:${kind}`, `DTSTART:${stamp(start + before * 60000)}`, `TZOFFSETFROM:${formatOffset(before)}`, `TZOFFSETTO:${formatOffset(after)}`, `END:${kind}`];
   };
+  from = Math.floor(from / 60000) * 60000; // keep observance starts on whole minutes
   const first = offsetAt(from, timeZone);
   const lines = ['BEGIN:VTIMEZONE', `TZID:${timeZone}`, ...observance(from, first, first)];
   let prev = first;
@@ -94,9 +95,14 @@ function vtimezone(timeZone: string, from: number, to: number): string[] {
 
 // ---- Text ----
 
-/** RFC 5545 TEXT escaping: backslash, semicolon, comma and newlines. */
+/** RFC 5545 TEXT escaping: backslash, semicolon, comma and newlines; other control characters (not allowed in TEXT) are dropped. */
 export function escapeText(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r\n|\r|\n/g, '\\n');
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r\n|\r|\n/g, '\\n')
+    .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '');
 }
 
 const encoder = new TextEncoder();
@@ -147,7 +153,7 @@ export interface IcsResult {
   notice: string;
   eventCount: number;
   /** Items not written, with the reason: times unknown are never guessed (R19). */
-  omitted: { itemId: string; reason: 'time_unknown' }[];
+  omitted: { itemId: string; reason: 'time_unknown' | 'not_exportable' }[];
   /** Places whose details were not written because their provider does not allow export (docs/08). */
   withheldPlaceIds: string[];
 }
@@ -155,9 +161,11 @@ export interface IcsResult {
 /**
  * ICS (RFC 5545) for a trip (K18 format=ics). Each activity and leg with both times becomes an event in its own time
  * zone, with a VTIMEZONE per zone. Skipped activities are left out and private notes are never written. Place names
- * and coordinates are written only when the provider allows export.
+ * and coordinates are written only when the provider allows export; a leg whose provider does not allow export is
+ * left out entirely, since its times come from that provider. `revision` becomes SEQUENCE so a re-export updates
+ * the imported events.
  */
-export function tripToIcs(trip: Pick<Trip, 'tripId' | 'title' | 'days' | 'places'>, options: IcsOptions): IcsResult {
+export function tripToIcs(trip: Pick<Trip, 'tripId' | 'title' | 'days' | 'places'> & Partial<Pick<Trip, 'revision'>>, options: IcsOptions): IcsResult {
   const places = new Map(trip.places.map(p => [p.placeId, p]));
   const withheld = new Set<string>();
   const exportable = (placeId: string | null): PlaceInfo | undefined => {
@@ -193,24 +201,27 @@ export function tripToIcs(trip: Pick<Trip, 'tripId' | 'title' | 'days' | 'places
           props: [
             `SUMMARY:${escapeText(item.title)}`,
             ...(where ? [`LOCATION:${escapeText(where)}`] : []),
-            ...(place?.location ? [`GEO:${place.location.lat};${place.location.lng}`] : []),
+            ...(place?.location ? [`GEO:${place.location.lat.toFixed(6)};${place.location.lng.toFixed(6)}`] : []),
             `DESCRIPTION:${escapeText(description.join('\n'))}`,
           ],
         });
       } else {
+        if (item.provenance !== null && !item.provenance.mayExport) {
+          omitted.push({ itemId: item.legId, reason: 'not_exportable' });
+          continue;
+        }
         if (item.departure === null || item.arrival === null) {
           omitted.push({ itemId: item.legId, reason: 'time_unknown' });
           continue;
         }
         const from = exportable(item.fromPlaceId)?.name;
         const to = exportable(item.toPlaceId)?.name;
-        const details = item.provenance === null || item.provenance.mayExport;
-        const line = details && item.lineName ? item.lineName : MODE_LABEL[item.mode];
+        const line = item.lineName ?? MODE_LABEL[item.mode];
         const description = [
           `移動（${MODE_LABEL[item.mode]}）`,
-          ...(details && item.platform ? [`乗り場: ${item.platform}`] : []),
-          ...(details && item.transfers !== null ? [`乗換: ${item.transfers}回`] : []),
-          `運賃: ${details ? money(item.fare) : '未取得'}`,
+          ...(item.platform ? [`乗り場: ${item.platform}`] : []),
+          ...(item.transfers !== null ? [`乗換: ${item.transfers}回`] : []),
+          `運賃: ${money(item.fare)}`,
           ...(item.dataStatus === 'fixture' ? [FIXTURE_NOTE] : []),
         ];
         events.push({
@@ -245,8 +256,10 @@ export function tripToIcs(trip: Pick<Trip, 'tripId' | 'title' | 'days' | 'places
       'BEGIN:VEVENT',
       `UID:${e.id}.${trip.tripId}@tkb-2627`,
       `DTSTAMP:${dtstamp}`,
+      ...(trip.revision === undefined ? [] : [`SEQUENCE:${trip.revision - 1}`]),
       dateTime('DTSTART', e.start),
-      dateTime('DTEND', e.end),
+      // DTEND must be after DTSTART; a zero-length item gets an explicit zero duration instead.
+      Date.parse(e.end.utc) > Date.parse(e.start.utc) ? dateTime('DTEND', e.end) : 'DURATION:PT0S',
       ...e.props,
       'END:VEVENT',
     ]),

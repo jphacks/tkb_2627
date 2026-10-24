@@ -8,6 +8,7 @@ export const MAPS_LINK_NOTICE =
 export const MAPS_URL_MAX_LENGTH = 2048;
 /** Mobile browsers support 3 waypoints, other platforms 9. The default stays on the safe side. */
 export const MAPS_MOBILE_MAX_WAYPOINTS = 3;
+export const MAPS_MAX_WAYPOINTS = 9;
 
 export type MapsTravelMode = 'driving' | 'walking' | 'transit';
 
@@ -34,16 +35,18 @@ export function placeSearchLink(place: PlaceInfo): MapsLink {
 
 function directionsUrl(stops: readonly PlaceInfo[], mode: MapsTravelMode): string {
   const enc = (p: PlaceInfo) => encodeURIComponent(point(p));
+  // `|` separates waypoints and encodes to the same %7C, so a name containing it would split into two stops.
+  const encVia = (p: PlaceInfo) => encodeURIComponent(point(p).replace(/[|｜]/g, ' '));
   const via = stops.slice(1, -1);
   return (
     `${DIRECTIONS}&origin=${enc(stops[0]!)}&destination=${enc(stops.at(-1)!)}` +
-    (via.length > 0 ? `&waypoints=${via.map(enc).join('%7C')}` : '') +
+    (via.length > 0 ? `&waypoints=${via.map(encVia).join('%7C')}` : '') +
     `&travelmode=${mode}`
   );
 }
 
 export interface RouteLinkOptions {
-  /** Waypoints per URL; defaults to the mobile limit (3), and is always 0 for transit. */
+  /** Waypoints per URL, 0-9; defaults to the mobile limit (3), and is always 0 for transit. */
   maxWaypoints?: number;
 }
 
@@ -59,7 +62,8 @@ export interface RouteLinks {
  * segment: the Maps URLs docs do not promise waypoints for transit, and an ignored waypoint would show a wrong route.
  */
 export function routeLinks(stops: readonly PlaceInfo[], mode: MapsTravelMode, options: RouteLinkOptions = {}): RouteLinks {
-  const maxWaypoints = mode === 'transit' ? 0 : Math.max(0, Math.floor(options.maxWaypoints ?? MAPS_MOBILE_MAX_WAYPOINTS));
+  const requested = Number.isFinite(options.maxWaypoints) ? Math.floor(options.maxWaypoints!) : MAPS_MOBILE_MAX_WAYPOINTS;
+  const maxWaypoints = mode === 'transit' ? 0 : Math.min(MAPS_MAX_WAYPOINTS, Math.max(0, requested));
   const links: MapsLink[] = [];
   const tooLong: [string, string][] = [];
   let from = 0;
@@ -115,7 +119,9 @@ export function tripMapsLinks(trip: Pick<Trip, 'days' | 'places' | 'constraints'
       if (item.status !== 'skipped' && item.placeId !== null && !place && trip.places.some(p => p.placeId === item.placeId)) withheld.add(item.placeId);
       if (item.status === 'skipped' || !place) continue;
       if (stops.at(-1)?.placeId !== place.placeId) {
-        if (stops.length > 0) modes.push(legs.length === 1 ? LEG_MODE[legs[0]!.mode] : TRIP_MODE[trip.constraints.transportMode]);
+        // Use the leg's mode only when that leg really joins these two stops (a withheld place may sit between them).
+        const leg = legs.length === 1 && legs[0]!.fromPlaceId === stops.at(-1)?.placeId && legs[0]!.toPlaceId === place.placeId ? legs[0] : undefined;
+        if (stops.length > 0) modes.push(leg ? LEG_MODE[leg.mode] : TRIP_MODE[trip.constraints.transportMode]);
         stops.push(place);
       }
       legs = [];

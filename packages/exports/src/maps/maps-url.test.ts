@@ -55,6 +55,18 @@ describe('routeLinks', () => {
     expect(routeLinks(stops, 'driving', { maxWaypoints: 9 }).links).toHaveLength(1);
   });
 
+  it('keeps a waypoint name containing | as one stop', () => {
+    const { links } = routeLinks([place('a'), place('m', { name: 'Café | Le Marais' }), place('b')], 'walking');
+    expect(pointsOf(links[0]!)).toEqual(['a', 'Café   Le Marais', 'b']);
+  });
+
+  it('falls back to the default for an invalid waypoint count and never exceeds 9', () => {
+    const many = Array.from({ length: 20 }, (_, i) => place(`s${i}`));
+    expect(routeLinks(many, 'walking', { maxWaypoints: Number.NaN }).links[0]!.placeIds).toHaveLength(5);
+    expect(routeLinks(many, 'walking', { maxWaypoints: Number.POSITIVE_INFINITY }).links[0]!.placeIds).toHaveLength(5);
+    expect(routeLinks(many, 'walking', { maxWaypoints: 50 }).links[0]!.placeIds).toHaveLength(11);
+  });
+
   it('gives transit one URL per segment, without waypoints', () => {
     const { links } = routeLinks(stops.slice(0, 3), 'transit', { maxWaypoints: 9 });
     expect(links.map(pointsOf)).toEqual([
@@ -97,6 +109,18 @@ describe('tripMapsLinks', () => {
     expect(day2).toMatchObject({ date: '2026-11-02', routes: [], tooLong: [] });
     expect(day2!.places).toHaveLength(1);
     expect(r.withheldPlaceIds).toEqual([]);
+  });
+
+  it('does not borrow a leg mode across a withheld place', () => {
+    const trip = structuredClone(domesticTrip);
+    // Omicho → (garden, withheld) → walk leg garden→museum → museum. The only leg left does not start at Omicho,
+    // so the Omicho→museum segment must use the trip mode (transit), not the walk.
+    trip.places = trip.places.map(p => (p.placeId === 'fx_kenrokuen' ? { ...p, provenance: { ...p.provenance, mayExport: false } } : p));
+    const items = trip.days[0]!.items.filter(i => i.type === 'activity' || i.legId !== 'fx_leg_1');
+    const garden = items.find(i => i.type === 'activity' && i.activityId === 'fx_act_kenrokuen')!;
+    trip.days[0]!.items = [{ ...garden, activityId: 'fx_act_pre', placeId: 'fx_omicho' } as typeof garden, ...items];
+    const day1 = tripMapsLinks(trip).days[0]!;
+    expect(day1.routes[0]).toMatchObject({ travelMode: 'transit', placeIds: ['fx_omicho', 'fx_21c_museum'] });
   });
 
   it('withholds places whose provider does not allow export', () => {

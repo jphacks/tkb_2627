@@ -201,9 +201,38 @@ describe('tripToIcs', () => {
     expect(events.map(e => e.UID)).toEqual(['UID:v.t1@tkb-2627', 'UID:done.t1@tkb-2627']);
     expect(r.ics).not.toContain('非公開の地点');
     expect(events[0]).not.toHaveProperty('GEO');
-    expect(events[1]).toMatchObject({ LOCATION: 'LOCATION:ok', GEO: 'GEO:1;2' });
+    expect(events[1]).toMatchObject({ LOCATION: 'LOCATION:ok', GEO: 'GEO:1.000000;2.000000' });
     expect(events[1]!.DESCRIPTION).toContain('訪問済み');
     expect(r.withheldPlaceIds).toEqual(['secret']);
+  });
+
+  it('leaves out a leg whose provider does not allow export, since its times come from that provider', () => {
+    const trip = structuredClone(overseasTrip);
+    for (const item of trip.days.flatMap(d => d.items)) if (item.type === 'leg' && item.provenance) item.provenance.mayExport = false;
+    const r = tripToIcs(trip, { now: NOW });
+    expect(r.omitted).toEqual([
+      { itemId: 'fx_leg_p1', reason: 'not_exportable' },
+      { itemId: 'fx_leg_p2', reason: 'not_exportable' },
+    ]);
+    expect(r.ics).not.toContain('20261024T131500');
+    expect(r.ics).not.toContain('Métro');
+  });
+
+  it('drops control characters, writes GEO without exponents, a zero-length item as DURATION, and the revision as SEQUENCE', () => {
+    const T = 'Asia/Tokyo';
+    const r = tripToIcs(
+      {
+        ...tripOf(
+          [{ date: '2026-07-01', timeZone: T, items: [act('z', T, '2026-07-01T01:00:00Z', '2026-07-01T01:00:00Z', { title: 'a\u0007b\u0000c\td', placeId: 'tiny' })] }],
+          [place('tiny', T, { location: { lat: 1e-7, lng: -1e-7 } })],
+        ),
+        revision: 4,
+      },
+      { now: NOW },
+    );
+    const lines = unfold(r.ics);
+    expect(lines).toEqual(expect.arrayContaining(['SUMMARY:abc\td', 'GEO:0.000000;-0.000000', 'DURATION:PT0S', 'SEQUENCE:3']));
+    expect(lines.some(l => l.startsWith('DTEND'))).toBe(false);
   });
 
   it('is reproducible for the same input and export time', () => {
