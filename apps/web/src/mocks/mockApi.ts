@@ -13,13 +13,19 @@
  *   them and returns 404/409. generate ignores the request and returns the Kanazawa candidates.
  *   No Idempotency-Key.
  * - K07: only GET. Batches are created by generate and the seed data; constraints are kept inside.
- * - K08: main returns 422 for invalid/needs_revalidation candidates, a missing batch constraints, or a
- *   baseTripId mismatch, 409 for a baseRevision mismatch, and the same trip when a candidate is applied
- *   again. The mock does none of these.
+ * - K08: follows main's order (invalid/needs_revalidation candidate 422, trip lookup, expectedRevision null
+ *   422, baseTripId mismatch 422, baseRevision mismatch 409, then expectedRevision value 409; applying the
+ *   same candidate again with tripId null -> the same trip with 200). The title becomes the candidate title
+ *   (max 200 chars, the area when blank) on create and update, as in main. Still different: no ownership
+ *   check, no 410 for expired batches, no RESTRICTED_ASSET, no ALREADY_COMMITTED for a re-applied candidate
+ *   whose trip was deleted (the mock has no delete), no 422 for a batch without constraints (mock batches
+ *   always keep them) or for a trip that fails the schema. The invalid-candidate path cannot be reached with
+ *   the fixture candidates (they are valid or needs_review).
  * - K10: durationDeltaSeconds is the sum of item durations (main uses the span of each day). Unknown
  *   placeIds and item type changes are not rejected.
  * - K14: no authorization. 'mine' is the demo user's posts and 'groups' is always empty.
- * - K21: cancelling a succeeded job is 409 ALREADY_COMMITTED (main returns 200). No saving stage.
+ * - K21: a succeeded job returns 200 with its batchId, as main does. The mock has no saving stage, so main's
+ *   409 for a cancel during saving or restart recovery is not reproduced.
  */
 import {
   ApplyCandidateRequest,
@@ -66,6 +72,11 @@ export const MOCK_NOTICE = 'モックAPIのデータです。実際の保存・�
 export const MOCK_SOURCE = 'mock' as const;
 /** Added to every generated candidate: the mock ignores the requested conditions. */
 export const GENERATE_MOCK_WARNING = 'モック：入力条件に関わらず金沢のサンプル候補（fixture）を返しています。';
+/**
+ * Seed batch (normal scenario) for replanning the Kanazawa trip: baseTripId is fx_trip_kanazawa and
+ * baseRevision is 1. fx_batch_1 has baseTripId null, so it can only create a new trip.
+ */
+export const MOCK_REPLAN_BATCH_ID = 'mock_batch_replan_kanazawa';
 /** Owner id used for trips created by the mock. */
 export const MOCK_USER_ID = 'fx_user_a';
 /** Author name in the feed fixture that the 'mine' scope returns. */
@@ -178,6 +189,11 @@ function unknownCostIds(trip: Trip): string[] {
     .map(itemId);
 }
 
+/** Trip title from a candidate, as main does: at most 200 characters, the area when the title is blank. */
+function candidateTitle(candidate: PlanCandidate, constraints: TripConstraints): string {
+  return candidate.title.trim() ? candidate.title.slice(0, 200) : constraints.area;
+}
+
 function knownCostByCurrency(trip: Trip): Map<string, number> {
   const map = new Map<string, number>();
   for (const item of allItems(trip)) {
@@ -210,6 +226,8 @@ export function createMockApi(options: MockApiOptions = {}) {
   const trips = new Map<string, Trip>();
   const batches = new Map<string, BatchRecord>();
   const jobs = new Map<string, JobRecord>();
+  /** `${batchId}|${candidateId}` -> tripId created from it, so applying the same candidate again returns that trip. */
+  const appliedNew = new Map<string, string>();
   let feedPosts: PostSummary[] = [];
   let counter = 0;
   const nextId = (prefix: string): string => `${prefix}_${(counter += 1)}`;
@@ -227,6 +245,13 @@ export function createMockApi(options: MockApiOptions = {}) {
     } else {
       const batch = createSamplePlanBatch();
       batches.set(batch.batchId, { batch, constraints: structuredClone(domesticTrip.constraints) });
+      const replan: PlanBatch = {
+        ...createSamplePlanBatch(),
+        batchId: MOCK_REPLAN_BATCH_ID,
+        baseTripId: domesticTrip.tripId,
+        baseRevision: 1,
+      };
+      batches.set(replan.batchId, { batch: replan, constraints: structuredClone(domesticTrip.constraints) });
     }
     feedPosts = createSampleFeedPosts();
   }
@@ -364,13 +389,16 @@ export function createMockApi(options: MockApiOptions = {}) {
       return ok(JobStatus, jobStatus(job, step));
     },
 
-    /** K21 POST /local/v1/jobs/{id}/cancel. After the batch is saved it says so (409) instead of pretending. */
+    /**
+     * K21 POST /local/v1/jobs/{id}/cancel. Queued/running -> 202 cancelled. Finished jobs -> 200 with the
+     * current state (a succeeded job keeps its batchId). There is no saving stage, so no 409.
+     */
     async cancelJob(jobId: string): Promise<MockResult<CancelResult>> {
       await pause();
       const job = jobs.get(jobId);
       if (!job) return fail('NOT_FOUND');
       if (job.cancelled) return ok(CancelResult, { jobId, state: 'cancelled', batchId: null });
-      if (job.current.state === 'succeeded') return fail('ALREADY_COMMITTED', '候補はすでに保存されています。', { batchId: job.batch.batchId });
+      if (job.current.state === 'succeeded') return ok(CancelResult, { jobId, state: 'succeeded', batchId: job.batch.batchId });
       if (job.current.state === 'failed') return ok(CancelResult, { jobId, state: 'failed', batchId: null });
       job.cancelled = true;
       return ok(CancelResult, { jobId, state: 'cancelled', batchId: null }, 202);
@@ -394,17 +422,32 @@ export function createMockApi(options: MockApiOptions = {}) {
       const record = batches.get(req.batchId);
       const candidate = record?.batch.candidates.find(c => c.candidateId === req.candidateId);
       if (!record || !candidate) return fail('NOT_FOUND');
+      // Same order as main: candidate state, then trip ownership / expectedRevision / base trip and revision.
+      if (candidate.validationState === 'invalid' || candidate.validationState === 'needs_revalidation') {
+        return fail('CONSTRAINT_UNSATISFIED', 'この候補は検証が完了していないため採用できません。');
+      }
+      const { batch } = record;
       const stamp = now().toISOString();
 
       if (req.tripId === null) {
+        if (req.expectedRevision !== null) return fail('VALIDATION_FAILED', '新規作成では expectedRevision は指定できません。');
+        const appliedKey = `${req.batchId}|${req.candidateId}`;
+        const priorId = appliedNew.get(appliedKey);
+        const prior = priorId === undefined ? undefined : trips.get(priorId);
+        if (prior) {
+          // Applying the same candidate again returns the trip created the first time (200, not 201).
+          return ok(TripWriteResult, { tripId: prior.tripId, revision: prior.revision, trip: prior, warnings: prior.warnings });
+        }
         const tripId = nextId('mock_trip');
+        const baseTrip = batch.baseTripId === null ? undefined : trips.get(batch.baseTripId);
+        const constraints = baseTrip ? baseTrip.constraints : record.constraints;
         const trip: Trip = {
           schemaVersion: 1,
           tripId,
           ownerId: MOCK_USER_ID,
-          title: candidate.title,
+          title: candidateTitle(candidate, constraints),
           revision: 1,
-          constraints: structuredClone(record.constraints),
+          constraints: structuredClone(constraints),
           days: structuredClone(candidate.days),
           places: structuredClone(record.batch.places),
           validationState: candidate.validationState,
@@ -412,18 +455,31 @@ export function createMockApi(options: MockApiOptions = {}) {
           createdAt: stamp,
           updatedAt: stamp,
         };
+        // Parse before storing, so a contract drift (a mock bug) throws without changing the state.
+        const created = ok(TripWriteResult, { tripId, revision: 1, trip, warnings: trip.warnings }, 201);
         trips.set(tripId, trip);
-        return ok(TripWriteResult, { tripId, revision: 1, trip, warnings: trip.warnings }, 201);
+        appliedNew.set(appliedKey, tripId);
+        return created;
       }
 
       const existing = trips.get(req.tripId);
       if (!existing) return fail('NOT_FOUND');
       if (req.expectedRevision === null) return fail('VALIDATION_FAILED', '更新には expectedRevision が必要です。');
+      if (batch.baseTripId !== req.tripId) {
+        return fail('VALIDATION_FAILED', 'この候補はこの旅程のために生成されたものではありません。');
+      }
+      if (batch.baseRevision !== null && existing.revision !== batch.baseRevision) {
+        return fail('REVISION_CONFLICT', '候補の生成後に旅程が変更されています。', {
+          expectedRevision: batch.baseRevision,
+          currentRevision: existing.revision,
+        });
+      }
       if (existing.revision !== req.expectedRevision) {
         return fail('REVISION_CONFLICT', undefined, { expectedRevision: req.expectedRevision, currentRevision: existing.revision });
       }
       const updated: Trip = {
         ...existing,
+        title: candidateTitle(candidate, existing.constraints),
         revision: existing.revision + 1,
         days: structuredClone(candidate.days),
         places: structuredClone(record.batch.places),
@@ -431,8 +487,9 @@ export function createMockApi(options: MockApiOptions = {}) {
         warnings: [...candidate.warnings],
         updatedAt: stamp,
       };
+      const written = ok(TripWriteResult, { tripId: updated.tripId, revision: updated.revision, trip: updated, warnings: updated.warnings });
       trips.set(updated.tripId, updated);
-      return ok(TripWriteResult, { tripId: updated.tripId, revision: updated.revision, trip: updated, warnings: updated.warnings });
+      return written;
     },
 
     /**
