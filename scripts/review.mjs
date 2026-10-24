@@ -30,7 +30,8 @@ if (!existsSync(join(root, '.env')) && existsSync(join(root, '.env.example'))) {
 mkdirSync(dir, { recursive: true });
 
 // 2) Ports: API on loopback only, web on all interfaces.
-const apiPort = await pickPort(4310, 4319, p => canListenAll(p));
+// 4311 is the personal (Claude) entry; never take it for the review API.
+const apiPort = await pickPort(4310, 4310, p => canListenAll(p)) ?? await pickPort(4320, 4329, p => canListenAll(p));
 const webPort = await pickPort(5173, 5182, p => canListenAll(p));
 if (apiPort === null || webPort === null) die('空いているポートが見つかりません。他のアプリを閉じてからやり直してください。');
 
