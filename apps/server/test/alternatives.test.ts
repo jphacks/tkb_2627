@@ -610,4 +610,20 @@ describe('per-user budget is charged only when the call goes out (O-c)', () => {
     expect(budget.remaining('u1')).toBe(4);
     expect(wrapped.exhausted()).toBe(false);
   });
+  it('a user with no allowance left never touches the shared DailyQuota or the per-input cap (B6)', async () => {
+    const { CallBudget, DailyQuota, Gate } = await import('@tkb/travel-data');
+    const { limitRoutesPerUser } = await import('../src/trips/generation/live-route-budget.ts');
+    const budget = createUserRouteBudget({ perDay: 0 });
+    let fetched = 0;
+    const inner: RouteProvider = { route: async (_r, b) => ({ leg: (await b.run('sku', 'k', async () => { fetched++; return legOf(1, 2, 600); })) as TravelLeg, reason: null }) };
+    const wrapped = limitRoutesPerUser(inner, 'u1', budget);
+    const req = { from: place(1), to: place(2), departureUtc: '2026-11-01T00:00:00Z', mode: 'car' } as never;
+    const quota = new DailyQuota({ sku: 10 });
+    const cb = new CallBudget({ maxCalls: 5, quota, gate: new Gate(1) });
+    for (let i = 0; i < 3; i++) await expect(wrapped.route(req, cb)).rejects.toMatchObject({ code: 'PROVIDER_RATE_LIMIT' });
+    expect(fetched).toBe(0);
+    expect(quota.remaining('sku')).toBe(10);
+    expect(cb.callsUsed).toBe(0);
+    expect(wrapped.exhausted()).toBe(true);
+  });
 });

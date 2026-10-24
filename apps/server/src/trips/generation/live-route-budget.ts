@@ -59,7 +59,8 @@ export function sharedUserRouteBudget(env: Readonly<Record<string, string | unde
 
 /**
  * A RouteProvider whose live calls are charged to the user's daily budget. The unit is taken inside the call that the
- * global CallBudget has already admitted (quota and gate), so a request that never goes out costs the user nothing;
+ * global CallBudget has already admitted (quota and gate), so a request that never goes out costs the user nothing.
+ * A user with no allowance left is refused before the CallBudget runs, so the shared DailyQuota is never touched;
  * a retry that goes out again is charged again. When the budget is used up the pair comes back unknown
  * (`rate_limited`), never as an error, and `exhausted()` tells the caller to say so.
  */
@@ -68,14 +69,21 @@ export function limitRoutesPerUser(routes: RouteProvider, userId: string, budget
   return {
     route(request, callBudget) {
       const charged = {
-        run: <T>(sku: string, key: string, call: (signal: AbortSignal) => Promise<T>) =>
-          callBudget.run(sku, key, async signal => {
+        run: <T>(sku: string, key: string, call: (signal: AbortSignal) => Promise<T>) => {
+          // Refuse before the global CallBudget reserves a DailyQuota unit, so a user whose allowance is used up
+          // can never spend the server-wide quota shared by everyone.
+          if (budget.remaining(userId) <= 0) {
+            hit = true;
+            return Promise.reject(new PolicyError('PROVIDER_RATE_LIMIT', 'daily live route budget used up', false));
+          }
+          return callBudget.run(sku, key, async signal => {
             if (!budget.take(userId)) {
               hit = true;
               throw new PolicyError('PROVIDER_RATE_LIMIT', 'daily live route budget used up', false);
             }
             return call(signal);
-          }),
+          });
+        },
       } as unknown as CallBudget;
       return routes.route(request, charged);
     },
