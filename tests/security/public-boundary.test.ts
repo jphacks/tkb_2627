@@ -1,11 +1,12 @@
 // T05-1/2/6: the public (shared) entry cannot reach the personal AI entry; no SSRF path; Host/XFF spoofing.
 import { connect } from 'node:net';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp as buildLocal } from '../../apps/ai-local/src/app.ts';
 import { loadConfig as loadLocal } from '../../apps/ai-local/src/config.ts';
-import { createSharedClient, UPSTREAM_PATHS } from '../../apps/ai-local/src/shared-client/index.ts';
+import { createPlanBatchClient, createSharedClient, UPSTREAM_PATHS } from '../../apps/ai-local/src/shared-client/index.ts';
 import { ApiError } from '@tkb/contracts';
-import { PW, fixtureDist, makeShared, read, rel, sourceFiles, type Shared } from './helpers.ts';
+import { PW, fixtureDist, makeShared, ROOT, read, rel, sourceFiles, type Shared } from './helpers.ts';
 
 const apps: { close(): Promise<unknown> }[] = [];
 afterEach(async () => {
@@ -187,6 +188,13 @@ describe('T05-2 SSRF: no path lets a client choose an outbound URL', () => {
     expect(redirects).toEqual(['manual']); // the real fetch would not follow; the 3xx surfaces as an error
     expect(seen).toEqual(['http://127.0.0.1:4310/api/v1/auth/login']); // exactly one call, no second hop to the Location host
     expect(r).toEqual({ ok: false, code: 'UNAVAILABLE', retryable: true });
+  });
+
+  it('PlanBatchClient exposes exactly save/find and no /local route forwards arbitrary input to it', () => {
+    expect(Object.keys(createPlanBatchClient({ baseUrl: 'http://127.0.0.1:4310' }))).toEqual(['savePlanBatch', 'findPlanBatchByGenerationId']);
+    const app = read(join(ROOT, 'apps/ai-local/src/app.ts'));
+    // The only uses: restart-recovery lookup with a server-derived operationKey (nothing from the request).
+    expect([...app.matchAll(/planClient\.\w+\(([^)]*)\)/g)].map(m => m[0])).toEqual(['planClient.findPlanBatchByGenerationId(s, operationKey)']);
   });
 
   it('shared client exposes no method other than login (no generic proxy)', () => {

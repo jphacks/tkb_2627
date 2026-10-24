@@ -63,6 +63,16 @@ describe('T05-3 no unauthorised billing', () => {
     expect(hits).toEqual(['apps/ai-local/src/runner-factory.ts']);
   });
 
+  it('O5: the server never imports @tkb/ai or the runner factory; only ai-local app.ts imports the factory', () => {
+    for (const f of sourceFiles(['apps/server/src'], { skipTests: true })) {
+      expect(read(f), rel(f)).not.toMatch(/@tkb\/ai\b|runner-factory|claude-runner/);
+    }
+    const importers = sourceFiles(['apps', 'packages', 'scripts'], { skipTests: true })
+      .filter(f => /from\s+['"][^'"]*runner-factory(\.ts)?['"]/.test(read(f)))
+      .map(rel);
+    expect(importers).toEqual(['apps/ai-local/src/app.ts']);
+  });
+
   it('no dependency on an LLM/provider SDK in any package.json or the lockfile', () => {
     for (const p of ['package.json', 'apps/server/package.json', 'apps/ai-local/package.json', 'apps/web/package.json', 'packages/ai/package.json', 'packages/planner/package.json', 'packages/travel-data/package.json']) {
       if (existsSync(join(ROOT, p))) expect(read(join(ROOT, p)), p).not.toMatch(/@anthropic-ai|"openai"|@google\/generative-ai|@google\/genai|langchain|ollama/i);

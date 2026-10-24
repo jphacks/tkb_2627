@@ -94,6 +94,7 @@ export interface PreflightResult {
   authMethod?: string;
   loggedIn?: boolean;
   subscriptionType?: string;
+  apiProvider?: string;
   reason: PreflightReason;
 }
 
@@ -146,7 +147,7 @@ export async function checkClaudeCli(opts: CheckClaudeCliOptions): Promise<Prefl
       new AbortController().signal,
     );
     if (out.kind === 'spawn_error') return out.notFound ? { found: false, reason: 'CLI_NOT_FOUND' } : notAuth(true);
-    if (out.kind !== 'exited') return notAuth(true);
+    if (out.kind !== 'exited' || out.code !== 0) return notAuth(true);
     let j: unknown;
     try {
       j = JSON.parse(out.stdout);
@@ -157,21 +158,21 @@ export async function checkClaudeCli(opts: CheckClaudeCliOptions): Promise<Prefl
     const loggedIn = o.loggedIn === true;
     const authMethod = safeStr(o.authMethod);
     const subscriptionType = safeStr(o.subscriptionType);
+    const apiProvider = safeStr(o.apiProvider);
     const res: PreflightResult = {
       found: true,
       loggedIn,
       ...(authMethod ? { authMethod } : {}),
       ...(subscriptionType ? { subscriptionType } : {}),
+      ...(apiProvider ? { apiProvider } : {}),
       reason: null,
     };
-    if (!loggedIn || authMethod !== 'claude.ai') res.reason = 'CLI_NOT_AUTHENTICATED';
+    if (!loggedIn || authMethod !== 'claude.ai' || apiProvider !== 'firstParty') res.reason = 'CLI_NOT_AUTHENTICATED';
     return res;
   } finally {
     await rm(cwd, { recursive: true, force: true }).catch(() => {});
   }
 }
-
-const PREFLIGHT_TTL_MS = 60_000;
 
 export interface ClaudeCodeRunnerOptions {
   bin: string;
@@ -188,22 +189,8 @@ export interface ClaudeCodeRunnerOptions {
   exitGraceMs?: number;
   /** Environment source (default process.env); injectable for tests. */
   env?: NodeJS.ProcessEnv;
-  /** Auth preflight consulted before every run (default: checkClaudeCli, cached for 60s). Not ok -> run() refuses. */
+  /** Auth preflight consulted before every run (default: a fresh checkClaudeCli before every spawn, no cache). Not ok -> run() refuses. */
   preflight?: () => Promise<PreflightResult>;
-}
-
-/** Caches the preflight outcome for 60s; concurrent callers share one in-flight check. */
-function cachedPreflight(check: () => Promise<PreflightResult>): () => Promise<PreflightResult> {
-  let at = 0;
-  let cur: Promise<PreflightResult> | null = null;
-  return () => {
-    const now = Date.now();
-    if (!cur || now - at > PREFLIGHT_TTL_MS) {
-      at = now;
-      cur = check();
-    }
-    return cur;
-  };
 }
 
 const mk = (code: SafeError['code'], message: string, retryable: boolean): SafeError => ({
@@ -243,9 +230,8 @@ export class ClaudeCodeRunner implements Runner {
       exitGraceMs: opts.exitGraceMs ?? 1000,
       env: opts.env ?? process.env,
     };
-    this.preflight = opts.preflight ?? cachedPreflight(() =>
-      checkClaudeCli({ bin: this.o.bin, env: this.o.env, spawnImpl: this.o.spawnImpl, ...(this.o.tmpRoot ? { tmpRoot: this.o.tmpRoot } : {}) }),
-    );
+    this.preflight = opts.preflight ??
+      (() => checkClaudeCli({ bin: this.o.bin, env: this.o.env, spawnImpl: this.o.spawnImpl, ...(this.o.tmpRoot ? { tmpRoot: this.o.tmpRoot } : {}) }));
   }
 
   async run(rawInput: GenerationInput, signal: AbortSignal): Promise<RunnerResult> {
@@ -465,7 +451,6 @@ function execChild(o: ExecOpts, args: string[], prompt: string, cwd: string, sig
     child.stdin?.end(prompt);
   });
 }
-
 
 type Exec =
   | { kind: 'aborted' }

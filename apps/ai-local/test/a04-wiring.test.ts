@@ -12,7 +12,7 @@ import { operationKeyOf } from '../src/jobs/index.ts';
 import { createRunner } from '../src/runner-factory.ts';
 import { createPlanBatchClient, type FetchLike, type UpstreamHolder } from '../src/shared-client/index.ts';
 
-const OK: PreflightResult = { found: true, loggedIn: true, authMethod: 'claude.ai', reason: null };
+const OK: PreflightResult = { found: true, loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty', reason: null };
 const cfg = (env: NodeJS.ProcessEnv = {}): PersonalConfig => loadConfig({ PERSONAL_OWNER_USER_ID: 'u1', ...env });
 const ON = { ALLOW_CLAUDE_EXECUTION: 'true', CLAUDE_TERMS_ACK: 'true' };
 
@@ -54,6 +54,28 @@ describe('createRunner matrix', () => {
     const r = await c.runner.run({ schemaVersion: SCHEMA_VERSION, constraints: { area: 'x', startDate: '2026-11-01', endDate: '2026-11-02', timeZone: 'Asia/Tokyo', transportMode: 'transit' }, allowedPlaceIds: [], facts: [], fixedActivities: [], instructions: 'x' }, new AbortController().signal);
     expect(r.error?.code).toBe('CLI_NOT_AUTHENTICATED');
     expect(c.status()).toMatchObject({ available: false, reason: 'CLI_NOT_AUTHENTICATED' });
+  });
+});
+
+describe('capabilities refresh (B1)', () => {
+  it('available flips to false via the capabilities endpoint after the TTL when the preflight turns bad; real runs use a fresh preflight', async () => {
+    let t = 0;
+    let pf: PreflightResult = OK;
+    let n = 0;
+    const app = buildApp({ config: cfg(ON), pairing: new PairingStore({ ttlMs: 1000 }), runnerDeps: { preflight: async () => { n++; return pf; }, now: () => t } });
+    try {
+      const get = async () => Capabilities.parse((await app.inject({ url: '/local/v1/capabilities', headers: { host: '127.0.0.1:4311' } })).json()).aiGeneration;
+      expect(await get()).toEqual({ available: true, runner: 'claude-code', reason: null });
+      pf = { found: true, loggedIn: false, reason: 'CLI_NOT_AUTHENTICATED' };
+      t = 30_000;
+      expect((await get()).available).toBe(true); // still within the TTL: cached
+      expect(n).toBe(1);
+      t = 61_000;
+      expect(await get()).toEqual({ available: false, runner: 'claude-code', reason: 'CLI_NOT_AUTHENTICATED' });
+      expect(n).toBe(2);
+    } finally {
+      await app.close();
+    }
   });
 });
 

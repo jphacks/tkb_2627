@@ -328,8 +328,11 @@ const AUTH_FAKE = `#!/usr/bin/env node
 const fs = require('node:fs');
 fs.writeFileSync(process.env.FAKE_REC, JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd(), envKeys: Object.keys(process.env) }));
 switch (process.env.FAKE_AUTH) {
-  case 'ok': return console.log(JSON.stringify({ loggedIn: true, authMethod: 'claude.ai', subscriptionType: 'max', email: 'me@example.com', orgName: 'SECRETORG' }));
+  case 'ok': return console.log(JSON.stringify({ loggedIn: true, authMethod: 'claude.ai', subscriptionType: 'max', apiProvider: 'firstParty', email: 'me@example.com', orgName: 'SECRETORG' }));
   case 'out': return console.log(JSON.stringify({ loggedIn: false, authMethod: 'none' }));
+  case 'bedrock': return console.log(JSON.stringify({ loggedIn: true, authMethod: 'claude.ai', apiProvider: 'bedrock' }));
+  case 'noprovider': return console.log(JSON.stringify({ loggedIn: true, authMethod: 'claude.ai' }));
+  case 'exit1': console.log(JSON.stringify({ loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty' })); return process.exit(1);
   case 'apikey': return console.log(JSON.stringify({ loggedIn: true, authMethod: 'api_key' }));
   case 'garbage': return console.log('<<< not json');
   case 'hang': return setInterval(() => {}, 1000);
@@ -353,7 +356,7 @@ describe.skipIf(process.platform === 'win32')('checkClaudeCli (W1 preflight)', (
 
   it('logged in via claude.ai is ok, keeps only whitelisted fields, runs exact args in a removed cwd', async () => {
     const res = await chk('ok');
-    expect(res).toEqual({ found: true, loggedIn: true, authMethod: 'claude.ai', subscriptionType: 'max', reason: null });
+    expect(res).toEqual({ found: true, loggedIn: true, authMethod: 'claude.ai', subscriptionType: 'max', apiProvider: 'firstParty', reason: null });
     expect(JSON.stringify(res)).not.toMatch(/example\.com|SECRETORG/);
     const rec = JSON.parse(readFileSync(r, 'utf8')) as { argv: string[]; cwd: string };
     expect(rec.argv).toEqual(['auth', 'status', '--json']);
@@ -364,6 +367,7 @@ describe.skipIf(process.platform === 'win32')('checkClaudeCli (W1 preflight)', (
     const k = await chk('apikey');
     expect(k).toMatchObject({ found: true, loggedIn: true, authMethod: 'api_key', reason: 'CLI_NOT_AUTHENTICATED' });
     expect((await chk('garbage')).reason).toBe('CLI_NOT_AUTHENTICATED');
+    for (const m of ['bedrock', 'noprovider', 'exit1']) expect((await chk(m)).reason, m).toBe('CLI_NOT_AUTHENTICATED');
   });
   it('timeout is not ok; missing binary is CLI_NOT_FOUND', async () => {
     expect((await chk('hang', { timeoutMs: 300, killGraceMs: 100 })).reason).toBe('CLI_NOT_AUTHENTICATED');
@@ -372,6 +376,17 @@ describe.skipIf(process.platform === 'win32')('checkClaudeCli (W1 preflight)', (
   it('billing env refuses without spawning', async () => {
     const res = await chk('ok', {}, { ANTHROPIC_API_KEY: 'x' });
     expect(res.reason).toBe('CLI_NOT_AUTHENTICATED');
+  });
+  it('default run() gate runs a fresh preflight before every spawn (no cache)', async () => {
+    let n = 0;
+    const pf = async () => {
+      n++;
+      return { found: true, loggedIn: true, authMethod: 'claude.ai', reason: null as null };
+    };
+    const rr = runner('success', { preflight: pf });
+    await rr.run(input, new AbortController().signal);
+    await rr.run(input, new AbortController().signal);
+    expect(n).toBe(2);
   });
   it('run() refuses when the preflight is not ok and does not spawn; default preflight uses the fake CLI', async () => {
     const calls: string[] = [];

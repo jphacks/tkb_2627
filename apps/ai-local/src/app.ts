@@ -78,7 +78,7 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     runner: 'fake',
     reason: !config.allowClaudeExecution ? 'CLAUDE_EXECUTION_DISABLED' : 'TERMS_NOT_CONFIRMED',
   });
-  const runnerStatus = (): RunnerStatus => (opts.runner || !created ? flagStatus() : created.status());
+  const runnerStatus = async (): Promise<RunnerStatus> => (opts.runner || !created ? flagStatus() : created.refresh());
   const jobs = new JobManager({
     runner: lazyRunner,
     queueLimit: config.aiQueueLimit,
@@ -164,7 +164,7 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     Capabilities.parse({
       entry: 'personal',
       // available:true only when the factory returned the real runner AND the (cached) preflight is ok.
-      aiGeneration: runnerStatus(),
+      aiGeneration: await runnerStatus(),
       storage: 'shared-server',
       dataMode: 'fixture',
       schemaVersion: SCHEMA_VERSION,
