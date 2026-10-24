@@ -326,11 +326,15 @@ describe('capabilities', () => {
 });
 
 describe('static safety', () => {
-  it('no child_process in ai-local/ai sources', () => {
+  it('no child_process in ai-local/ai sources except the A04 Claude runner', () => {
     const walk = (d: string): string[] =>
       readdirSync(d).flatMap(f => (statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)]));
     const files = [...walk(join(__dirname, '../src')), ...walk(join(__dirname, '../../../packages/ai/src'))].filter(f => f.endsWith('.ts'));
     expect(files.length).toBeGreaterThan(5);
-    for (const f of files) expect(readFileSync(f, 'utf8'), f).not.toMatch(/child_process|\bspawn\(|\bexecFile?\(/);
+    for (const f of files) {
+      // The only process launcher; its spawn hygiene is asserted in tests/security/spend-and-secrets.test.ts.
+      if (f.endsWith(join('packages', 'ai', 'src', 'claude-runner.ts'))) continue;
+      expect(readFileSync(f, 'utf8'), f).not.toMatch(/child_process|\bspawn\(|\bexecFile?\(/);
+    }
   });
 });
