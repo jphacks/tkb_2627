@@ -32,7 +32,8 @@ function sendError(reply: FastifyReply, requestId: string, code: ErrorCode, mess
 export function clientErrorCode(status: number): ErrorCode {
   if (status === 401) return 'UNAUTHENTICATED';
   if (status === 403) return 'FORBIDDEN';
-  if (status === 404 || status === 405) return 'NOT_FOUND';
+  // 414: Fastify rejects an over-long path parameter; an id that long cannot exist (K09/K23 expect 404).
+  if (status === 404 || status === 405 || status === 414) return 'NOT_FOUND';
   if (status === 429) return 'RATE_LIMITED';
   return 'VALIDATION_FAILED';
 }
@@ -43,6 +44,8 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     logger: false,
     genReqId: () => randomUUID(),
     requestIdHeader: false,
+    // Ids may be up to 128 chars (contracts Id); longer params become 414 → K23 404.
+    maxParamLength: 128,
     trustProxy: config.trustProxy,
     // Malformed URLs (FST_ERR_BAD_URL etc.) also use the K23 error shape.
     frameworkErrors: (err, req, reply) => {

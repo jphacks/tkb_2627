@@ -17,5 +17,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["apps/*/src", "apps/*/test", "packages/*/src", "packages/*/test", "vitest.config.ts"]
+  "include": ["apps/*/src", "apps/*/test", "packages/*/src", "packages/*/test", "vitest.config.ts", "tests/access", "tests/ai", "tests/jobs"]
 }
