@@ -398,11 +398,27 @@ describe('fixture cases: empty and feed', () => {
     expect(posts[0]).toEqual(sampleFeed.items[0]);
   });
 
-  it('car trip changes only transit legs: ids, times and activities are unchanged and the warning mentions fuel/tolls', () => {
+  it('car trip changes only transit legs: ids, activities and walking legs are unchanged and the warning mentions fuel/tolls', () => {
     const car = createCarTrip();
     expect(itemsOf(car).map(itemId)).toEqual(itemsOf(domesticTrip).map(itemId));
-    expect(itemsOf(car).map(startOf)).toEqual(itemsOf(domesticTrip).map(startOf));
     expect(itemsOf(car).filter(i => i.type === 'activity')).toEqual(itemsOf(domesticTrip).filter(i => i.type === 'activity'));
+    expect(itemsOf(car).filter(i => i.type === 'leg' && i.mode === 'walk')).toEqual(
+      itemsOf(domesticTrip).filter(i => i.type === 'leg' && i.mode === 'walk'),
+    );
     expect(car.warnings.join('')).toMatch(/燃料|高速/);
+  });
+
+  it('car legs do not borrow public-transit times: time, duration, line, platform, transfers, fare and provenance are unknown', () => {
+    const transitIds = itemsOf(domesticTrip).filter(i => i.type === 'leg' && i.mode === 'transit').map(itemId);
+    expect(transitIds.length).toBeGreaterThan(0);
+    const carLegs = itemsOf(createCarTrip()).filter(i => i.type === 'leg' && i.mode === 'car');
+    expect(carLegs.map(itemId)).toEqual(transitIds);
+    for (const l of carLegs) {
+      if (l.type !== 'leg') continue;
+      expect([l.departure, l.arrival, l.durationSeconds, l.lineName, l.platform, l.transfers, l.fare, l.provenance]).toEqual(
+        [null, null, null, null, null, null, null, null],
+      );
+      expect(l.dataStatus).toBe('unknown');
+    }
   });
 });

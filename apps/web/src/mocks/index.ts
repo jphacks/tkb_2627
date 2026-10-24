@@ -8,4 +8,4 @@ export {
   createMockApi,
   toProbe,
 } from './mockApi.ts';
-export type { MockApi, MockApiOptions, MockResult, MockScenario } from './mockApi.ts';
+export type { GenerateOptions, MockApi, MockApiOptions, MockProbe, MockResult, MockScenario } from './mockApi.ts';
