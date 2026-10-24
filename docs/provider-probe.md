@@ -159,3 +159,33 @@ M1 が #14 で承認した4回の残り2回です。`GoogleRoutesProvider` を�
 - D02（呼出し上限と保存可否の分類）：上の既定値（`place_id` だけ保存してよい、それ以外は false）で着手できます。M1 の判断で変わる部分は、設定で切り替えられるようにします。
 - D04：国内の公共交通は「取得不可」として返します（上記のとおり、短距離・長距離の2区間とも0件）。パリの公共交通は、運賃が返らないこともあり得ます。
 - 運賃・乗り場・営業時間が返らない地域では、その値を `null` と `dataStatus: 'unknown'` のままにします。AI で補完しません（docs/01_SPEC.md）。
+
+## T06 実接続の区別（2026-10-25、M4）
+
+国内と海外のそれぞれで、公共交通と車の4ケースを実際の API で確かめ、取得できた項目と取得できなかった項目を記録します（Issue #52）。
+
+実施：2026-10-25 02:20 JST、M4 の PC で `PROVIDER_MODE=live` です。アプリの経路（共有サーバーの K05 `POST /api/v1/planning-context`）を通して呼んでいます。**Google の呼出しは計7回**で、内訳は Places Text Search 4回と Routes 3回です。上限の8回に収まっています。応答の本文、場所名、座標は記録していません。
+
+| ケース | 地域 | 手段 | 結果 | 取得できた項目 | 未取得項目 | dataStatus | 呼出し回数 |
+|---|---|---|---|---|---|---|---|
+| 国内公共交通 | 金沢（Asia/Tokyo） | transit | 場所は取得できた。経路は**取得不可** | 場所4件（place_id など） | 経路のすべて（所要時間、運賃、路線、乗り場）、営業時間、写真、説明 | 場所は `verified`（google_places）、経路はなし（`unsupported_region`） | Places 2（金沢の2ケースで共有）、Routes 0（adapter が事前に判定） |
+| 国内車 | 金沢（Asia/Tokyo） | car | 成功 | 場所4件、所要時間 | 運賃、路線、乗り場、乗換、駅名（車なので該当しない）、営業時間、写真、説明 | 場所 `verified`、経路 `verified`（google_routes） | Routes 1 |
+| 海外公共交通 | パリ（Europe/Paris） | transit | 成功 | 場所4件、所要時間、**運賃、路線名、乗換回数、乗車・降車駅** | **乗り場（ホーム）**、営業時間、写真、説明 | 場所 `verified`、経路 `verified`（google_routes） | Places 2（パリの2ケースで共有）、Routes 1 |
+| 海外車 | パリ（Europe/Paris） | car | 成功 | 場所4件、所要時間 | 運賃、路線、乗り場、乗換（車なので該当しない）、営業時間、写真、説明 | 場所 `verified`、経路 `verified`（google_routes） | Routes 1 |
+
+分かったこと：
+
+- **国内の公共交通は、Google Routes で取得できません**（D01 の probe の結果、A06 と I02 の live 確認と同じ結論）。
+  - 国内では、時刻のついた旅程を出すには車を使います。公共交通を選んだ場合は、所要時間を「不明」として返します。
+  - 運賃、乗り場、所要時間は、AI で補うことも推測で埋めることもしません。
+- **海外の公共交通（パリ）**：運賃、路線名、乗換回数、駅名は返りましたが、乗り場は返りませんでした。乗り場は `null` のまま返します。
+- **場所**：K05 の live 検索の field mask では、営業時間、写真、説明は返りません（4件とも `null`）。営業時間を取るには、Enterprise SKU で別に呼ぶ必要があります（上記「呼出し計画」の kanazawa-hours を参照）。
+- 4ケースとも、K05 は HTTP 200 を返し、`dataMode=live` でした。取得できなかった項目は `unknown` に入っています（例：`fare`、`platform`、`openingHours`。国内では `legs` も入ります）。
+
+実行方法（共有サーバを in-process で起動し K05 を呼ぶ。エリアごとに 2 リクエスト）:
+
+1. 計画だけ確認（Google 呼出し 0 回）: `npx tsx tests/live/t06-live.mts`
+2. 実接続（`GOOGLE_MAPS_SERVER_KEY` を環境変数または `.env` に置く）: `npx tsx tests/live/t06-live.mts --live`
+3. 結果は標準出力と `.local/t06/last-run.json`（git 管理外）。キー、生の応答、場所名、住所、座標は出力しない。
+4. 呼出し数: エリアごとに Places 2 回（観光・レストラン）＋ Routes 2 回（transit・car）、2 エリアで合計 8 回。上限は 8 回で、超える呼出しは送信前に例外にする。Places の同一検索は 2 回目のリクエストでスクリプト内キャッシュを使い、再送しない。
+5. CI で動かせる検査（ネットワークなし）: `npx vitest run --config tests/live/vitest.config.ts`
