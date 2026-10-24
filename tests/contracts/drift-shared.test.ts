@@ -194,7 +194,8 @@ describe('shared server: every error is an ApiError with the K23 status', () => 
     expectErr('malformed json', bad, 'VALIDATION_FAILED');
     const text = await w.app.inject({ method: 'POST', url: '/api/v1/groups', payload: 'name=x', headers: { cookie: o.cookie, 'x-csrf-token': o.csrf, 'content-type': 'text/plain' } });
     expect(text.statusCode).toBeGreaterThanOrEqual(400);
-    expectErr('text/plain', text, text.statusCode === 415 ? 'VALIDATION_FAILED' : (JSON.parse(text.body).code));
+    expectErr('text/plain', text, 'VALIDATION_FAILED');
+    expect(text.statusCode).toBe(422);
   });
   it('error bodies never contain stack traces, SQL or file paths', async () => {
     for (const [label, run] of rows()) {

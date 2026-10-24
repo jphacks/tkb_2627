@@ -56,7 +56,7 @@ describe('date-time values (R07)', () => {
   });
   // Documented limit: the check is Intl-based, which resolves zone names case-insensitively, so non-canonical
   // spellings pass. Stored values should be normalized by the writer (FINDINGS C-3).
-  it('documents: a lower-case zone name (asia/tokyo) is accepted today', () => {
+  it('documents [FINDINGS C-3: 修正時は反転]: a lower-case zone name (asia/tokyo) is accepted today', () => {
     expect(ok(TimeZone, 'asia/tokyo')).toBe(true);
     expect(ok(TimeZone, 'utc')).toBe(false);
   });
@@ -97,7 +97,7 @@ describe('currency and money', () => {
   });
   // Documented limit: only the shape is checked. Syntactically valid but unassigned codes are accepted
   // ('XXX' is ISO "no currency"; 'ZZZ' is unassigned). Rejecting them needs a code list in the contract.
-  it('documents: ISO-shaped but unassigned codes (XXX, ZZZ) are accepted today', () => {
+  it('documents [FINDINGS C-1: 修正時は反転]: ISO-shaped but unassigned codes (XXX, ZZZ) are accepted today', () => {
     expect(ok(Money, { amountMinor: 1, currency: 'XXX' })).toBe(true);
     expect(ok(Money, { amountMinor: 1, currency: 'ZZZ' })).toBe(true);
   });
@@ -274,6 +274,8 @@ function outline(node: unknown): unknown {
   return { type: n.type ?? '(none)' };
 }
 
+// Scope: these tests pin the behaviour of zod 4.6.7 `z.toJSONSchema` with its default (io: 'output'). The function the
+// CLI path will use to build --json-schema does not exist yet (A04); when it is added, point these tests at it.
 describe('AI input/output JSON Schema (K03, R28)', () => {
   const inputSchema = z.toJSONSchema(GenerationInput) as Record<string, unknown>;
   const outputSchema = z.toJSONSchema(PlanBlueprint) as Record<string, unknown>;
@@ -423,7 +425,7 @@ describe('PlanBlueprint output rejection (K03)', () => {
     expect(ok(PlanBlueprint, bp([cand({ activityOrder: ['not_in_allowed_ids'] })]))).toBe(true);
     expect(ok(PlanBlueprint, bp([cand(), cand()]))).toBe(true);
   });
-  it('documents: unknown keys on the blueprint are stripped (non-strict), the CLI JSON Schema closes the object instead', () => {
+  it('documents [FINDINGS C-6: 修正時は反転]: unknown keys on the blueprint are stripped (non-strict), the CLI JSON Schema closes the object instead', () => {
     const r = PlanBlueprint.parse(bp([cand({ extra: 1 })], { note: 'x' }));
     expect(r).not.toHaveProperty('note');
     expect(r.candidates[0]).not.toHaveProperty('extra');

@@ -73,7 +73,7 @@ describe('fixtures: every export is registered and valid', () => {
   });
   it('every fixture is JSON-stable (no undefined, Date or class instances)', () => {
     for (const v of [fx.domesticTrip, fx.overseasTrip, fx.createSamplePlanBatch(), fx.sampleFeed, fx.sampleApiErrors, fx.extraJobStatuses, fx.sampleJobStatuses]) {
-      expect(JSON.parse(JSON.stringify(v))).toEqual(v);
+      expect(JSON.parse(JSON.stringify(v))).toStrictEqual(v);
     }
   });
   it('sampleJobStatuses covers every terminal and active state; a succeeded job is at stage done (K02)', () => {
@@ -137,10 +137,12 @@ describe('screen mock API: every response in every scenario', () => {
       if (j.ok && j.data.batchId) batchId = j.data.batchId;
       if (j.ok && ['succeeded', 'failed', 'cancelled'].includes(j.data.state)) break;
     }
+    if (scenario === 'normal' || scenario === 'budgetUnknown') expect(batchId, 'a polled job reaches succeeded with a batchId').not.toBeNull();
     if (batchId) {
       const b = check('getPlanBatch', await api.getPlanBatch(batchId), PlanBatch);
       const cand = b.ok ? b.data.candidates[0]?.candidateId : undefined;
       const applied = check('applyCandidate', await api.applyCandidate({ batchId, candidateId: cand ?? 'x', tripId: null, expectedRevision: null }), TripWriteResult);
+      if (scenario === 'normal' || scenario === 'budgetUnknown') expect(applied.ok, 'applyCandidate').toBe(true);
       if (applied.ok) {
         check('patchTrip', await api.patchTrip(applied.data.tripId, { expectedRevision: 1, operations: [{ op: 'set_title', title: 'new' }] }), TripPatchResult);
         check('patchTrip conflict', await api.patchTrip(applied.data.tripId, { expectedRevision: 1, operations: [{ op: 'set_title', title: 'again' }] }), TripPatchResult);

@@ -26,11 +26,14 @@ M-8 以外の比較（M-1〜M-7 以外の status・error code・details のキ�
 
 ## 契約が表現していないこと（試験で現状を固定した。直すかは M1 判断）
 - C-1 通貨コード：`^[A-Z]{3}$` の形式だけを検査する。未割当の `ZZZ` と ISO の「通貨なし」`XXX` は受理される。コード表の検査が必要なら契約の変更になる。
-- C-2 JSON Schema（`z.toJSONSchema`）は `endDate >= startDate`、`activityOrder` の重複なし、`replan` の必須項目を表現できない。CLI の出力は必ず Zod で再検証する（BlueprintParser）。出力側は `additionalProperties: false` と必須項目、`candidates` 1〜3件、`activityOrder` 1件以上を持つ。
+- C-2 JSON Schema（`z.toJSONSchema`）は `endDate >= startDate`、`activityOrder` の重複なし、`replan` の必須項目を表現できない。CLI の出力は必ず Zod で再検証する（BlueprintParser）。出力側は `additionalProperties: false` と必須項目、`candidates` 1〜3件、`activityOrder` 1件以上を持つ。なお JSON Schema の試験が固定しているのは zod 4.6.7 の `z.toJSONSchema` 既定（`io: 'output'`）の挙動だけで、CLI が使う schema 生成関数は未実装（A04）。生成関数の新設は contracts の変更になるため、M1 が A04 前に判断する。
 - C-3 `TimeZone` は Intl の判定なので `asia/tokyo` のような大文字小文字違いも受理する。`utc` は受理されない。保存前に正規化するかは未決。
 - C-4 `ZonedTime.utc` が、その日付やゾーンと整合するかは検査しない。夏時間の隙間や日付またぎは planner 側の責務。
 - C-5 `PlanBlueprint` の未知の placeId と重複 candidateId は、スキーマでは通る。BlueprintParser（allowedPlaceIds）が拒否する。
-- C-6 `PlanBlueprint` は strict ではなく、未知キーを黙って落とす。CLI 側の JSON Schema が closed object なので、通常は混入しない。
+- C-6 `PlanBlueprint` は strict ではなく、未知キーを黙って落とす。CLI 側の JSON Schema が closed object なので、通常は混入しない。この「closed object」も上記の `z.toJSONSchema` 既定の挙動であり、A04 で生成関数を作るときに維持されるかを試験で確認する。
+- C-7 `JobStatus` は `succeeded` かつ stage が `done` 以外の組を受理する（強制しているのは実装側 state.ts だけ）。M-1 の修正後に contracts へ refine を追加する予定。
+
+現状固定の試験は、題名に `[FINDINGS C-n: 修正時は反転]` を付けた（C-1、C-3、C-6）。
 
 ## 担保の分担
 - 本タスクで新規：契約と実装の一致（共有・本人用）、モックと実装の一致、AI の JSON Schema とブループリント拒否、値の境界、fixture と mockApi 全応答の一括検証。

@@ -15,7 +15,12 @@ export function expectOk<S extends z.ZodType>(label: string, res: Res, status: n
   expect(res.statusCode, `${label}: status (body ${res.body.slice(0, 200)})`).toBe(status);
   const r = schema.safeParse(res.json());
   expect(r.success, `${label}: schema ${r.success ? '' : JSON.stringify(r.error.issues.slice(0, 3))}`).toBe(true);
-  return (r as { data: z.infer<S> }).data;
+  const data = (r as { data: z.infer<S> }).data;
+  // Unknown keys are stripped by non-strict schemas; a raw key the schema does not know is a drift (new field not in the contract).
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    expect(Object.keys(res.json() as object).sort(), `${label}: top-level keys differ between response and schema`).toEqual(Object.keys(data).sort());
+  }
+  return data;
 }
 
 /**

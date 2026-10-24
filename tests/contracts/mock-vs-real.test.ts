@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import {
-  ApiError, CancelResult, Feed, JobAccepted, JobStatus, PlanBatch, Trip, TripList, TripPatchResult, TripWriteResult,
+  ApiError, CancelResult, ERROR_HTTP_STATUS, Feed, JobAccepted, JobStatus, PlanBatch, Trip, TripList, TripPatchResult, TripWriteResult,
 } from '@tkb/contracts';
 import { createSamplePlanBatch, domesticTrip, sampleFeed } from '@tkb/fixtures';
 import { insertTrip } from '@tkb/db';
@@ -363,6 +363,7 @@ describe('error envelope parity', () => {
       expect(r.ok, label).toBe(false);
       if (r.ok) continue;
       expect(ApiError.safeParse(r.error).success, label).toBe(true);
+      expect(r.status, label).toBe(ERROR_HTTP_STATUS[r.error.code]);
       expect(typeof r.error.requestId, label).toBe('string');
       expect(r.error.retryable, label).toBe(false);
     }
