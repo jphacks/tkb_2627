@@ -1,4 +1,5 @@
 import type { LatLng, PlaceInfo, TimeZone } from '@tkb/contracts';
+import { toLocal } from '@tkb/planner';
 import type { RouteProvider, RouteUnknownReason } from '@tkb/travel-data';
 
 /** The traveller's position as a place, in memory only (D-2): it is never stored, returned or put in an operation. */
@@ -21,11 +22,24 @@ export function syntheticCurrentPlace(point: LatLng, timeZone: TimeZone): PlaceI
 
 export const reasonKey = (from: string, to: string, mode: string, departureUtc: string) => `${from}>${to}|${mode}|${departureUtc}`;
 
-/** Wraps a provider and records why each pair came back without a leg (e.g. no_route after the last train). */
+const LATE_SERVICE_MS = 60 * 60_000;
+
+/**
+ * Wraps a provider and records why each pair came back without a leg (e.g. no_route after the last train).
+ * B1: a transit answer that departs more than an hour after the asked time, or on a later local date, is the next
+ * service (e.g. tomorrow's first train), not a way to travel now: it is turned into `no_route`. Fixture legs carry
+ * sample times that do not follow the request, so they are exempt.
+ */
 export function recordingRoutes(inner: RouteProvider, sink: Map<string, RouteUnknownReason>): RouteProvider {
   return {
     async route(request, budget) {
-      const r = await inner.route(request, budget);
+      let r = await inner.route(request, budget);
+      const dep = r.leg?.departure;
+      if (r.leg && dep && request.mode === 'transit' && r.leg.dataStatus !== 'fixture') {
+        const asked = Date.parse(request.departureUtc);
+        const later = toLocal({ utc: dep.utc, timeZone: request.from.timeZone }).date > toLocal({ utc: request.departureUtc, timeZone: request.from.timeZone }).date;
+        if (Date.parse(dep.utc) - asked > LATE_SERVICE_MS || later) r = { leg: null, reason: 'no_route' };
+      }
       if (!r.leg && r.reason) sink.set(reasonKey(request.from.placeId, request.to.placeId, request.mode, request.departureUtc), r.reason);
       return r;
     },

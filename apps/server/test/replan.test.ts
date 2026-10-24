@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
 import { Trip, type PlaceInfo, type TravelLeg } from '@tkb/contracts';
 import { createUser, getTripForOwner, insertTrip, migrate, openDatabase } from '@tkb/db';
-import { FixtureRouteProvider } from '@tkb/travel-data';
+import { FixtureRouteProvider, type RouteProvider, type RouteRequest } from '@tkb/travel-data';
 import type { ReplanResult } from '../src/trips/replan/index.ts';
 import { registerTrips } from '../src/trips/index.ts';
 import { createUserRouteBudget } from '../src/trips/generation/live-route-budget.ts';
@@ -40,19 +40,19 @@ const mkTrip = (items: unknown[]) =>
   Trip.parse({
     schemaVersion: 1, tripId: 't_a06', ownerId: 'user_a', title: 'T', revision: 1,
     constraints: { area: 'x', startDate: '2026-11-01', endDate: '2026-11-02', timeZone: tz, transportMode: 'transit' },
-    days: [{ date: '2026-11-01', timeZone: tz, items }, { date: '2026-11-02', timeZone: tz, items: [] }],
+    days: [{ date: '2026-11-01', timeZone: tz, items }, { date: '2026-11-02', timeZone: tz, items: [{ ...act('d2', 1, 60, 110), start: { utc: '2026-11-02T01:00:00Z', timeZone: tz }, end: { utc: '2026-11-02T01:50:00Z', timeZone: tz } }] }],
     places: [1, 2, 3, 4, 5].map(place), validationState: 'valid', warnings: [],
     createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z',
   });
 
-function mini(items: unknown[], nowMin: number | string) {
+function mini(items: unknown[], nowMin: number | string, routes: RouteProvider = new FixtureRouteProvider(MATRIX)) {
   const db = openDatabase(':memory:');
   migrate(db);
   createUser(db, { id: 'user_a', loginId: 'user-a', passwordHash: 'x', displayName: 'A', createdAt: '2026-10-24T03:00:00Z' });
   insertTrip(db, 'user_a', mkTrip(items), '2026-10-01T00:00:00Z');
   const app = Fastify({ logger: false });
   app.decorate('authenticate', async (req: { actor?: unknown }) => void (req.actor = { userId: 'user_a', displayName: 'A' }));
-  const sources: ContextSources = { ...createContextSources({ providerMode: 'fixture' }), routes: new FixtureRouteProvider(MATRIX) };
+  const sources: ContextSources = { ...createContextSources({ providerMode: 'fixture' }), routes };
   const now = typeof nowMin === 'number' ? atMs(nowMin) : Date.parse(nowMin);
   registerTrips(app, db, { providerMode: 'fixture' } as never, { replan: { sources, routeBudget: createUserRouteBudget({ perDay: 20 }), now: () => now } });
   closers.push(app);
@@ -66,7 +66,7 @@ const startMin = (a: any) => (Date.parse(a.start.utc) - atMs(0)) / 60000;
 const unavailable = { kind: 'unavailable', reason: 'denied' } as const;
 
 /** a1(P1) done, a2(P2) was planned 10:00 (min 60), a3(P3) 11:00. Now is 10:30 (min 90): the connection was missed. */
-const items = () => [act('a1', 1, 0, 50), act('a2', 2, 60, 110), act('a3', 3, 120, 170)];
+const items = () => [act('a1', 1, 0, 30), act('a2', 2, 35, 85), act('a3', 3, 120, 170)];
 
 describe('A06 replan smoke', () => {
   it('re-times what is left from now, starting at the last completed place, and PATCH agrees with the preview', async () => {
@@ -129,5 +129,81 @@ describe('A06 replan smoke', () => {
     const o = await out.post(ok);
     expect(o.statusCode).toBe(422);
     expect(o.json()).toMatchObject({ code: 'CONSTRAINT_UNSATISFIED', details: { reason: 'outside_trip' } });
+  });
+
+  const LATE = (t: string) => `「${t}」までの公共交通の経路が見つかりませんでした（終電後の可能性があります）。徒歩・タクシーなどはご自身で確認してください。`;
+
+  it('B1: a live transit answer that is tomorrow\'s first train is treated as no route (終電後)', async () => {
+    const nextMorning: RouteProvider = {
+      route: async (q: RouteRequest) => ({
+        leg: { ...legOf(1, 2, 1800), legId: 'live1', dataStatus: 'verified', departure: { utc: '2026-11-02T20:30:00Z', timeZone: tz }, arrival: { utc: '2026-11-02T21:00:00Z', timeZone: tz } },
+        reason: q.mode === 'transit' ? null : null,
+      }),
+    };
+    const { post } = mini([act('a1', 1, 700, 740), act('a2', 2, 745, 775)], 850, nextMorning);
+    const r = await post({ expectedRevision: 1, location: unavailable, completedActivityIds: ['a1'] });
+    expect(r.statusCode, r.payload).toBe(200);
+    const c = (r.json() as ReplanResult).candidates[0]!;
+    expect(byId(c.trip, 'a2').start).toBeNull();
+    expect(c.warnings).toContain(LATE('a2'));
+    expect(c.unknown).toContain('legs');
+  });
+
+  it('B2: routes are looked up at the projected time, so a stop pushed past 22:00 triggers 終電後', async () => {
+    const asked: string[] = [];
+    const lateAware: RouteProvider = {
+      route: async (q: RouteRequest) => {
+        asked.push(`${q.from.placeId}>${q.to.placeId}@${q.departureUtc}`);
+        const m = MATRIX.find(l => l.fromPlaceId === q.from.placeId && l.toPlaceId === q.to.placeId);
+        return Date.parse(q.departureUtc) >= atMs(780) || !m ? { leg: null, reason: 'no_route' as const } : { leg: structuredClone(m), reason: null };
+      },
+    };
+    // a2 was 21:00-21:30, a3 21:35-21:50; now is 21:55, so both are re-timed: a2 22:05-22:35, then P2 -> P3 leaves 22:35.
+    const { post } = mini([act('a1', 1, 660, 700), act('a2', 2, 720, 750), act('a3', 3, 755, 770)], 775, lateAware);
+    const r = await post({ expectedRevision: 1, location: unavailable, completedActivityIds: ['a1'] });
+    expect(r.statusCode, r.payload).toBe(200);
+    const c = (r.json() as ReplanResult).candidates[0]!;
+    expect(asked).toContain(`P2>P3@${at(815).utc}`);
+    expect(byId(c.trip, 'a3').start).toBeNull();
+    expect(c.warnings).toContain(LATE('a3'));
+    expect(c.unknown).toContain('legs');
+  });
+
+  it('N1: a reservation between stops gets its legs (f1 unreachable, a2 still placed after it)', async () => {
+    const f1 = act('f1', 5, 120, 150, { fixed: true });
+    const { post } = mini([act('a1', 1, 0, 30), act('a2', 2, 35, 65), f1], 100);
+    const r = await post({ expectedRevision: 1, location: unavailable, completedActivityIds: ['a1'] });
+    expect(r.statusCode, r.payload).toBe(200);
+    const c = (r.json() as ReplanResult).candidates[0]!;
+    expect(byId(c.trip, 'f1')).toEqual(f1);
+    expect(c.reservationConflicts).toContainEqual({ activityId: 'f1', reason: 'unreachable' });
+    expect(byId(c.trip, 'a2').start).not.toBeNull();
+    expect(c.untimed).toEqual([]);
+  });
+
+  it('N4: completedActivityIds on another day are refused', async () => {
+    const { post } = mini(items(), 90);
+    const r = await post({ expectedRevision: 1, location: unavailable, completedActivityIds: ['d2'] });
+    expect(r.statusCode).toBe(422);
+  });
+
+  it('N5: a stop completed ahead of time keeps its time without overlap warnings', async () => {
+    const { post } = mini([act('a1', 1, 0, 30), act('a2', 2, 35, 85), act('a3', 3, 300, 330)], 90);
+    const r = await post({ expectedRevision: 1, location: unavailable, completedActivityIds: ['a1', 'a3'] });
+    expect(r.statusCode, r.payload).toBe(200);
+    const c = (r.json() as ReplanResult).candidates[0]!;
+    expect(byId(c.trip, 'a3')).toEqual({ ...act('a3', 3, 300, 330), status: 'completed' });
+    expect(c.warnings.filter(w => w.includes('重なって') || w.includes('始まります') || w.includes('収まりません'))).toEqual([]);
+  });
+
+  it('N6: a planned stop that is under way now stays as it is and the rest starts after it', async () => {
+    const a2 = act('a2', 2, 80, 110);
+    const { post } = mini([act('a1', 1, 0, 30), a2, act('a3', 3, 120, 150)], 90);
+    const r = await post({ expectedRevision: 1, location: unavailable, completedActivityIds: ['a1'] });
+    expect(r.statusCode, r.payload).toBe(200);
+    const res = r.json() as ReplanResult;
+    expect(res.start).toEqual({ kind: 'ongoing', placeId: 'P2' });
+    expect(byId(res.candidates[0]!.trip, 'a2')).toEqual(a2);
+    expect(startMin(byId(res.candidates[0]!.trip, 'a3'))).toBeGreaterThanOrEqual(120);
   });
 });

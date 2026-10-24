@@ -38,12 +38,13 @@ const stayMinutes = (a: Activity): number | undefined => {
   return m > 0 ? m : undefined;
 };
 
-/** Sets `completed` on the given activities. An unknown id, a leg id or a skipped activity is refused. */
-export function markCompleted(trip: Trip, ids: string[]): Trip {
+/** Sets `completed` on the given activities of day `dayIndex`. An unknown id, a leg id, another day's id or a skipped activity is refused. */
+export function markCompleted(trip: Trip, ids: string[], dayIndex: number): Trip {
   if (ids.length === 0) return trip;
   const want = new Set(ids);
   const found = new Set<string>();
-  const days = trip.days.map(d => ({
+  // N4: only the current day may change; an id on another day is refused like an unknown one.
+  const days = trip.days.map((d, i) => i !== dayIndex ? d : ({
     ...d,
     items: d.items.map((it): ItineraryItem => {
       if (it.type !== 'activity' || !want.has(it.activityId)) return it;
@@ -85,7 +86,8 @@ export function splitDay(day: TripDay, nowMs: number, missedIds: ReadonlySet<str
     else if (fixed && ((e !== null && e <= nowMs) || missedIds.has(a.activityId))) {
       kind.set(a.activityId, 'past');
       missed.push(a);
-    } else if (fixed && s !== null && e !== null && s <= nowMs && nowMs < e) {
+    } else if (s !== null && e !== null && s <= nowMs && nowMs < e) {
+      // N6: whatever is happening now (fixed or not) stays as it is; the rest starts after it.
       kind.set(a.activityId, 'ongoing');
       ongoing.push(a);
     } else {
@@ -140,15 +142,17 @@ export async function planReplan(ctx: ReplanContext): Promise<ReplanOutcome> {
   if (loc.kind === 'place' && !ctx.edited.places.some(p => p.placeId === loc.placeId)) {
     throw new ReplanError('VALIDATION_FAILED', 'Invalid request.');
   }
-  const edited = markCompleted(ctx.edited, req.completedActivityIds);
-  const di = currentDayIndex(edited, nowMs);
+  const di = currentDayIndex(ctx.edited, nowMs);
   if (di < 0) throw new ReplanError('CONSTRAINT_UNSATISFIED', 'The current time is outside the trip.', { reason: 'outside_trip' });
+  const edited = markCompleted(ctx.edited, req.completedActivityIds, di);
   const day = edited.days[di]!;
   const dayMode: TravelLeg['mode'] = edited.constraints.transportModeByDate?.[day.date] ?? edited.constraints.transportMode;
 
   const pins = new Set(req.fixedActivityIds);
   const isFixed = (a: Activity) => a.fixed || pins.has(a.activityId);
   const split = splitDay(day, nowMs, new Set(req.missedActivityIds), pins);
+  // Limits: a DST fold (the same wall-clock time twice) is read by sequenceDay as the later instant, and the replan
+  // never runs past 23:59 of the current day (after that the remaining stops are untimed, not moved to the next day).
   const cursor = ceilMinute(Math.max(nowMs, ...split.ongoing.map(a => Date.parse(a.end!.utc))));
   const cursorLocal = toLocal(msToZ(cursor, day.timeZone));
   const overflow = cursorLocal.date > day.date;
@@ -181,26 +185,44 @@ export async function planReplan(ctx: ReplanContext): Promise<ReplanOutcome> {
     unknown.add('start');
   }
 
-  // Legs: start -> first stop, consecutive stops, and each flexible stop -> the first future anchor.
+  // Legs, looked up at the projected time (from the cursor, advancing by travel and stay) rather than the stale original
+  // times. N1: start -> each stop up to the first with a known stay, the chain of stops, and each future anchor with
+  // every flexible stop in both directions (a stop pushed after the anchor needs anchor -> stop).
   const lateNoRoute = new Set<string>();
-  const dayStartIso = (ms: number) => msToZ(ms, day.timeZone).utc;
+  const iso = (ms: number) => msToZ(ms, day.timeZone).utc;
   const pair = async (from: string | null, to: Activity, depMs: number) => {
     if (from === null || to.placeId === null || from === to.placeId) return;
     const mode = legModeFor(places.get(from), places.get(to.placeId), dayMode);
-    const dep = dayStartIso(depMs);
+    const dep = iso(depMs);
     await book.ensure(from, to.placeId, mode, dep);
     if (book.has(from, to.placeId, mode)) return;
     if (ctx.reasons.get(reasonKey(from, to.placeId, mode, dep)) === 'no_route' && mode === 'transit' && toLocal(msToZ(depMs, day.timeZone)).time >= LATE_FROM) {
       lateNoRoute.add(to.activityId);
     }
   };
-  const depAfter = (a: Activity) => Math.max(cursor, a.end ? Date.parse(a.end.utc) : 0);
   const stops = split.stops;
+  const anchors = stops.filter(a => isFixed(a) && a.start && a.end);
   if (!overflow && stops.length > 0) {
-    await pair(startId, stops[0]!, cursor);
-    for (let i = 1; i < stops.length; i++) await pair(stops[i - 1]!.placeId, stops[i]!, depAfter(stops[i - 1]!));
-    const anchor = stops.filter(a => isFixed(a) && a.start && a.end).sort((a, b) => Date.parse(a.start!.utc) - Date.parse(b.start!.utc))[0];
-    if (anchor) for (const a of stops) if (!isFixed(a) && a !== anchor) await pair(a.placeId, anchor, depAfter(a));
+    let t = cursor;
+    let prev = startId;
+    for (const [i, a] of stops.entries()) {
+      if (i === 0 || stayMinutes(stops[i - 1]!) === undefined) await pair(startId, a, cursor);
+      await pair(prev, a, t);
+      const leg = prev !== null && a.placeId !== null && prev !== a.placeId ? book.get(prev, a.placeId, legModeFor(places.get(prev), places.get(a.placeId), dayMode)) : null;
+      if (leg?.durationSeconds != null) t += leg.durationSeconds * 1000;
+      if (isFixed(a) && a.start && a.end) t = Math.max(t, Date.parse(a.end.utc));
+      else t += (stayMinutes(a) ?? 0) * 60_000;
+      prev = a.placeId ?? prev;
+    }
+    const sorted = [...anchors].sort((x, y) => Date.parse(x.start!.utc) - Date.parse(y.start!.utc));
+    if (sorted[0]) await pair(startId, sorted[0], cursor);
+    for (const anchor of sorted) {
+      for (const a of stops) {
+        if (isFixed(a)) continue;
+        await pair(a.placeId, anchor, cursor);
+        await pair(anchor.placeId, a, Date.parse(anchor.end!.utc));
+      }
+    }
   }
   // A start whose first leg is unknown is dropped (not every remaining stop is left untimed because of it).
   const first = stops[0];
@@ -319,7 +341,11 @@ export async function planReplan(ctx: ReplanContext): Promise<ReplanOutcome> {
   const v = validateSchedule({ days: finished, places: edited.places, constraints: edited.constraints, fixedActivities, dayStarts });
   const firstSeq = sequenced.find((i): i is Activity => i.type === 'activity');
   const gapExpected = startLeg !== null || startId === null;
-  const issues = v.issues.filter(i => (i.dayIndex === di || i.dayIndex === null) && !(gapExpected && i.code === 'leg_missing' && firstSeq && i.refs[1] === firstSeq.activityId));
+  // N5: a stop marked completed ahead of time keeps its own time, so items re-timed from now may sit before it. That
+  // order is the traveller's doing, not a planning error: issues about such a stop are not reported.
+  const doneAhead = new Set(prefixActs.filter(a => a.status === 'completed' && a.start && Date.parse(a.start.utc) > nowMs).map(a => a.activityId));
+  const issues = v.issues.filter(i => (i.dayIndex === di || i.dayIndex === null) && !i.refs.some(r => doneAhead.has(r)) && !(gapExpected && i.code === 'leg_missing' && firstSeq && i.refs[1] === firstSeq.activityId));
+
   for (const issue of issues) warnings.push(issue.message);
 
   // Reservations: never moved or dropped; say when they cannot be kept.
