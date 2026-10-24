@@ -5,6 +5,7 @@ import { GenerateApp } from './screens/generate/GenerateApp.tsx';
 import { ItineraryScreen } from './screens/itinerary/ItineraryScreen.tsx';
 import { parseItineraryHash } from './screens/itinerary/route.ts';
 import { U01App } from './screens/U01App.tsx';
+import { SocialApp } from './screens/social/SocialApp.tsx';
 import { ConnectionChips } from './shell/ConnectionChips.tsx';
 import { TripViewer } from './shell/TripViewer.tsx';
 
@@ -38,5 +39,8 @@ export function App() {
   if (hash === '#conditions') return <ConditionsApp />;
   // U05 generation flow: conditions -> progress -> candidate compare -> apply -> U04 map (#33).
   if (hash === '#generate') return <GenerateApp />;
+  // U08: SNS and group screens (#social), and the K17 invite link /invite#<token> (shared server).
+  if (typeof location !== 'undefined' && location.pathname === '/invite') return <SocialApp initialMode="server" inviteToken={location.hash.slice(1) || null} />;
+  if (hash === '#social') return <SocialApp />;
   return <U01App />;
 }
