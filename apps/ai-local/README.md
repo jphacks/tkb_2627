@@ -13,3 +13,9 @@
 - 生成はfake runnerだけで行い、実CLIは起動しません（A04でA01の了承後に実装）。正しい結果が出ても、候補保存（S04/A04）ができるまではジョブを`failed/UNAVAILABLE`で終えます。
 - `baseTripId`、`expectedRevision`、`mode=replan`は422を返します（所有確認はA04、replanはA06）。
 - 上流へのloginリクエストにはOriginを付けません。S02がOriginなしのリクエストを受け付けているためです。必須になった場合は、固定の共有originを付けます。
+
+## ジョブの再試行（A03）
+- ジョブ状態は`AI_JOB_DIR`（既定`.local/ai-local/`、Git対象外）にメタデータだけ保存します。制約・プロンプト・cookieは保存しません。
+- 再起動時に未完了のジョブは`failed/WORKER_RESTARTED`になります。保存済みのbatchが見つかればその`batchId`で`succeeded`になります。
+- `WORKER_RESTARTED`は**同じIdempotency-Key**で再送できます（新しい試行が同じoperationKeyで始まり、先にbatchの有無を確認します）。
+- それ以外の`retryable=true`のエラー（`CLI_EXIT`、`CLI_TIMEOUT`等）は、同じキーでは同じ失敗結果が返ります。再試行には**新しいIdempotency-Key**が必要です。ただし保存段階以降の失敗は保存結果が不明なため、同じキーでの再送が新しい試行になります。

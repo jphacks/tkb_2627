@@ -20,7 +20,7 @@ import { FakeRunner, type Runner } from '@tkb/ai';
 import { PairingStore, safeEqual } from './auth/pairing.ts';
 import { SESSION_COOKIE, SessionStore, parseCookies, sessionCookieHeader, type LocalSession } from './auth/session.ts';
 import type { PersonalConfig } from './config.ts';
-import { JobManager } from './jobs/index.ts';
+import { FileJobStore, JobManager, type JobManagerOptions, type JobStore } from './jobs/index.ts';
 import { createSharedClient, type FetchLike, type SharedClient } from './shared-client/index.ts';
 
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,128}$/;
@@ -35,6 +35,12 @@ export interface BuildAppOptions {
   sharedClient?: SharedClient;
   /** Place IDs a runner result may reference (A04 will derive these from permitted facts). */
   allowedPlaceIds?: readonly string[];
+  /** Job journal; default: file store at config.jobDir if set, else in-memory. */
+  jobStore?: JobStore;
+  /** Restart recovery lookup (S04/A04). */
+  findSavedBatch?: (ownerId: string, operationKey: string) => Promise<string | null>;
+  /** Candidate saver (S04/A04). Absent: valid output fails UNAVAILABLE. */
+  save?: JobManagerOptions['save'];
 }
 
 function clientErrorCode(status: number): ErrorCode {
@@ -45,10 +51,10 @@ function clientErrorCode(status: number): ErrorCode {
   return 'VALIDATION_FAILED';
 }
 
-function sendError(reply: FastifyReply, requestId: string, code: ErrorCode, message: string, retryable = false) {
+function sendError(reply: FastifyReply, requestId: string, code: ErrorCode, message: string, retryable = false, details?: Record<string, unknown>) {
   return reply
     .status(ERROR_HTTP_STATUS[code])
-    .send(ApiError.parse({ code, message, retryable, requestId }));
+    .send(ApiError.parse({ code, message, retryable, requestId, ...(details ? { details } : {}) }));
 }
 
 export function buildApp(opts: BuildAppOptions): FastifyInstance {
@@ -62,6 +68,10 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     queueLimit: config.aiQueueLimit,
     timeoutMs: config.aiTimeoutMs,
     allowedPlaceIds: opts.allowedPlaceIds ?? [],
+    store: opts.jobStore ?? (config.jobDir ? new FileJobStore(config.jobDir) : undefined),
+    findSavedBatch: opts.findSavedBatch,
+    save: opts.save,
+    saveTimeoutMs: config.saveTimeoutMs,
   });
   const sessionOf = (req: FastifyRequest): LocalSession | null =>
     sessions.get(parseCookies(req.headers.cookie)[SESSION_COOKIE]);
@@ -98,6 +108,9 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     if (typeof csrf !== 'string' || !safeEqual(csrf, session.csrfToken)) {
       return sendError(reply, req.id, 'FORBIDDEN', 'Forbidden.');
     }
+  });
+  app.addHook('onReady', async () => {
+    await jobs.ready; // restart recovery must finish before serving
   });
   app.addHook('onSend', async (req, reply) => {
     reply.header('x-request-id', req.id);
@@ -218,7 +231,9 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     const r = id.success ? jobs.cancel(owner, id.data) : null;
     if (!r) return sendError(reply, req.id, 'NOT_FOUND', 'Not found.');
     // K21: 202 when the cancel was accepted for a queued/running job, 200 if already terminal.
-    const { wasActive, ...result } = r;
+    // After the save stage the result may already be committed: never claim cancelled (409, batchId shown).
+    if (r.committed) return sendError(reply, req.id, 'ALREADY_COMMITTED', 'The result is already being saved.', false, r.batchId ? { batchId: r.batchId } : undefined);
+    const { wasActive, committed: _c, ...result } = r;
     return reply.status(wasActive ? 202 : 200).send(CancelResult.parse(result));
   });
 
