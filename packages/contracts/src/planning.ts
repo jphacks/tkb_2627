@@ -128,4 +128,49 @@ export type TripDiff = z.infer<typeof TripDiff>;
 export const TripPatchResult = TripWriteResult.extend({ diff: TripDiff });
 export type TripPatchResult = z.infer<typeof TripPatchResult>;
 
+/** K10 extension (A05): POST /api/v1/trips/{id}/alternatives. Preview only; nothing is stored. Same strict body as PATCH. */
+export const AlternativesRequest = TripPatchRequest.extend({
+  maxAlternatives: z.number().int().min(1).max(3).optional(),
+});
+export type AlternativesRequest = z.infer<typeof AlternativesRequest>;
+
+/** requested: the edit as asked; reorder: same stops re-sequenced (day end assumed 23:59, labelled as packed); swap: a nearby substitute. */
+export const AlternativeKind = z.enum(['requested', 'reorder', 'swap']);
+export type AlternativeKind = z.infer<typeof AlternativeKind>;
+
+export const AffectedSegment = z.object({
+  dayIndex: z.number().int().nonnegative(),
+  fromItemId: Id,
+  toItemId: Id,
+  /** known: a leg with a duration; none: nothing to travel; unknown: not obtained, left untimed (never 0). */
+  travel: z.enum(['known', 'none', 'unknown']),
+});
+export type AffectedSegment = z.infer<typeof AffectedSegment>;
+
+export const AlternativeCandidate = z.object({
+  candidateId: Id,
+  kind: AlternativeKind,
+  summary: z.string(),
+  /** Previewed itinerary for display. Live route details may appear here but are never in `operations`. */
+  trip: Trip,
+  /** Exactly what K10 PATCH returns for `operations`. */
+  diff: TripDiff,
+  /** Only when live route details were left out of `operations`: the same measures with them. Display only. */
+  displayOnly: z.object({ knownCostDelta: z.array(Money), durationDeltaSeconds: z.number().int().nullable() }).optional(),
+  affectedSegments: z.array(AffectedSegment),
+  validationState: ValidationState,
+  warnings: z.array(z.string()),
+  unknown: z.array(z.string()),
+  /** Send to PATCH /api/v1/trips/{id} with expectedRevision = baseRevision to apply. null: cannot be written. */
+  operations: z.array(TripOperation).nullable(),
+});
+export type AlternativeCandidate = z.infer<typeof AlternativeCandidate>;
+
+export const AlternativesResult = z.object({
+  tripId: Id,
+  baseRevision: z.number().int().positive(),
+  candidates: z.array(AlternativeCandidate),
+});
+export type AlternativesResult = z.infer<typeof AlternativesResult>;
+
 export { LatLng };

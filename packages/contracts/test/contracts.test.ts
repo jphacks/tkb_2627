@@ -166,3 +166,22 @@ describe('compatible additions (R6 per-day mode, R05 transit stops)', () => {
     expect(Trip.shape.days.element.shape.items.element.safeParse({ ...leg, transit: { boardingStop: 1 } }).success).toBe(false);
   });
 });
+
+describe('K10 extension: alternatives preview (A05, schemaVersion stays 1)', () => {
+  const op = { op: 'move' as const, itemId: 'a1', toDayIndex: 0, toPosition: 2 };
+  it('request is the strict PATCH body plus optional maxAlternatives 1..3', async () => {
+    const { AlternativesRequest } = await import('../src/index.ts');
+    expect(AlternativesRequest.parse({ expectedRevision: 1, operations: [op] })).toEqual({ expectedRevision: 1, operations: [op] });
+    expect(AlternativesRequest.safeParse({ expectedRevision: 1, operations: [op], maxAlternatives: 3 }).success).toBe(true);
+    for (const bad of [0, 4, 1.5, '2']) expect(AlternativesRequest.safeParse({ expectedRevision: 1, operations: [op], maxAlternatives: bad }).success).toBe(false);
+    expect(AlternativesRequest.safeParse({ expectedRevision: 1, operations: [op], extra: true }).success).toBe(false);
+    expect(AlternativesRequest.safeParse({ expectedRevision: 1, operations: [] }).success).toBe(false);
+  });
+  it('affected segments never report unknown travel as 0, and operations may be null', async () => {
+    const { AffectedSegment, AlternativeCandidate } = await import('../src/index.ts');
+    expect(AffectedSegment.safeParse({ dayIndex: 0, fromItemId: 'a', toItemId: 'b', travel: 'unknown' }).success).toBe(true);
+    expect(AffectedSegment.safeParse({ dayIndex: 0, fromItemId: 'a', toItemId: 'b', travel: 0 }).success).toBe(false);
+    expect(AlternativeCandidate.shape.operations.safeParse(null).success).toBe(true);
+    expect(AlternativeCandidate.shape.kind.options).toEqual(['requested', 'reorder', 'swap']);
+  });
+});
