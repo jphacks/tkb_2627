@@ -1,8 +1,8 @@
 # 入出力契約 v4
 
-自作アプリの実装先契約。まだ稼働しているAPIではない。数値とIDは説明用。正本はmodel/contracts.json。
+自作アプリの実装先契約。一部のルートは稼働している（下記）。数値とIDは説明用。正本はmodel/contracts.json。
 
-**実装（B02）**：Zod v4のschema v1を`packages/contracts`に置いた。表現の決まり、資料間の食い違いの解決、破壊的変更の手順は`packages/contracts/README.md`を参照。2026-10-24時点で稼働しているのは`/api/v1/health`、`/api/v1/capabilities`（:4310）、`/local/v1/health`、`/local/v1/capabilities`（:4311）だけ。
+**実装（B02）**：Zod v4のschema v1を`packages/contracts`に置いた。表現の決まり、資料間の食い違いの解決、破壊的変更の手順は`packages/contracts/README.md`を参照。2026-10-24時点で稼働しているルートは次のとおり。共有サーバー（:4310）：`GET /api/v1/health`、`GET /api/v1/capabilities`、`POST /api/v1/auth/login`、`POST /api/v1/auth/logout`、`GET /api/v1/auth/me`、`POST /api/v1/plan-batches`、`GET /api/v1/plan-batches`（`?generationId=`）、`GET /api/v1/plan-batches/{id}`、`POST /api/v1/trips/apply-candidate`、`GET /api/v1/trips`、`GET /api/v1/trips/{id}`、`PATCH /api/v1/trips/{id}`、`POST /api/v1/posts/preview`、`POST /api/v1/posts`、`GET /api/v1/posts`、`GET /api/v1/posts/{id}`、`PATCH /api/v1/posts/{id}`、`DELETE /api/v1/posts/{id}`、`POST /api/v1/posts/{id}/copy`、`POST /api/v1/groups`、`GET /api/v1/groups`、`POST /api/v1/groups/{id}/invites`、`POST /api/v1/group-invites/accept`、`DELETE /api/v1/groups/{id}/members/{userId}`。本人用App Server（:4311）：`GET /local/v1/health`、`GET /local/v1/capabilities`、`POST /local/v1/pair`、`POST /local/v1/auth/login`、`GET /local/v1/session`、`POST /local/v1/generations`、`GET /local/v1/jobs/{jobId}`、`POST /local/v1/jobs/{jobId}/cancel`。
 
 ## K01 本人の旅程生成受付
 
@@ -10,13 +10,13 @@
 
 権限：ローカルセッション＋Host/Origin/CSRF＋本人所有権
 
-入力：GenerateRequest：constraints、baseTripId?、expectedRevision?。Idempotency-Keyヘッダー。ownerIdは受け付けない。
+入力：GenerateRequest：constraints、mode?（generate／replan）、baseTripId?、expectedRevision?。Idempotency-Keyヘッダー（必須）。ownerIdと未知のキーは受け付けない。
 
 戻り値：202 JobAccepted：jobId、state=queued、pollAfterMs。完成した旅程はこの応答に含めない。
 
-失敗：401本人未認証／403利用不可／409同じキーで入力違い／422入力不正／429待機上限
+失敗：401本人未認証／403利用不可／409 IDEMPOTENCY_CONFLICT（同じキーで入力違い）／422入力不正（Idempotency-Key不正を含む）／429 QUEUE_FULL（待機上限）
 
-数値とIDは説明用。本人の操作だけを受付。共有サーバーや公開ユーザーの生成依頼は転送しない。
+数値とIDは説明用。本人の操作だけを受付。共有サーバーや公開ユーザーの生成依頼は転送しない。mode=replan、baseTripId、expectedRevisionは、共有サーバーでの所有確認ができるまで422（VALIDATION_FAILED）で拒否する。同じキー・同じ入力の再送は同じjobIdを返す。
 
 入力例：
 ```json
@@ -54,9 +54,9 @@
 
 入力：jobId。セッションの利用者とジョブ所有者を照合。
 
-戻り値：200 JobStatus：state、stage、batchId?、error?。成功時の候補本体は共通DBのbatchIdから取得。
+戻り値：200 JobStatus：jobId、state（queued／running／succeeded／failed／cancelled）、stage、batchId（null可）、error（null可）、updatedAt。stageはqueued、collecting_context、generating、validating、saving、saved、doneのいずれか。成功時（succeeded）のstageはdoneで、batchIdが入る。成功時の候補本体は共通DBのbatchIdから取得。
 
-失敗：404他人または不存在／503本人App Server停止
+失敗：401本人未ログイン／404他人または不存在／503本人App Server停止
 
 2秒から始め最大10秒へ間隔を伸ばす。切断後もjobIdで再確認。終了状態では停止。
 
@@ -69,10 +69,12 @@
 戻り例：
 ```json
 {
+  "jobId": "job_example",
   "state": "succeeded",
   "stage": "done",
   "batchId": "batch_example",
-  "error": null
+  "error": null,
+  "updatedAt": "2026-10-24T00:00:00Z"
 }
 ```
 
@@ -86,9 +88,9 @@
 
 戻り値：CLI envelope内のstructured_outputをSchema検証したPlanBlueprint。自然文をそのままTripとして保存しない。
 
-失敗：CLI_NOT_AUTHENTICATED／CLI_LIMIT／CLI_TIMEOUT／CLI_EXIT／INVALID_OUTPUT
+失敗：CLI_NOT_AUTHENTICATED（未ログイン）／CLI_LIMIT（CLIのresultがis_errorで、api_error_statusが429または529）／CLI_TIMEOUT（自前タイマーの時間切れ）／CLI_EXIT（終了コードが0以外、起動不能、または上記以外のCLIエラー）／INVALID_OUTPUT（structured_outputがSchemaに合わない）
 
-構造化出力でも真実性は保証されない。stdoutの成功フラグ、終了コード、Schemaを別々に確認。
+構造化出力でも真実性は保証されない。stdoutの成功フラグ、終了コード、Schemaを別々に確認。これらのコードは通常HTTP応答ではなくK02のJobStatus.errorに入る。
 
 入力例：
 ```json
@@ -234,19 +236,17 @@
 
 ## K07 生成候補を共通サーバーへ保存
 
-通信：POST /api/v1/plan-batches / GET /api/v1/plan-batches/{id}
-
-追加（A04、M1承認待ち）：GET /api/v1/plan-batches?generationId={id}。本人所有のbatchを`generationId`（本人用App Serverの`operationKey`）で照会し、200 `{batchId}`を返す。queryは`generationId`の1キーだけで、`Id`形式で検証する（それ以外は422）。未認証は401。他人のbatchと存在しないbatchは同じ404。`cache-control: no-store`。再起動後に保存済みのbatchを探し、二重保存を防ぐために使う。
+通信：POST /api/v1/plan-batches / GET /api/v1/plan-batches/{id} / GET /api/v1/plan-batches?generationId={id}
 
 権限：アプリ本人セッション。AI認証とは無関係
 
-入力：GenerationResult：候補、制約、根拠、baseTripId?、baseRevision?、ローカル生成識別子。
+入力：PlanBatchCreate：schemaVersion、baseTripId（null可）、baseRevision（null可）、generationId（本人用App Serverのoperation key）、candidates（1〜3件）、places、constraints?。未知のキーは受け付けない。baseTripId=nullの新規旅程へ採用するには constraints が必要。GET ?generationId=は本人のbatchだけを照会し、200 {batchId}だけを返す（queryはgenerationIdの1キーのみ）。
 
-戻り値：201：batchId、candidateIds、検証結果。全候補の保存先は共通DB。
+戻り値：201 PlanBatchCreated（batchId、candidateIds、validationState）。同じgenerationIdで同じ内容の再送は200で同じ応答。GET /{id}は200 PlanBatch。保持期限切れのbatchは410。全候補の保存先は共通DB。
 
-失敗：401／404所有権／409元旅程変更／422不正候補
+失敗：401／404 NOT_FOUND（他人・不存在は同じ。GET ?generationId=も同様）／409 IDEMPOTENCY_CONFLICT（同じgenerationIdで内容違い）または409 REVISION_CONFLICT（元旅程の版が違う）／410 EXPIRED（期限切れbatchのGET）／422 VALIDATION_FAILED（不正候補）・422 RESTRICTED_ASSET（保存してはならないデータ）
 
-サーバーでも型・所有権・データ保持条件を検証。クライアントが付けた「Claude生成」等のラベルを権限の証拠にしない。
+サーバーでも型・所有権・データ保持条件を検証。クライアントが付けた「Claude生成」等のラベルを権限の証拠にしない。保存時の候補のvalidationStateはneeds_review以上に補正する（クライアントのvalidは信用しない）。再送の判定は、期限・元旅程の検査より先に行う。GET ?generationId=は再起動後の二重保存防止に使い、cache-control: no-storeで返す。
 
 入力例：
 ```json
@@ -254,15 +254,128 @@
   "schemaVersion": 1,
   "baseTripId": null,
   "baseRevision": null,
+  "generationId": "gen_example",
   "candidates": [
     {
       "candidateId": "candidate_1",
-      "activities": [],
+      "title": "金沢1日コース",
+      "days": [
+        {
+          "date": "2026-11-01",
+          "timeZone": "Asia/Tokyo",
+          "items": [
+            {
+              "type": "activity",
+              "activityId": "activity_a",
+              "kind": "visit",
+              "title": "地点A",
+              "placeId": "user-place-a",
+              "areaName": null,
+              "start": {
+                "utc": "2026-11-01T00:00:00Z",
+                "timeZone": "Asia/Tokyo"
+              },
+              "end": {
+                "utc": "2026-11-01T01:30:00Z",
+                "timeZone": "Asia/Tokyo"
+              },
+              "fixed": false,
+              "status": "planned",
+              "cost": null,
+              "costStatus": "unknown",
+              "privateNotes": null
+            },
+            {
+              "type": "activity",
+              "activityId": "activity_b",
+              "kind": "visit",
+              "title": "地点B",
+              "placeId": "user-place-b",
+              "areaName": null,
+              "start": {
+                "utc": "2026-11-01T00:00:00Z",
+                "timeZone": "Asia/Tokyo"
+              },
+              "end": {
+                "utc": "2026-11-01T01:30:00Z",
+                "timeZone": "Asia/Tokyo"
+              },
+              "fixed": false,
+              "status": "planned",
+              "cost": null,
+              "costStatus": "unknown",
+              "privateNotes": null
+            }
+          ]
+        }
+      ],
+      "reasons": [
+        "希望地点を優先"
+      ],
       "warnings": [
         "説明用データ"
-      ]
+      ],
+      "excludedPlaceIds": [],
+      "totalKnownCost": [],
+      "hasUnknownCost": true,
+      "validationState": "needs_review"
     }
-  ]
+  ],
+  "places": [
+    {
+      "placeId": "user-place-a",
+      "name": "説明用の地点A",
+      "kind": "spot",
+      "location": {
+        "lat": 36.56,
+        "lng": 136.66
+      },
+      "timeZone": "Asia/Tokyo",
+      "openingHours": null,
+      "description": null,
+      "photo": null,
+      "dataStatus": "fixture",
+      "provenance": {
+        "source": "fixture",
+        "fetchedAt": null,
+        "attribution": null,
+        "maySendToModel": true,
+        "mayStore": true,
+        "mayExport": true,
+        "retainUntil": null
+      }
+    },
+    {
+      "placeId": "user-place-b",
+      "name": "説明用の地点B",
+      "kind": "spot",
+      "location": {
+        "lat": 36.56,
+        "lng": 136.66
+      },
+      "timeZone": "Asia/Tokyo",
+      "openingHours": null,
+      "description": null,
+      "photo": null,
+      "dataStatus": "fixture",
+      "provenance": {
+        "source": "fixture",
+        "fetchedAt": null,
+        "attribution": null,
+        "maySendToModel": true,
+        "mayStore": true,
+        "mayExport": true,
+        "retainUntil": null
+      }
+    }
+  ],
+  "constraints": {
+    "area": "金沢",
+    "startDate": "2026-11-01",
+    "endDate": "2026-11-02",
+    "timeZone": "Asia/Tokyo",
+    "transportMode": "transit"
+  }
 }
 ```
 戻り例：
@@ -282,11 +395,11 @@
 
 権限：ログイン利用者がbatchとtripの両方を所有
 
-入力：batchId、candidateId、tripId?、expectedRevision?。
+入力：ApplyCandidateRequest：batchId、candidateId、tripId（新規はnull）、expectedRevision（新規はnull、既存旅程へ適用するときは必須）。未知のキーは受け付けない。
 
-戻り値：201新規／200更新：tripId、revision、Trip、warnings。
+戻り値：201新規／200再送または更新：TripWriteResult（tripId、revision、trip、warnings）。新規のtripIdは(利用者, batchId, candidateId)から決まるため、同じ候補の再送は200で同じ旅程を返す。
 
-失敗：404候補の所有権／409古い版／422未検証
+失敗：404 NOT_FOUND（batch・候補・旅程の所有権）／409 REVISION_CONFLICT（古い版。details: expectedRevision、currentRevision）／409 ALREADY_COMMITTED（適用済みで旅程は削除済み）／422 VALIDATION_FAILED（expectedRevisionの要否違反、別の旅程向けの候補、baseTripId=nullのbatchを既存旅程へ適用）／422 CONSTRAINT_UNSATISFIED（未検証）／422 RESTRICTED_ASSET（保存不可）
 
 候補取得→所有権→版確認→trip_versions挿入→trips更新を短いDB transactionで行う。自動的にSNSへ公開しない。
 
@@ -304,6 +417,122 @@
 {
   "tripId": "trip_example",
   "revision": 1,
+  "trip": {
+    "schemaVersion": 1,
+    "tripId": "trip_example",
+    "ownerId": "user_a",
+    "title": "金沢1泊2日",
+    "revision": 1,
+    "constraints": {
+      "area": "金沢",
+      "startDate": "2026-11-01",
+      "endDate": "2026-11-02",
+      "timeZone": "Asia/Tokyo",
+      "transportMode": "transit"
+    },
+    "days": [
+      {
+        "date": "2026-11-01",
+        "timeZone": "Asia/Tokyo",
+        "items": [
+          {
+            "type": "activity",
+            "activityId": "activity_a",
+            "kind": "visit",
+            "title": "地点A",
+            "placeId": "user-place-a",
+            "areaName": null,
+            "start": {
+              "utc": "2026-11-01T00:00:00Z",
+              "timeZone": "Asia/Tokyo"
+            },
+            "end": {
+              "utc": "2026-11-01T01:30:00Z",
+              "timeZone": "Asia/Tokyo"
+            },
+            "fixed": false,
+            "status": "planned",
+            "cost": null,
+            "costStatus": "unknown",
+            "privateNotes": null
+          },
+          {
+            "type": "activity",
+            "activityId": "activity_b",
+            "kind": "visit",
+            "title": "地点B",
+            "placeId": "user-place-b",
+            "areaName": null,
+            "start": {
+              "utc": "2026-11-01T00:00:00Z",
+              "timeZone": "Asia/Tokyo"
+            },
+            "end": {
+              "utc": "2026-11-01T01:30:00Z",
+              "timeZone": "Asia/Tokyo"
+            },
+            "fixed": false,
+            "status": "planned",
+            "cost": null,
+            "costStatus": "unknown",
+            "privateNotes": null
+          }
+        ]
+      }
+    ],
+    "places": [
+      {
+        "placeId": "user-place-a",
+        "name": "説明用の地点A",
+        "kind": "spot",
+        "location": {
+          "lat": 36.56,
+          "lng": 136.66
+        },
+        "timeZone": "Asia/Tokyo",
+        "openingHours": null,
+        "description": null,
+        "photo": null,
+        "dataStatus": "fixture",
+        "provenance": {
+          "source": "fixture",
+          "fetchedAt": null,
+          "attribution": null,
+          "maySendToModel": true,
+          "mayStore": true,
+          "mayExport": true,
+          "retainUntil": null
+        }
+      },
+      {
+        "placeId": "user-place-b",
+        "name": "説明用の地点B",
+        "kind": "spot",
+        "location": {
+          "lat": 36.56,
+          "lng": 136.66
+        },
+        "timeZone": "Asia/Tokyo",
+        "openingHours": null,
+        "description": null,
+        "photo": null,
+        "dataStatus": "fixture",
+        "provenance": {
+          "source": "fixture",
+          "fetchedAt": null,
+          "attribution": null,
+          "maySendToModel": true,
+          "mayStore": true,
+          "mayExport": true,
+          "retainUntil": null
+        }
+      }
+    ],
+    "validationState": "needs_review",
+    "warnings": [],
+    "createdAt": "2026-10-24T00:00:00Z",
+    "updatedAt": "2026-10-24T00:00:00Z"
+  },
   "warnings": []
 }
 ```
@@ -314,27 +543,37 @@
 
 権限：セッションownerId
 
-入力：ページ条件またはtripId。
+入力：一覧：query limit（1〜100、既定50）、cursor（前回のnextCursor）。詳細：tripId。
 
-戻り値：自分のTrip一覧／TripDetail。公開他人旅程はPost経由で読む。
+戻り値：一覧は200 TripList：items（TripSummary：tripId、title、revision、validationState、updatedAt、area、startDate、endDate）とnextCursor（次が無ければnull。更新が新しい順）。詳細は200 Trip。公開他人旅程はPost経由で読む。
 
-失敗：401／404他人または不存在
+失敗：401／404他人または不存在／422 VALIDATION_FAILED（limit範囲外、不正なcursor、未知のquery）
 
 別端末でも同じアプリ利用者なら同じサーバーデータを参照。DBファイルは端末間でコピーしない。
 
 入力例：
 ```json
 {
-  "tripId": "trip_example"
+  "limit": 50,
+  "cursor": null
 }
 ```
 戻り例：
 ```json
 {
-  "tripId": "trip_example",
-  "ownerId": "user_a",
-  "revision": 1,
-  "days": []
+  "items": [
+    {
+      "tripId": "trip_example",
+      "title": "金沢1泊2日",
+      "revision": 1,
+      "validationState": "needs_review",
+      "updatedAt": "2026-10-24T00:00:00Z",
+      "area": "金沢",
+      "startDate": "2026-11-01",
+      "endDate": "2026-11-02"
+    }
+  ],
+  "nextCursor": null
 }
 ```
 
@@ -344,13 +583,13 @@
 
 権限：旅程のowner
 
-入力：expectedRevision、operations（追加・削除・移動・変更）。
+入力：TripPatchRequest：expectedRevision、operations（1〜50件。add／remove／move／update／set_title）。操作はitemId（activityIdまたはlegId）で対象を指す。未知のキーは受け付けない。
 
-戻り値：200：新revision、更新旅程、時間差、既知費用差、warnings。
+戻り値：200 TripPatchResult：tripId、revision（新しい版）、trip、warnings、diff（TripDiff：durationDeltaSeconds、knownCostDelta、unknownCostItems）。構造の編集後はvalidationStateがneeds_revalidationになる。set_titleだけならvalidationStateは変えない。
 
-失敗：409 REVISION_CONFLICT／422制約不成立／404所有権
+失敗：404所有権／409 REVISION_CONFLICT（details: expectedRevision、currentRevision）／422 CONSTRAINT_UNSATISFIED（操作を適用できない。details: operationIndex、reason）／422 VALIDATION_FAILED（形式不正、50件超）／422 RESTRICTED_ASSET
 
-APIで差分を許可リスト検証。公開の手動編集はClaude不要。AIで残りを作り直す操作はK01経由。
+操作は先頭から順に、全部成功するか全部失敗するかで適用する。差分の定義は本書末尾のK10の差分（TripDiff）のとおり。公開の手動編集はClaude不要。AIで残りを作り直す操作はK01経由。
 
 入力例：
 ```json
@@ -359,7 +598,11 @@ APIで差分を許可リスト検証。公開の手動編集はClaude不要。AI
   "operations": [
     {
       "op": "remove",
-      "activityId": "activity_b"
+      "itemId": "activity_b"
+    },
+    {
+      "op": "set_title",
+      "title": "金沢1日コース"
     }
   ]
 }
@@ -369,9 +612,113 @@ APIで差分を許可リスト検証。公開の手動編集はClaude不要。AI
 {
   "tripId": "trip_example",
   "revision": 4,
+  "trip": {
+    "schemaVersion": 1,
+    "tripId": "trip_example",
+    "ownerId": "user_a",
+    "title": "金沢1日コース",
+    "revision": 4,
+    "constraints": {
+      "area": "金沢",
+      "startDate": "2026-11-01",
+      "endDate": "2026-11-02",
+      "timeZone": "Asia/Tokyo",
+      "transportMode": "transit"
+    },
+    "days": [
+      {
+        "date": "2026-11-01",
+        "timeZone": "Asia/Tokyo",
+        "items": [
+          {
+            "type": "activity",
+            "activityId": "activity_a",
+            "kind": "visit",
+            "title": "地点A",
+            "placeId": "user-place-a",
+            "areaName": null,
+            "start": {
+              "utc": "2026-11-01T00:00:00Z",
+              "timeZone": "Asia/Tokyo"
+            },
+            "end": {
+              "utc": "2026-11-01T01:30:00Z",
+              "timeZone": "Asia/Tokyo"
+            },
+            "fixed": false,
+            "status": "planned",
+            "cost": null,
+            "costStatus": "unknown",
+            "privateNotes": null
+          }
+        ]
+      }
+    ],
+    "places": [
+      {
+        "placeId": "user-place-a",
+        "name": "説明用の地点A",
+        "kind": "spot",
+        "location": {
+          "lat": 36.56,
+          "lng": 136.66
+        },
+        "timeZone": "Asia/Tokyo",
+        "openingHours": null,
+        "description": null,
+        "photo": null,
+        "dataStatus": "fixture",
+        "provenance": {
+          "source": "fixture",
+          "fetchedAt": null,
+          "attribution": null,
+          "maySendToModel": true,
+          "mayStore": true,
+          "mayExport": true,
+          "retainUntil": null
+        }
+      },
+      {
+        "placeId": "user-place-b",
+        "name": "説明用の地点B",
+        "kind": "spot",
+        "location": {
+          "lat": 36.56,
+          "lng": 136.66
+        },
+        "timeZone": "Asia/Tokyo",
+        "openingHours": null,
+        "description": null,
+        "photo": null,
+        "dataStatus": "fixture",
+        "provenance": {
+          "source": "fixture",
+          "fetchedAt": null,
+          "attribution": null,
+          "maySendToModel": true,
+          "mayStore": true,
+          "mayExport": true,
+          "retainUntil": null
+        }
+      }
+    ],
+    "validationState": "needs_revalidation",
+    "warnings": [
+      "移動情報を再確認してください"
+    ],
+    "createdAt": "2026-10-24T00:00:00Z",
+    "updatedAt": "2026-10-24T00:00:00Z"
+  },
   "warnings": [
     "移動情報を再確認してください"
-  ]
+  ],
+  "diff": {
+    "durationDeltaSeconds": -5400,
+    "knownCostDelta": [],
+    "unknownCostItems": [
+      "activity_b"
+    ]
+  }
 }
 ```
 
@@ -694,11 +1041,11 @@ WAL、foreign_keys=ON、busy_timeout、短いtransaction。AIや外部APIの応�
 
 入力：jobId＋CSRF。
 
-戻り値：202取消受付／200既に終了。
+戻り値：202取消受付（待機中・実行中のjob。state=cancelled）／200既に終了（現在のstateを返し、成功済みならbatchIdも返す）。
 
-失敗：404所有権／409保存確定後
+失敗：404所有権／409 ALREADY_COMMITTED（保存中、または再起動後に前回の結果を確認している途中。結果が確定していないのでbatchIdは返さない）
 
-AbortSignalとプロセス終了を伝達。保存直前にも取消確認。保存確定済みなら取り消したと偽らずbatchを明示。
+AbortSignalとプロセス終了を伝達。保存直前にも取消確認。保存確定済みなら取り消したと偽らずbatchを明示。成功済み（succeeded）の取消は200でstateとbatchIdを返す。
 
 入力例：
 ```json
@@ -709,7 +1056,9 @@ AbortSignalとプロセス終了を伝達。保存直前にも取消確認。保
 戻り例：
 ```json
 {
-  "state": "cancelled"
+  "jobId": "job_example",
+  "state": "cancelled",
+  "batchId": null
 }
 ```
 
@@ -754,9 +1103,9 @@ AbortSignalとプロセス終了を伝達。保存直前にも取消確認。保
 
 戻り値：{code,message,retryable,requestId,details?}。
 
-失敗：HTTP statusは401/403/404/409/410/422/429/503を使い分ける
+失敗：HTTP statusは401/403/404/409/410/422/429/500/502/503を使い分ける（ERROR_HTTP_STATUS）。ErrorCode：UNAUTHENTICATED、FORBIDDEN、NOT_FOUND、REVISION_CONFLICT、IDEMPOTENCY_CONFLICT、ALREADY_COMMITTED、EXPIRED、VALIDATION_FAILED、CONSTRAINT_UNSATISFIED、RATE_LIMITED、QUEUE_FULL、UNAVAILABLE、AI_UNAVAILABLE、CLI_NOT_AUTHENTICATED、CLI_LIMIT、CLI_TIMEOUT、CLI_EXIT、INVALID_OUTPUT、WORKER_RESTARTED、PROVIDER_UNAVAILABLE、PROVIDER_RATE_LIMIT、PROVIDER_UNSUPPORTED_REGION、RESTRICTED_ASSET、CANCELLED、INTERNAL。
 
-429は無限リトライしない。CLI利用枠不足でAPI課金へ切り替えない。
+429は無限リトライしない。CLI利用枠不足でAPI課金へ切り替えない。INTERNALは500、INVALID_OUTPUTは502。CLI_*・INVALID_OUTPUT・WORKER_RESTARTEDは通常HTTP応答ではなくJobStatus.errorに入る。
 
 入力例：
 ```json
@@ -803,7 +1152,7 @@ job: queued→running→succeeded/failed/cancelled。succeededは候補の共通
   - キュー待ちと実行中のjobの取消は202 `cancelled`を返します。
   - 終了済みのjobには200で現在の状態を返し、保存済みならbatchIdも返します。
   - 成功済み（succeeded）の取消は200でstateとbatchIdを返します。
-  - 保存中の取消と、再起動後に前回の結果を確認している途中の取消は409です。結果が確定していないため、batchIdは返しません。
+  - 保存中の取消と、再起動後に前回の結果を確認している途中の取消は409です。結果は確定していませんが、保存済みのbatchIdが判明している場合は`details.batchId`に入れて返します。
   - 保存が確定したか分からない失敗（`WORKER_RESTARTED`、保存中以降の失敗、前回結果の確認が終わっていないもの）は、同じIdempotency-Keyで再送します。サーバーは、保存済みの結果がないかを確認してから再試行します。operation keyが同じなので、重複して保存されません。
   - それ以外の失敗は、同じキーで再送すると同じjobの結果が返ります。生成をやり直すときは新しいキーを使います。
 - **K07/K08**（S04）：
