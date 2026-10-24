@@ -20,3 +20,10 @@
 .hub-msg { border: 2px dashed var(--line); border-radius: 8px; padding: 16px; text-align: center; background: var(--card); }
 .hub-msg-err { border: 2px solid var(--bad); }
 .hub-login { color: var(--acc); font-weight: 700; }
+
+.hub-review{margin-top:24px;padding:12px;border:2px dashed #8da5b5;border-radius:10px}
+.hub-review h2{font-size:16px;margin:0 0 6px}
+.hub-review-list{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:8px}
+.hub-review-list li{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.hub-review-open{min-height:44px;display:inline-flex;align-items:center;padding:0 12px;border-radius:8px;background:#eaf0f4;color:inherit;text-decoration:none}
+.hub-review-issue{font-size:13px}

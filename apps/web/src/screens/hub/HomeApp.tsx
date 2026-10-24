@@ -1,3 +1,5 @@
+import { REVIEW_LINKS } from './reviewLinks.ts';
+import { UI_GUIDE_URL } from './screenBadge.ts';
 /**
  * Navigation hub (#home): data-mode badge (K22), login state (K11), entry buttons and 自分の旅程 (K09).
  * Everything shown comes from the shared server; unknown values are never shown as 0.
@@ -117,6 +119,18 @@ export function HomeView(props: {
         <a className="hub-big hub-big-alt" href="#social">SNS・グループ</a>
       </nav>
       <TripsView state={props.trips} onMore={props.onMore} onRetry={props.onRetry} />
+      <section className="hub-review" aria-label="UI確認用の画面一覧">
+        <h2>UI確認用：全画面の一覧（試験データ・ログイン不要）</h2>
+        <p className="hub-sub">各画面の左下の帯に、番号とコメント先のIssueが出ます。手順は <a href={UI_GUIDE_URL} target="_blank" rel="noopener noreferrer">確認の手順</a> を見てください。自分の旅程（上の一覧）からも同じ画面を開けます。</p>
+        <ul className="hub-review-list">
+          {REVIEW_LINKS.map(l => (
+            <li key={l.href}>
+              <a className="hub-review-open" href={l.href}><strong>{l.code}</strong> {l.name}</a>
+              <a className="hub-review-issue" href={l.issueUrl} target="_blank" rel="noopener noreferrer">コメント先 Issue</a>
+            </li>
+          ))}
+        </ul>
+      </section>
       <p className="hub-sub" style={{ fontSize: 14 }}>
         <a href="#u01">モック試作（U01）</a> ・ <a href="#conditions">条件入力</a> ・ <a href="#dev-shell">開発用</a>
       </p>
