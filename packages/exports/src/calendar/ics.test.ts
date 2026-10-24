@@ -89,6 +89,22 @@ const act = (id: string, timeZone: string, start: string, end: string, extra: Pa
   ...extra,
 });
 const tripOf = (days: TripDay[], places: PlaceInfo[] = []) => ({ tripId: 't1', title: 'テスト', days, places });
+const flightLike = (legId: string, from: string, to: string, dep: string, arr: string) => ({
+  type: 'leg' as const,
+  legId,
+  mode: 'transit' as const,
+  fromPlaceId: from,
+  toPlaceId: to,
+  departure: { utc: dep, timeZone: 'Asia/Tokyo' },
+  arrival: { utc: arr, timeZone: 'Asia/Tokyo' },
+  durationSeconds: null,
+  lineName: null,
+  platform: null,
+  transfers: null,
+  fare: null,
+  dataStatus: 'verified' as const,
+  provenance: null,
+});
 
 describe('tripToIcs', () => {
   it('Japan: every timed item re-reads to the same instant; unknown times are omitted, not guessed', () => {
@@ -233,6 +249,53 @@ describe('tripToIcs', () => {
     const lines = unfold(r.ics);
     expect(lines).toEqual(expect.arrayContaining(['SUMMARY:abc\td', 'GEO:0.000000;-0.000000', 'DURATION:PT0S', 'SEQUENCE:3']));
     expect(lines.some(l => l.startsWith('DTEND'))).toBe(false);
+  });
+
+  it('writes the departure/return place (often home) only as 出発地/到着地', () => {
+    const T = 'Asia/Tokyo';
+    const home = place('home', T, { name: '山田家（自宅）' });
+    const trip = {
+      ...tripOf(
+        [
+          {
+            date: '2026-07-01',
+            timeZone: T,
+            items: [
+              { ...flightLike('go', 'home', 'ok', '2026-07-01T00:00:00Z', '2026-07-01T01:00:00Z') },
+              act('v', T, '2026-07-01T01:00:00Z', '2026-07-01T02:00:00Z', { placeId: 'ok' }),
+              act('h', T, '2026-07-01T10:00:00Z', '2026-07-01T11:00:00Z', { placeId: 'home', kind: 'lodging' }),
+            ],
+          },
+        ],
+        [home, place('ok', T)],
+      ),
+      constraints: { ...domesticTrip.constraints, departure: { placeId: 'home', label: null, time: null }, return: { placeId: 'home', label: null, time: null } },
+    };
+    const r = tripToIcs(trip, { now: NOW });
+    expect(r.ics).not.toContain('山田家');
+    const { events } = readIcs(r.ics);
+    expect(events[0]!.SUMMARY).toBe('SUMMARY:移動: 出発地 → ok（公共交通）');
+    expect(events[2]).toMatchObject({ LOCATION: 'LOCATION:出発地' });
+    expect(events[2]).not.toHaveProperty('GEO');
+  });
+
+  it('omits an item that ends before it starts instead of shortening it', () => {
+    const T = 'Asia/Tokyo';
+    const r = tripToIcs(
+      tripOf([{ date: '2026-07-01', timeZone: T, items: [act('bad', T, '2026-07-01T02:00:00Z', '2026-07-01T01:00:00Z'), flightLike('badleg', 'a', 'b', '2026-07-01T05:00:00Z', '2026-07-01T04:00:00Z')] }]),
+      { now: NOW },
+    );
+    expect(r.omitted).toEqual([
+      { itemId: 'bad', reason: 'invalid_time' },
+      { itemId: 'badleg', reason: 'invalid_time' },
+    ]);
+    expect(r.eventCount).toBe(0);
+  });
+
+  it('credits the provider attribution of exported places and legs', () => {
+    const r = tripToIcs(domesticTrip, { now: NOW });
+    const kenroku = readIcs(r.ics).events.find(e => e.UID!.startsWith('UID:fx_act_kenrokuen'))!;
+    expect(kenroku.DESCRIPTION).toContain('出典: tkb_2627 fixture');
   });
 
   it('is reproducible for the same input and export time', () => {
