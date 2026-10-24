@@ -121,7 +121,10 @@ describe('copy post to own trip (S06)', () => {
       }
     }
     const text = JSON.stringify(t);
-    for (const bad of ['PRIVATE-NOTE', '千代田', '99999', 'secret preference', 'home_tanaka', '田中邸', 'UNREFERENCED']) expect(text).not.toContain(bad);
+    for (const bad of ['PRIVATE-NOTE', '千代田', 'secret preference', 'home_tanaka', '田中邸', 'UNREFERENCED']) expect(text).not.toContain(bad);
+    // The budget must not be copied. Checked as a field, not as a substring: random ids may contain digits like 99999.
+    expect(text).not.toContain('"amountMinor":99999');
+    expect(JSON.parse(text).constraints).not.toHaveProperty('budget');
     expect(t.title).toBe(`${post.snapshot.title}（コピー）`);
     // Source post, snapshot, trip and versions are byte-identical.
     expect(JSON.stringify(db.prepare('SELECT * FROM posts').all()) + JSON.stringify(db.prepare('SELECT * FROM post_snapshots').all())).toBe(postBefore);
