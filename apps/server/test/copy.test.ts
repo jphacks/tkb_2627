@@ -196,6 +196,46 @@ describe('copy post to own trip (S06)', () => {
     expect(noCsrf.statusCode).toBe(403);
   });
 
+  it('resets cost/fixed, issues new ids, handles leap years, and rejects overflow/blank title', async () => {
+    const { app, db, a, b, c, trip, publish } = await setup();
+    const post = await publish(a, trip.tripId, 1, 'public');
+    const srcActs = post.snapshot.days.flatMap((d: { items: { type: string }[] }) => d.items).filter((i: { type: string }) => i.type === 'activity');
+    expect(srcActs.some((i: { cost: unknown }) => i.cost !== null)).toBe(true);
+    const res = await copy(app, b, post.postId, { newStartDate: '2028-02-28', timeZone: 'Asia/Tokyo' });
+    expect(res.statusCode).toBe(201);
+    const t = getTripForOwner(db, res.json().tripId, 'user_b')!;
+    const expected = ['2028-02-28', '2028-02-29', '2028-03-01', '2028-03-02'].slice(0, t.days.length);
+    expect(t.days.map((d) => d.date)).toEqual(expected);
+    const items = t.days.flatMap((d) => d.items);
+    for (const it of items) if (it.type === 'activity') expect(it).toMatchObject({ cost: null, costStatus: 'unknown', fixed: false });
+    const srcIds = new Set(post.snapshot.days.flatMap((d: { items: Record<string, string>[] }) => d.items.map((i) => i.activityId ?? i.legId)));
+    const newIds = items.map((i) => (i.type === 'activity' ? i.activityId : i.legId));
+    expect(newIds.length).toBeGreaterThan(0);
+    expect(new Set(newIds).size).toBe(newIds.length);
+    for (const id of newIds) expect(srcIds.has(id)).toBe(false);
+    expect((await copy(app, b, post.postId, { newStartDate: '9999-12-31', timeZone: 'Asia/Tokyo' })).statusCode).toBe(post.snapshot.days.length > 1 ? 422 : 201);
+    expect((await copy(app, b, post.postId, { newStartDate: '9999-12-30', timeZone: 'Asia/Tokyo' })).statusCode).toBe(post.snapshot.days.length > 2 ? 422 : 201);
+    expect((await copy(app, b, post.postId, { ...REQ, title: '   ' })).statusCode).toBe(422);
+    // No access: 404 comes before body validation.
+    const priv = await publish(a, trip.tripId, 1, 'private');
+    expect((await copy(app, c, priv.postId, { newStartDate: 'bad' })).statusCode).toBe(404);
+    expect((await copy(app, b, priv.postId, {})).statusCode).toBe(404);
+  });
+
+  it('keeps the copy suffix on a very long source title', async () => {
+    const { app, db, a, b, publish } = await setup();
+    const t0 = secretTrip();
+    t0.tripId = 'trip_s06_long';
+    t0.title = '旅'.repeat(200);
+    const src = insertTrip(db, 'user_a', t0, NOW);
+    const post = await publish(a, src.tripId, 1, 'public');
+    const res = await copy(app, b, post.postId);
+    expect(res.statusCode).toBe(201);
+    const t = getTripForOwner(db, res.json().tripId, 'user_b')!;
+    expect(Array.from(t.title).length).toBe(200);
+    expect(t.title.endsWith('（コピー）')).toBe(true);
+  });
+
   it('limits copies to 10 per user per minute', async () => {
     const { app, b, a, trip, publish } = await setup();
     const post = await publish(a, trip.tripId, 1, 'public');

@@ -27,6 +27,14 @@ export function addDays(date: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** True when the last day of a copy starting at `start` still has a 4-digit year (<= 9999-12-31). */
+export function fitsCalendar(start: string, dayCount: number): boolean {
+  return /^\d{4}-/.test(addDays(start, Math.max(dayCount, 1) - 1));
+}
+
+const newId = (prefix: string) => `${prefix}_${randomUUID().replaceAll('-', '').slice(0, 16)}`;
+
+const SUFFIX = '（コピー）';
 export const COPY_LIMIT = 10;
 export const COPY_WINDOW_MS = 60_000;
 
@@ -38,6 +46,7 @@ export const COPY_WINDOW_MS = 60_000;
 export function buildCopiedTrip(snapshot: PostSnapshot, ownerId: string, req: CopyRequest, now: string): Trip {
   const known = new Set(snapshot.places.map((p) => p.placeId));
   const dayCount = Math.max(snapshot.days.length, 1);
+  // K16 takes a single timeZone, so every day is overwritten with it (the source days may differ).
   const days = snapshot.days.map((d, i) => ({
     date: addDays(req.newStartDate, i),
     timeZone: req.timeZone,
@@ -46,9 +55,15 @@ export function buildCopiedTrip(snapshot: PostSnapshot, ownerId: string, req: Co
         return [
           {
             ...it,
+            // New ids: the copy must not share identifiers with the source trip.
+            activityId: newId('act'),
             placeId: it.placeId && known.has(it.placeId) ? it.placeId : null,
             start: null,
             end: null,
+            // The author's reservation lock and price belong to the old dates; do not carry them over.
+            fixed: false,
+            cost: null,
+            costStatus: 'unknown' as const,
             status: 'planned' as const,
             privateNotes: null,
           },
@@ -59,6 +74,7 @@ export function buildCopiedTrip(snapshot: PostSnapshot, ownerId: string, req: Co
       return [
         {
           ...it,
+          legId: newId('leg'),
           departure: null,
           arrival: null,
           durationSeconds: null,
@@ -77,7 +93,8 @@ export function buildCopiedTrip(snapshot: PostSnapshot, ownerId: string, req: Co
     schemaVersion: SCHEMA_VERSION,
     tripId: `trip_${randomUUID().replaceAll('-', '')}`,
     ownerId,
-    title: req.title ?? `${snapshot.title}（コピー）`.slice(0, 200),
+    // Keep the suffix: shorten the source title by code points, not the whole string.
+    title: req.title ?? `${Array.from(snapshot.title).slice(0, 200 - SUFFIX.length).join('')}${SUFFIX}`,
     revision: 1,
     constraints: {
       area: c.area,
@@ -113,6 +130,12 @@ export function registerCopy(app: FastifyInstance, db: Db): void {
     const body = CopyRequest.safeParse(req.body);
     if (!body.success) return fail(reply, req.id, 'VALIDATION_FAILED', 'Invalid request.');
 
+    const title = body.data.title?.trim();
+    if (title === '' || !fitsCalendar(body.data.newStartDate, post.snapshot.days.length)) {
+      return fail(reply, req.id, 'VALIDATION_FAILED', 'Invalid request.');
+    }
+    const input: CopyRequest = title === undefined ? body.data : { ...body.data, title };
+
     const nowMs = Date.now();
     const hits = (recent.get(userId) ?? []).filter((t) => nowMs - t < COPY_WINDOW_MS);
     if (hits.length >= COPY_LIMIT) {
@@ -123,7 +146,7 @@ export function registerCopy(app: FastifyInstance, db: Db): void {
     recent.set(userId, hits);
     if (recent.size > 10_000) for (const [k, v] of recent) if (v.every((t) => nowMs - t >= COPY_WINDOW_MS)) recent.delete(k);
 
-    const trip = insertTrip(db, userId, buildCopiedTrip(post.snapshot, userId, body.data, iso(nowMs)), iso(nowMs));
+    const trip = insertTrip(db, userId, buildCopiedTrip(post.snapshot, userId, input, iso(nowMs)), iso(nowMs));
     return reply.status(201).send(
       CopyResult.parse({ tripId: trip.tripId, ownerId: trip.ownerId, revision: 1, validationState: trip.validationState }),
     );
