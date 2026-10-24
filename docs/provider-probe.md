@@ -168,7 +168,7 @@ M1 が #14 で承認した4回の残り2回です。`GoogleRoutesProvider` を�
 
 | ケース | 地域 | 手段 | 結果 | 取得できた項目 | 未取得項目 | dataStatus | 呼出し回数 |
 |---|---|---|---|---|---|---|---|
-| 国内公共交通 | 金沢（Asia/Tokyo） | transit | 場所は取得できた。経路は**取得不可** | 場所4件（place_id など） | 経路のすべて（所要時間、運賃、路線、乗り場）、営業時間、写真、説明 | 場所は `verified`（google_places）、経路はなし（`unsupported_region`） | Places 2（金沢の2ケースで共有）、Routes 0（adapter が事前に判定） |
+| 国内公共交通 | 金沢（Asia/Tokyo） | transit | 場所は取得できた。経路は**取得不可** | 場所4件（place_id など） | 経路のすべて（所要時間、運賃、路線、乗り場）、営業時間、写真、説明 | 場所は `verified`（google_places）。経路は返らなかった（今回の記録には理由コードがない。D01・A06 の結果から `unsupported_region` と判断） | Places 2（金沢の2ケースで共有）、Routes 0（adapter が事前に判定） |
 | 国内車 | 金沢（Asia/Tokyo） | car | 成功 | 場所4件、所要時間 | 運賃、路線、乗り場、乗換、駅名（車なので該当しない）、営業時間、写真、説明 | 場所 `verified`、経路 `verified`（google_routes） | Routes 1 |
 | 海外公共交通 | パリ（Europe/Paris） | transit | 成功 | 場所4件、所要時間、**運賃、路線名、乗換回数、乗車・降車駅** | **乗り場（ホーム）**、営業時間、写真、説明 | 場所 `verified`、経路 `verified`（google_routes） | Places 2（パリの2ケースで共有）、Routes 1 |
 | 海外車 | パリ（Europe/Paris） | car | 成功 | 場所4件、所要時間 | 運賃、路線、乗り場、乗換（車なので該当しない）、営業時間、写真、説明 | 場所 `verified`、経路 `verified`（google_routes） | Routes 1 |
@@ -187,5 +187,5 @@ M1 が #14 で承認した4回の残り2回です。`GoogleRoutesProvider` を�
 1. 計画だけ確認（Google 呼出し 0 回）: `npx tsx tests/live/t06-live.mts`
 2. 実接続（`GOOGLE_MAPS_SERVER_KEY` を環境変数または `.env` に置く）: `npx tsx tests/live/t06-live.mts --live`
 3. 結果は標準出力と `.local/t06/last-run.json`（git 管理外）。キー、生の応答、場所名、住所、座標は出力しない。
-4. 呼出し数: エリアごとに Places 2 回（観光・レストラン）＋ Routes 2 回（transit・car）、2 エリアで合計 8 回。上限は 8 回で、超える呼出しは送信前に例外にする。Places の同一検索は 2 回目のリクエストでスクリプト内キャッシュを使い、再送しない。
+4. 呼出し数: エリアごとに Places 2 回（観光・レストラン）＋ Routes 2 回（transit・car）、2 エリアで最大 8 回（国内公共交通は adapter が事前に打ち切るため、2026-10-25 の実行では 7 回）。上限は 8 回で、超える呼出しは送信前に例外にする。Places の同一検索は 2 回目のリクエストでスクリプト内キャッシュを使い、再送しない。
 5. CI で動かせる検査（ネットワークなし）: `npx vitest run --config tests/live/vitest.config.ts`
