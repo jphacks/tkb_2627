@@ -1162,7 +1162,11 @@
       ],
       "uiDependency": "none",
       "writePaths": [
-        "apps/server/src/trips/generation/"
+        "apps/server/src/trips/generation/",
+        "apps/ai-local/",
+        "packages/ai/",
+        "packages/contracts/src/planning.ts",
+        "apps/server/src/platform/config.ts"
       ],
       "requirements": [
         "R01",
