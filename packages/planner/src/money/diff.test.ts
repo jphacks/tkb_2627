@@ -34,8 +34,8 @@ describe('tripDiff', () => {
     const diff = tripDiff(before, after);
     expect(diff.durationDeltaSeconds).toBeNull();
     expect(diff.unknownCostItems).toEqual(['metro']);
-    // Metro fare went from 200 JPY to unknown: the known JPY total drops, it is not presented as a saving of 0 for an unknown.
-    expect(diff.knownCostDelta).toEqual([{ amountMinor: -200, currency: 'JPY' }]);
+    // Metro fare went from 200 JPY to unknown: it is left out of the known delta (no -200 "saving") and listed as unknown.
+    expect(diff.knownCostDelta).toEqual([]);
     expect(tripDiff(after, before).durationDeltaSeconds).toBeNull();
   });
 

@@ -316,13 +316,28 @@ describe('tripDiff', () => {
     expect(() => TripDiff.parse(d)).not.toThrow();
   });
 
-  it('unknown cost items are taken from after only; an item unknown only in before is not reported', () => {
+  it('an item unknown on either side is excluded from the known delta and reported as unknown (R11)', () => {
     const before = day([timed('a', '2026-07-01T00:00:00Z', '2026-07-01T01:00:00Z'), timed('b', '2026-07-01T01:00:00Z', '2026-07-01T02:00:00Z', jpy(100))]);
-    const after = day([timed('a', '2026-07-01T00:00:00Z', '2026-07-01T01:00:00Z', jpy(400)), timed('b', '2026-07-01T01:00:00Z', '2026-07-01T02:00:00Z', jpy(100))]);
-    expect(tripDiff(before, after).unknownCostItems).toEqual([]);
-    // unknown -> known: the known total grows, and nothing is subtracted for the formerly unknown item.
-    expect(tripDiff(before, after).knownCostDelta).toEqual([jpy(400)]);
-    expect(tripDiff(after, before).unknownCostItems).toEqual(['a']);
+    const after = day([timed('a', '2026-07-01T00:00:00Z', '2026-07-01T01:00:00Z', jpy(400)), timed('b', '2026-07-01T01:00:00Z', '2026-07-01T02:00:00Z', jpy(150))]);
+    // unknown -> known: +400 would treat the old unknown as 0, so 'a' is unknown and only b's +50 is known.
+    expect(tripDiff(before, after)).toMatchObject({ knownCostDelta: [jpy(50)], unknownCostItems: ['a'] });
+    // known -> unknown: no -400 "saving".
+    expect(tripDiff(after, before)).toMatchObject({ knownCostDelta: [jpy(-50)], unknownCostItems: ['a'] });
+  });
+
+  it('removing or adding an item with an unknown cost is an unknown change, not "no change"', () => {
+    const base = timed('b', '2026-07-01T01:00:00Z', '2026-07-01T02:00:00Z', jpy(100));
+    const withUnknown = day([timed('a', '2026-07-01T00:00:00Z', '2026-07-01T01:00:00Z'), base]);
+    const without = day([base]);
+    expect(tripDiff(withUnknown, without)).toMatchObject({ knownCostDelta: [], unknownCostItems: ['a'] });
+    expect(tripDiff(without, withUnknown)).toMatchObject({ knownCostDelta: [], unknownCostItems: ['a'] });
+  });
+
+  it('a duplicated id is known only when every occurrence has a cost', () => {
+    const before = day([makeActivity('dup', { cost: jpy(100) }), makeActivity('dup', { cost: null })]);
+    const after = day([makeActivity('dup', { cost: jpy(100) }), makeActivity('dup', { cost: jpy(300) })]);
+    expect(tripDiff(before, after)).toMatchObject({ knownCostDelta: [], unknownCostItems: ['dup'] });
+    expect(tripDiff(after, after)).toMatchObject({ knownCostDelta: [], unknownCostItems: [] });
   });
 
   it('removing a costed item shows a negative known delta; adding a new currency shows a separate entry', () => {

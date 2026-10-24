@@ -73,18 +73,27 @@ export function knownCostDelta(before: readonly Money[], after: readonly Money[]
 function roundHalfAwayFromZero(value: number): number {
   const abs = Math.abs(value);
   const floor = Math.floor(abs);
-  const rounded = abs - floor >= 0.5 - 1e-9 ? floor + 1 : floor;
+  // Tolerance relative to the magnitude: only representation noise, not genuinely smaller values, rounds up.
+  const rounded = abs - floor >= 0.5 - abs * Number.EPSILON * 8 ? floor + 1 : floor;
   return rounded === 0 ? 0 : Math.sign(value) * rounded;
 }
 
+/** A converted amount together with the rate used, so callers can show the rate and its time (docs/01_SPEC.md). */
+export interface Conversion {
+  money: Money;
+  /** null when no conversion was needed (same currency). */
+  rate: ExchangeRate | null;
+}
+
 /**
- * Converts with an explicit `from -> to` rate only; returns null when none matches (never assumes 1.0, never inverts
- * or chains through a third currency). Same currency returns the amount unchanged. With several matching rates the
- * latest `asOf` wins (first listed on ties). Rates that are not finite and positive are ignored.
+ * Converts with an explicit `from -> to` rate only and returns the rate used; null when none matches (never assumes
+ * 1.0, never inverts or chains through a third currency) or when the result is not a safe integer. Same currency
+ * returns the amount unchanged. With several matching rates the latest `asOf` wins (first listed on ties). Rates that
+ * are not finite and positive are ignored; a matching rate with a malformed `asOf` throws RangeError.
  * Handles minor-unit differences, e.g. EUR cents to JPY yen, and rounds half away from zero.
  */
-export function convert(money: Money, target: string, rates: readonly ExchangeRate[]): Money | null {
-  if (money.currency === target) return { amountMinor: money.amountMinor, currency: target };
+export function convertWithRate(money: Money, target: string, rates: readonly ExchangeRate[]): Conversion | null {
+  if (money.currency === target) return { money: { amountMinor: money.amountMinor, currency: target }, rate: null };
   let best: ExchangeRate | null = null;
   for (const r of rates) {
     if (r.from !== money.currency || r.to !== target) continue;
@@ -94,5 +103,12 @@ export function convert(money: Money, target: string, rates: readonly ExchangeRa
   }
   if (best === null) return null;
   const scale = 10 ** (minorUnitDigits(target) - minorUnitDigits(money.currency));
-  return { amountMinor: roundHalfAwayFromZero(money.amountMinor * best.rate * scale), currency: target };
+  const amountMinor = roundHalfAwayFromZero(money.amountMinor * best.rate * scale);
+  if (!Number.isSafeInteger(amountMinor)) return null;
+  return { money: { amountMinor, currency: target }, rate: best };
+}
+
+/** `convertWithRate` without the rate. Prefer `convertWithRate` when the converted amount is shown to people. */
+export function convert(money: Money, target: string, rates: readonly ExchangeRate[]): Money | null {
+  return convertWithRate(money, target, rates)?.money ?? null;
 }

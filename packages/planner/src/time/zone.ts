@@ -114,6 +114,7 @@ export function fromLocal(date: LocalDate, time: string, timeZone: TimeZone): Lo
     throw new RangeError(`invalid calendar date: ${date}`);
   }
 
+  // Assumes at most one offset change within ±1 day of the wall time (true for all IANA zones 2015-2030 as checked).
   const DAY = 24 * 3600_000;
   const offsetBefore = offsetMsAtMs(wall - DAY, timeZone);
   const offsetAfter = offsetMsAtMs(wall + DAY, timeZone);
