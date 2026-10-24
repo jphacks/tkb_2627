@@ -1,7 +1,10 @@
+import { useEffect, useState } from 'react';
 import { FIXTURE_NOTICE, fixtureTrips } from '@tkb/fixtures';
 import { U01App } from './screens/U01App.tsx';
 import { ConnectionChips } from './shell/ConnectionChips.tsx';
 import { TripViewer } from './shell/TripViewer.tsx';
+
+const DEV_SHELL_HASH = '#dev-shell';
 
 /** Development view kept from the skeleton: connection chips and the fixture trip viewer. Open with #dev-shell. */
 function DevShell() {
@@ -17,8 +20,15 @@ function DevShell() {
   );
 }
 
+const isDevShell = () => typeof location !== 'undefined' && location.hash === DEV_SHELL_HASH;
+
 export function App() {
   // The U01 screens are the default (M1, #9). The skeleton stays reachable for development only.
-  if (typeof location !== 'undefined' && location.hash === '#dev-shell') return <DevShell />;
-  return <U01App />;
+  const [devShell, setDevShell] = useState(isDevShell);
+  useEffect(() => {
+    const onHashChange = () => setDevShell(isDevShell());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+  return devShell ? <DevShell /> : <U01App />;
 }
