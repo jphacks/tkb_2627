@@ -252,7 +252,7 @@ export const samplePlanBlueprint: PlanBlueprint = { schemaVersion: 1, candidates
 export const sampleJobStatuses: Record<'queued' | 'running' | 'succeeded' | 'failed', JobStatus> = {
   queued: { jobId: 'fx_job_1', state: 'queued', stage: 'queued', batchId: null, error: null, updatedAt: '2026-10-24T00:00:00Z' },
   running: { jobId: 'fx_job_1', state: 'running', stage: 'generating', batchId: null, error: null, updatedAt: '2026-10-24T00:00:05Z' },
-  succeeded: { jobId: 'fx_job_1', state: 'succeeded', stage: 'saved', batchId: 'fx_batch_1', error: null, updatedAt: '2026-10-24T00:00:30Z' },
+  succeeded: { jobId: 'fx_job_1', state: 'succeeded', stage: 'done', batchId: 'fx_batch_1', error: null, updatedAt: '2026-10-24T00:00:30Z' },
   failed: {
     jobId: 'fx_job_2',
     state: 'failed',
