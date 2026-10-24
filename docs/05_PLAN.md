@@ -321,7 +321,7 @@ ops/tasks.jsonが定義の正本。hard dependencyは先行作業のPR統合と�
 担当：M2。branch：feat/m2/e01。UI依存：approval
 前提：U04, U07, D07
 要件：R17。契約：K18
-変更path：apps/web/src/screens/print/, packages/exports/templates/
+変更path：apps/web/src/screens/print/, packages/exports/src/templates/
 完了：予定表と許諾済み写真を印刷用に整え、地図画像の無断転載を避ける。
 検証：改ページ、日本語、長い旅程、写真欠落、出典の読みやすさを確認。
 引継ぎ：Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。
@@ -339,7 +339,7 @@ ops/tasks.jsonが定義の正本。hard dependencyは先行作業のPR統合と�
 担当：M3。branch：feat/m3/e03。UI依存：none
 前提：D05, S04
 要件：R18, R19。契約：K18
-変更path：packages/exports/maps/, packages/exports/calendar/
+変更path：packages/exports/src/maps/, packages/exports/src/calendar/
 完了：公式Maps URLとICSを生成し、自動アカウント登録との違いを明示する。
 検証：日本と海外で日時を再読込。長いURLを分割し文字列を正しくエスケープ。
 引継ぎ：Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。

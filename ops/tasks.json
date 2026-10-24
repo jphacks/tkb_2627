@@ -1588,7 +1588,7 @@
       "uiDependency": "approval",
       "writePaths": [
         "apps/web/src/screens/print/",
-        "packages/exports/templates/"
+        "packages/exports/src/templates/"
       ],
       "requirements": [
         "R17"
@@ -1678,8 +1678,8 @@
       ],
       "uiDependency": "none",
       "writePaths": [
-        "packages/exports/maps/",
-        "packages/exports/calendar/"
+        "packages/exports/src/maps/",
+        "packages/exports/src/calendar/"
       ],
       "requirements": [
         "R18",

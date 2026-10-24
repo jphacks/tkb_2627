@@ -330,7 +330,7 @@
       "role": "認可済み旅程をPDF・ICS・地図リンクへ変換",
       "parent": "shared",
       "path": "packages/exports/",
-      "owner": "M2 + M1",
+      "owner": "M2（E01）+ M3（E03）+ M1（E02）",
       "detail": "",
       "inputs": "tripRef + expectedRevision",
       "outputs": "exportId / authorized file / URL",
