@@ -4,7 +4,7 @@ import { kanazawaPlaces } from '@tkb/fixtures';
 import { createMockApi } from '../../mocks/index.ts';
 import {
   BACKOFF_MS, MAX_CONSECUTIVE_ERRORS, MAX_POLLS, applyErrorMessage, buildApplyRequest, aiReasonMessage, canRetry, createRetryKeys, freshIdempotencyKey, initialPoll, modeChipLabel,
-  jobErrorMessage, nextDelayMs, pollReducer, shouldPoll, summarizeCandidate, type PollEvent, type PollState,
+  jobErrorMessage, nextDelayMs, openMap, pollReducer, revealStep, shouldPoll, summarizeCandidate, type PollEvent, type PollState,
 } from './model.ts';
 
 const job = (state: JobStatus['state'], stage: JobStatus['stage'] = 'generating', extra: Partial<JobStatus> = {}): JobStatus => ({
@@ -170,5 +170,22 @@ describe('retry keys and mode labels', () => {
     expect(modeChipLabel({ status: 'error' })).toBe('接続状態を取得できません');
     expect(aiReasonMessage('CLI_NOT_FOUND')).toContain('CLI');
     expect(aiReasonMessage('NEW_CODE')).toContain('未知');
+  });
+});
+
+describe('UI review on #33: no scrolling needed after generate / adopt', () => {
+  it('revealStep scrolls the step to the top of the view, then focuses it without a second jump', () => {
+    const calls: string[] = [];
+    const el = { scrollIntoView: (o?: ScrollIntoViewOptions) => calls.push(`scroll:${o?.behavior}:${o?.block}`), focus: (o?: FocusOptions) => calls.push(`focus:${o?.preventScroll}`) };
+    revealStep(el, false);
+    revealStep(el, true);
+    expect(calls).toEqual(['scroll:smooth:start', 'focus:true', 'scroll:auto:start', 'focus:true']);
+    expect(() => revealStep(null, false)).not.toThrow();
+  });
+  it('openMap goes to the top and opens the map route', () => {
+    const win = { y: -1, scrollTo(_x: number, y: number) { this.y = y; }, location: { hash: '' } };
+    openMap('#/mock/trips/t1/map', win);
+    expect(win.y).toBe(0);
+    expect(win.location.hash).toBe('#/mock/trips/t1/map');
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { GenerateRequest, JobAccepted } from '@tkb/contracts';
 import { MockBanner } from '../../components/MockBanner.tsx';
 import { ScenarioSwitcher } from '../../components/ScenarioSwitcher.tsx';
@@ -8,7 +8,7 @@ import { ConditionsScreen } from '../conditions/ConditionsScreen.tsx';
 import { itineraryHash } from '../itinerary/route.ts';
 import { createLiveGenerateApi, createMockGenerateApi } from './api.ts';
 import { CompareScreen, LiveBanner, ModeChip, ProgressScreen } from './GenerateScreens.tsx';
-import type { ModeCapState } from './model.ts';
+import { openMap, revealStep, type ModeCapState } from './model.ts';
 import '../../components/u01.css';
 
 type Step =
@@ -41,6 +41,13 @@ export function GenerateApp({ initialSource = 'mock' }: { initialSource?: DataSo
     return () => { alive = false; };
   }, [source, apis]);
   const reset = () => setStep({ name: 'conditions' });
+  // Progress and compare open below the long conditions form, so bring them into view (UI review on #33).
+  const stepRef = useRef<HTMLDivElement>(null);
+  const stepKey = step.name === 'progress' ? step.accepted.jobId : step.name === 'compare' ? step.batchId : null;
+  useEffect(() => {
+    if (stepKey === null) return;
+    revealStep(stepRef.current, window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+  }, [stepKey]);
 
   return (
     <div className="u1-root">
@@ -61,6 +68,7 @@ export function GenerateApp({ initialSource = 'mock' }: { initialSource?: DataSo
         {step.name === 'conditions' && (
           <ConditionsScreen key={`${source}:${scenario}`} api={apis.cond} onStarted={(accepted, request) => setStep({ name: 'progress', accepted, request })} />
         )}
+        <div ref={stepRef} tabIndex={-1} className="u5-step">
         {source === 'live' && step.name !== 'conditions' && <ModeChip state={modeCap} />}
         {step.name === 'progress' && (
           <ProgressScreen
@@ -74,8 +82,10 @@ export function GenerateApp({ initialSource = 'mock' }: { initialSource?: DataSo
           <CompareScreen
             key={step.batchId} api={apis.flow} batchId={step.batchId} onBack={reset}
             mapHrefFor={tripId => itineraryHash({ mode: source === 'mock' ? 'mock' : 'server', tripId, dayIndex: 0 })}
+            onApplied={href => openMap(href, window)}
           />
         )}
+        </div>
       </main>
     </div>
   );
