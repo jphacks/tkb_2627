@@ -174,3 +174,71 @@ export const AlternativesResult = z.object({
 export type AlternativesResult = z.infer<typeof AlternativesResult>;
 
 export { LatLng };
+
+/** K10 extension (A06): POST /api/v1/trips/{id}/replan. Preview only; the server clock decides "now". Coordinates are never stored, logged or echoed. */
+export const ReplanLocation = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('coords'), point: LatLng }),
+  z.strictObject({ kind: z.literal('place'), placeId: Id }),
+  z.strictObject({ kind: z.literal('unavailable'), reason: z.enum(['denied', 'error', 'skipped']) }),
+]);
+export type ReplanLocation = z.infer<typeof ReplanLocation>;
+
+const uniqueIds = (max: number) =>
+  z
+    .array(Id)
+    .max(max)
+    .default([])
+    .transform(ids => [...new Set(ids)]);
+
+export const ReplanRequest = z.strictObject({
+  expectedRevision: z.number().int().positive(),
+  location: ReplanLocation,
+  completedActivityIds: uniqueIds(200),
+  /** Fixed (reserved) activities the traveller says they missed. Reported as conflicts, never moved. */
+  missedActivityIds: uniqueIds(50),
+  /** Pinned for this run only: treated as fixed while re-timing. The stored `fixed` flag never changes. */
+  fixedActivityIds: uniqueIds(200),
+  /** Destination change (K10 operations) applied before re-timing. */
+  operations: z.array(TripOperation).max(50).default([]),
+  maxCandidates: z.number().int().min(1).max(2).default(1),
+});
+export type ReplanRequest = z.infer<typeof ReplanRequest>;
+
+export const ReplanStartKind = z.enum(['coords', 'place', 'last_completed', 'ongoing', 'none']);
+export type ReplanStartKind = z.infer<typeof ReplanStartKind>;
+export const ReplanConflictReason = z.enum(['missed', 'unreachable', 'travel_unknown', 'time_unknown']);
+export type ReplanConflictReason = z.infer<typeof ReplanConflictReason>;
+
+export const ReplanCandidate = z.object({
+  candidateId: Id,
+  kind: z.enum(['keep_order', 'reorder']),
+  summary: z.string(),
+  trip: Trip,
+  /** Exactly what K10 PATCH returns for `operations`. */
+  diff: TripDiff,
+  /** Only when live route details were left out of `operations`: the same measures with them. Display only. */
+  displayOnly: z.object({ knownCostDelta: z.array(Money), durationDeltaSeconds: z.number().int().nullable() }).optional(),
+  validationState: ValidationState,
+  warnings: z.array(z.string()),
+  unknown: z.array(z.string()),
+  /** Send to PATCH /api/v1/trips/{id} with expectedRevision = baseRevision to apply. null: cannot be written. */
+  operations: z.array(TripOperation).nullable(),
+  kept: z.object({ completed: z.array(Id), fixed: z.array(Id) }),
+  retimed: z.array(Id),
+  untimed: z.array(z.object({ activityId: Id, reason: z.string() })),
+  reservationConflicts: z.array(z.object({ activityId: Id, reason: ReplanConflictReason })),
+});
+export type ReplanCandidate = z.infer<typeof ReplanCandidate>;
+
+export const ReplanResult = z.object({
+  tripId: Id,
+  baseRevision: z.number().int().positive(),
+  now: UtcInstant,
+  dayIndex: z.number().int().nonnegative(),
+  /** Where the re-timing started. Never coordinates. */
+  start: z.object({ kind: ReplanStartKind, placeId: Id.nullable() }),
+  /** Travel from the start to the first remaining stop. Display only: not in `trip` and not in `operations`. */
+  startLeg: TravelLeg.nullable(),
+  candidates: z.array(ReplanCandidate),
+});
+export type ReplanResult = z.infer<typeof ReplanResult>;

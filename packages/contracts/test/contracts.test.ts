@@ -185,3 +185,26 @@ describe('K10 extension: alternatives preview (A05, schemaVersion stays 1)', () 
     expect(AlternativeCandidate.shape.kind.options).toEqual(['requested', 'reorder', 'swap']);
   });
 });
+
+describe('K10 extension: replan preview (A06, schemaVersion stays 1)', () => {
+  it('request is strict, ids are deduplicated, and defaults are filled in', async () => {
+    const { ReplanRequest } = await import('../src/index.ts');
+    const min = { expectedRevision: 2, location: { kind: 'unavailable', reason: 'denied' } };
+    expect(ReplanRequest.parse(min)).toEqual({ ...min, completedActivityIds: [], missedActivityIds: [], fixedActivityIds: [], operations: [], maxCandidates: 1 });
+    expect(ReplanRequest.parse({ ...min, completedActivityIds: ['a', 'a', 'b'] }).completedActivityIds).toEqual(['a', 'b']);
+    for (const bad of [{ ...min, extra: 1 }, { ...min, maxCandidates: 3 }, { ...min, now: '2026-11-01T00:00:00Z' }, { ...min, missedActivityIds: Array.from({ length: 51 }, (_, i) => `m${i}`) }]) {
+      expect(ReplanRequest.safeParse(bad).success).toBe(false);
+    }
+  });
+  it('location kinds are strict and coordinates must be valid', async () => {
+    const { ReplanLocation } = await import('../src/index.ts');
+    expect(ReplanLocation.safeParse({ kind: 'coords', point: { lat: 36.5, lng: 136.6 } }).success).toBe(true);
+    expect(ReplanLocation.safeParse({ kind: 'coords', point: { lat: 36.5, lng: 136.6 }, accuracy: 5 }).success).toBe(false);
+    expect(ReplanLocation.safeParse({ kind: 'place', placeId: 'p1' }).success).toBe(true);
+    expect(ReplanLocation.safeParse({ kind: 'unavailable', reason: 'timeout' }).success).toBe(false);
+  });
+  it('the result start never carries coordinates', async () => {
+    const { ReplanResult } = await import('../src/index.ts');
+    expect(Object.keys(ReplanResult.shape.start.shape)).toEqual(['kind', 'placeId']);
+  });
+});
