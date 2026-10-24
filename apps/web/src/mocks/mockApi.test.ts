@@ -5,6 +5,9 @@ import { domesticTrip, fixtureTrips, sampleFeed } from '@tkb/fixtures';
 import { MOCK_NOTICE, createMockApi, toProbe } from './index.ts';
 import type { MockApi, MockResult } from './index.ts';
 
+// Items of the Kanazawa fixture whose cost is unknown. K10 diff lists them on every edit (union of before and after, as main does).
+const KANAZAWA_UNKNOWN = ['fx_act_museum', 'fx_leg_3', 'fx_act_omicho', 'fx_act_higashi'];
+
 const GENERATE = {
   constraints: { area: '金沢', startDate: '2026-11-01', endDate: '2026-11-02', timeZone: 'Asia/Tokyo', transportMode: 'transit' as const },
 };
@@ -286,14 +289,14 @@ describe('mock api: K08 apply-candidate', () => {
 describe('mock api: K10 patchTrip', () => {
   const id = 'fx_trip_kanazawa';
 
-  it('set_title bumps the revision, keeps validationState and has an empty diff', async () => {
+  it('set_title bumps the revision, keeps validationState and changes no cost or duration', async () => {
     const api = createMockApi();
     const res = data(await api.patchTrip(id, { expectedRevision: 1, operations: [{ op: 'set_title', title: '新しい名前' }] }));
     expect(TripPatchResult.safeParse(res).success).toBe(true);
     expect(res.revision).toBe(2);
     expect(res.trip.title).toBe('新しい名前');
     expect(res.trip.validationState).toBe(domesticTrip.validationState);
-    expect(res.diff).toEqual({ durationDeltaSeconds: 0, knownCostDelta: [], unknownCostItems: [] });
+    expect(res.diff).toEqual({ durationDeltaSeconds: 0, knownCostDelta: [], unknownCostItems: KANAZAWA_UNKNOWN });
   });
 
   it('remove: known cost goes down, unknown cost is not counted as 0', async () => {
@@ -304,10 +307,11 @@ describe('mock api: K10 patchTrip', () => {
     expect(lunch.trip.validationState).toBe('needs_revalidation');
     expect(lunch.trip.days.flatMap(d => d.items).some(i => i.type === 'activity' && i.activityId === 'fx_act_lunch')).toBe(false);
 
-    // The museum has no known cost: removing it must not produce a cost delta.
+    // The museum has no known cost: removing it must not produce a known delta, and it stays listed as unknown
+    // so the change is not shown as "cost 0".
     const museum = data(await api.patchTrip(id, { expectedRevision: 2, operations: [{ op: 'remove', itemId: 'fx_act_museum' }] }));
     expect(museum.diff.knownCostDelta).toEqual([]);
-    expect(museum.diff.unknownCostItems).toEqual([]);
+    expect(museum.diff.unknownCostItems).toEqual(KANAZAWA_UNKNOWN);
   });
 
   it('remove of a leg with unknown duration makes the duration delta unknown (null)', async () => {
@@ -330,7 +334,7 @@ describe('mock api: K10 patchTrip', () => {
     const day0 = res.trip.days[0]?.items.map(i => (i.type === 'activity' ? i.activityId : i.legId));
     expect(day0?.slice(0, 2)).toEqual(['fx_act_omicho', 'fx_act_higashi']);
     expect(res.trip.days[1]?.items).toEqual([]);
-    expect(res.diff).toEqual({ durationDeltaSeconds: 0, knownCostDelta: [], unknownCostItems: [] });
+    expect(res.diff).toEqual({ durationDeltaSeconds: 0, knownCostDelta: [], unknownCostItems: KANAZAWA_UNKNOWN });
     expect(res.trip.validationState).toBe('needs_revalidation');
   });
 
@@ -345,7 +349,7 @@ describe('mock api: K10 patchTrip', () => {
         ],
       }),
     );
-    expect(added.diff.unknownCostItems).toEqual(['mock_add_a']);
+    expect(added.diff.unknownCostItems).toEqual([...KANAZAWA_UNKNOWN, 'mock_add_a']);
     expect(added.diff.knownCostDelta).toEqual([{ currency: 'JPY', amountMinor: 1500 }]);
     expect(added.diff.durationDeltaSeconds).toBe(7200);
 
@@ -356,7 +360,8 @@ describe('mock api: K10 patchTrip', () => {
       }),
     );
     expect(updated.diff.knownCostDelta).toEqual([{ currency: 'JPY', amountMinor: 800 }]);
-    expect(updated.diff.unknownCostItems).toEqual([]);
+    // It was unknown before the update, so it is still listed: +800 is not a delta from 0.
+    expect(updated.diff.unknownCostItems).toEqual([...KANAZAWA_UNKNOWN, 'mock_add_a']);
     expect(updated.trip.days[1]?.items.some(i => i.type === 'activity' && i.title === '更新後（fixture）')).toBe(true);
   });
 

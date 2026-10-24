@@ -2,10 +2,24 @@
  * In-memory mock of the screen-facing APIs (K01, K02, K07, K08, K09, K10, K14, K21).
  *
  * - No network, no browser storage: state lives in the closure and starts from structuredClone'd fixtures.
- * - Every response is parsed with the @tkb/contracts schema before it is returned, so the mock cannot
- *   drift from the contract. Request bodies are parsed the same way (strict schemas reject unknown keys).
+ * - Every success response is parsed with the @tkb/contracts schema before it is returned, so the mock
+ *   cannot drift from the contract. Request bodies are parsed the same way (strict schemas reject unknown
+ *   keys). Id arguments and error responses are only typed, not parsed at runtime.
  * - Every result carries `source: 'mock'`; screens must show MOCK_NOTICE.
  * - Unknown cost stays null. It is never turned into 0 (R11).
+ *
+ * Known differences from the main implementation (screens must not depend on them):
+ * - K01: main rejects baseTripId, expectedRevision and mode=replan with 422 until A04; the mock accepts
+ *   them and returns 404/409. generate ignores the request and returns the Kanazawa candidates.
+ *   No Idempotency-Key.
+ * - K07: only GET. Batches are created by generate and the seed data; constraints are kept inside.
+ * - K08: main returns 422 for invalid/needs_revalidation candidates, a missing batch constraints, or a
+ *   baseTripId mismatch, 409 for a baseRevision mismatch, and the same trip when a candidate is applied
+ *   again. The mock does none of these.
+ * - K10: durationDeltaSeconds is the sum of item durations (main uses the span of each day). Unknown
+ *   placeIds and item type changes are not rejected.
+ * - K14: no authorization. 'mine' is the demo user's posts and 'groups' is always empty.
+ * - K21: cancelling a succeeded job is 409 ALREADY_COMMITTED (main returns 200). No saving stage.
  */
 import {
   ApplyCandidateRequest,
@@ -155,6 +169,13 @@ function allItems(trip: Trip): ItineraryItem[] {
 
 function sumKnownDurations(trip: Trip): number {
   return allItems(trip).reduce((sum, item) => sum + (durationOf(item) ?? 0), 0);
+}
+
+/** Ids of items whose cost is unknown. Walking legs have no fare, so they are not unknown (same as main K10). */
+function unknownCostIds(trip: Trip): string[] {
+  return allItems(trip)
+    .filter(item => (item.type === 'activity' ? item.cost === null : item.mode !== 'walk' && item.fare === null))
+    .map(itemId);
 }
 
 function knownCostByCurrency(trip: Trip): Map<string, number> {
@@ -509,7 +530,9 @@ export function createMockApi(options: MockApiOptions = {}) {
       const diff: TripDiff = {
         durationDeltaSeconds: durationUnknown ? null : sumKnownDurations(after) - sumKnownDurations(before),
         knownCostDelta,
-        unknownCostItems: [...new Set(touched.filter(item => moneyOf(item) === null).map(itemId))],
+        // Union of before and after (as main K10 does), so removing an unknown-cost item or giving it a
+        // price is not shown as "no unknown cost".
+        unknownCostItems: [...new Set([...unknownCostIds(before), ...unknownCostIds(after)])],
       };
 
       after.revision = before.revision + 1;
