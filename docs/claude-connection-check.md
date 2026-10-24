@@ -58,3 +58,15 @@ node packages/ai/probes/claude-probe.mjs          # モデルは呼ばない（�
 node packages/ai/probes/claude-probe.mjs --live   # 本人のProで最小1回だけ呼ぶ
 ```
 `--live`は、API課金系の環境変数が設定されているか、認証がclaude.aiでない場合は実行を拒否する。
+
+## A04 実機での生成確認（live Claude＋fixtureの旅行データ）
+記録日：2026-10-24。M4のPCで、M4本人のProを使い1回だけ実行した。#25の了承の範囲内。
+- 構成：共有サーバー（`PROVIDER_MODE=fixture`、メモリ上のDB）と本人用App Serverを同じプロセスで起動した。runnerは本番と同じfactoryで作った（`ALLOW_CLAUDE_EXECUTION=true`、`CLAUDE_TERMS_ACK=true`、ownerを設定、preflight OK）。
+- CLI：Claude Code 2.1.301。`--model sonnet`。CLIの出力の`modelUsage`には、`claude-sonnet-5-5`と`claude-haiku-5-5`があった。
+- 認証：`authMethod=claude.ai`、`subscriptionType=pro`、`apiProvider=firstParty`。課金系の環境変数はなし。
+- capabilities：`available=true`、`runner=claude-code`、`dataMode=fixture`。
+- 流れ：ペアリング→ログイン→K01（202）→K02（`succeeded`、stage `done`）。
+- 取得元：地点も区間も**fixture**（地点6件、区間3件）。Google APIは呼んでいない。
+- 時間：K05は11ms、CLIは9634ms、組み立て（D06の検証を含む）は16ms、K07の保存は6ms。合計は約9.7秒（K01から完了まで約10.0秒）。`num_turns=2`。
+- 結果：batchを1件作り、候補は3案。3案とも`needs_review`。どの案も許可された地点ID（must-visitの兼六園を含む）だけを使った。除外された地点は0件・0件・2件。3案とも`hasUnknownCost=true`で、費用を推測で埋めていない。
+- **未確認**：経路をlive Google Routesで取得するmixedモード（M1の承認：placesはfixture、legsはcar、Routesは6回以内）。このPCにはまだ`GOOGLE_MAPS_SERVER_KEY`がないため、キーを受け取ってから実行する。
