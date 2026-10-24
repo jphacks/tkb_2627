@@ -13,10 +13,10 @@ export interface UserRouteBudget {
 
 export const MAX_LIVE_ROUTE_CALLS_PER_USER_PER_DAY = 20;
 
-/** LIVE_ROUTE_CALLS_PER_USER_PER_DAY: an integer from 0 to 20 (default 6); anything else is refused at startup. */
+/** LIVE_ROUTE_CALLS_PER_USER_PER_DAY: an integer from 0 to 20 (default 20, M1 2026-10-25); anything else is refused at startup. */
 export function liveRouteCallsPerUserFromEnv(env: Readonly<Record<string, string | undefined>> = process.env): number {
   const raw = env.LIVE_ROUTE_CALLS_PER_USER_PER_DAY?.trim();
-  if (!raw) return 6;
+  if (!raw) return 20;
   if (!/^\d+$/.test(raw) || Number(raw) > MAX_LIVE_ROUTE_CALLS_PER_USER_PER_DAY) {
     throw new Error(`invalid LIVE_ROUTE_CALLS_PER_USER_PER_DAY: expected an integer from 0 to ${MAX_LIVE_ROUTE_CALLS_PER_USER_PER_DAY}`);
   }

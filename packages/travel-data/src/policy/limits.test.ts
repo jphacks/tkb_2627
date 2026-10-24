@@ -6,7 +6,13 @@ describe('usageLimitsFromEnv', () => {
   it('uses the safe defaults when nothing is set', () => {
     expect(usageLimitsFromEnv({})).toEqual(SAFE_DEFAULT_LIMITS);
     expect(usageLimitsFromEnv({ [LIMIT_ENV.daily]: '', [LIMIT_ENV.perInput]: '  ' })).toEqual(SAFE_DEFAULT_LIMITS);
-    expect(Object.values(SAFE_DEFAULT_LIMITS.dailyPerSku).every(n => n <= 20)).toBe(true);
+    // GCP quota is not a hard stop (Routes is unlimited there), so the code caps must stay within the assumed daily budget
+    // (user, 2026-10-25): Places 100/day, Routes 200/day in total.
+    const d = SAFE_DEFAULT_LIMITS.dailyPerSku;
+    const sum = (prefix: string) => Object.entries(d).filter(([k]) => k.startsWith(prefix)).reduce((n, [, v]) => n + v, 0);
+    expect(sum('places.')).toBeLessThanOrEqual(100);
+    expect(sum('routes.')).toBeLessThanOrEqual(200);
+    expect(d[SKU.routesDrive]).toBe(60);
   });
 
   it('lets the environment lower every limit', () => {
@@ -18,13 +24,16 @@ describe('usageLimitsFromEnv', () => {
   });
 
   it('refuses to raise a limit above its safe default, so the server does not start', () => {
-    expect(() => usageLimitsFromEnv({ [LIMIT_ENV.daily]: '21' })).toThrow(/can only be lowered/);
+    expect(() => usageLimitsFromEnv({ [LIMIT_ENV.daily]: '61' })).toThrow(/can only be lowered/);
     expect(() => usageLimitsFromEnv({ [LIMIT_ENV.perInput]: '9' })).toThrow(/can only be lowered/);
     expect(() => usageLimitsFromEnv({ [LIMIT_ENV.concurrent]: '3' })).toThrow(/can only be lowered/);
     expect(() => usageLimitsFromEnv({ [LIMIT_ENV.daily]: '99999999999999999999' })).toThrow(/can only be lowered/);
-    // Leading zeros are read as decimal: 020 is the limit itself, 021 is above it.
-    expect(usageLimitsFromEnv({ [LIMIT_ENV.daily]: '020' }).dailyPerSku[SKU.routesDrive]).toBe(20);
-    expect(() => usageLimitsFromEnv({ [LIMIT_ENV.daily]: '021' })).toThrow(/can only be lowered/);
+    // Leading zeros are read as decimal: 060 is the largest default itself, 061 is above it.
+    expect(usageLimitsFromEnv({ [LIMIT_ENV.daily]: '060' }).dailyPerSku[SKU.routesDrive]).toBe(60);
+    expect(() => usageLimitsFromEnv({ [LIMIT_ENV.daily]: '061' })).toThrow(/can only be lowered/);
+    // A value between the defaults lowers only the SKUs above it: Places stays at 20, Routes drops to 30.
+    const mid = usageLimitsFromEnv({ [LIMIT_ENV.daily]: '30' }).dailyPerSku;
+    expect([mid[SKU.placesTextSearchPro], mid[SKU.routesDrive], mid[SKU.routesTransit]]).toEqual([20, 30, 30]);
   });
 
   it('refuses malformed values instead of guessing', () => {

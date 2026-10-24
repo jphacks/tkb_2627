@@ -506,8 +506,8 @@ describe('per-user daily live route budget, shared by K05 and A05 (B2)', () => {
     expect(b.take('u1')).toBe(true);
   });
 
-  it('LIVE_ROUTE_CALLS_PER_USER_PER_DAY: default 6, 0..20, invalid values refused at startup', () => {
-    expect(liveRouteCallsPerUserFromEnv({})).toBe(6);
+  it('LIVE_ROUTE_CALLS_PER_USER_PER_DAY: default 20, 0..20, invalid values refused at startup', () => {
+    expect(liveRouteCallsPerUserFromEnv({})).toBe(20);
     expect(liveRouteCallsPerUserFromEnv({ LIVE_ROUTE_CALLS_PER_USER_PER_DAY: '20' })).toBe(20);
     expect(liveRouteCallsPerUserFromEnv({ LIVE_ROUTE_CALLS_PER_USER_PER_DAY: '0' })).toBe(0);
     for (const bad of ['21', '-1', 'abc', '1.5']) {
