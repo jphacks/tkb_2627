@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { ApiError } from '@tkb/contracts';
 import type { MockResult } from '../mocks/index.ts';
+
+/** Error result for an exception thrown by an API call (e.g. a contract mismatch inside the mock). */
+export function thrownToError(e: unknown): ApiError {
+  return { code: 'INTERNAL', message: e instanceof Error ? e.message : '予期しないエラーが発生しました。', retryable: true, requestId: 'client_error' };
+}
+
+export function thrownToResult<T>(e: unknown): MockResult<T> {
+  return { ok: false, error: thrownToError(e), source: 'mock', status: 500 };
+}
 
 export type AsyncResult<T> = { status: 'loading' } | { status: 'done'; result: MockResult<T> };
 
@@ -13,9 +23,12 @@ export function useMockResult<T>(load: () => Promise<MockResult<T>>, key: string
   useEffect(() => {
     let live = true;
     setState({ status: 'loading' });
-    void load().then(result => {
-      if (live) setState({ status: 'done', result });
-    });
+    // A thrown error becomes an error result, so the screen never stays in "loading" forever.
+    void load()
+      .catch((e: unknown): MockResult<T> => thrownToResult(e))
+      .then(result => {
+        if (live) setState({ status: 'done', result });
+      });
     return () => {
       live = false;
     };

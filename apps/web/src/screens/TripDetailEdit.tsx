@@ -5,7 +5,7 @@ import { MoneyDeltaText } from '../components/MoneyText.tsx';
 import { ScreenHeader } from '../components/ScreenHeader.tsx';
 import { SourceBadge } from '../components/SourceBadge.tsx';
 import { UNKNOWN_LABEL, VALIDATION_LABEL } from '../components/labels.ts';
-import { useMockResult } from '../components/useMockResult.ts';
+import { thrownToError, useMockResult } from '../components/useMockResult.ts';
 import { formatDay, formatDuration } from '../lib/format.ts';
 import type { MockApi, MockResult } from '../mocks/index.ts';
 import { TripViewer } from '../shell/TripViewer.tsx';
@@ -21,8 +21,16 @@ function itemLabel(item: ItineraryItem, trip: Trip): string {
 }
 
 /** Result of K10: duration delta null is 不明, unknown-cost items are listed and never counted as 0. */
-export function DiffView({ diff, trip }: { diff: TripDiff; trip: Trip }) {
-  const labelOf = new Map(trip.days.flatMap(d => d.items).map(i => [itemIdOf(i), itemLabel(i, trip)]));
+export function DiffView({ diff, trip, before }: { diff: TripDiff; trip: Trip; /** The trip before the patch, to name removed items. */ before?: Trip }) {
+  const labels = (t: Trip) => new Map(t.days.flatMap(d => d.items).map(i => [itemIdOf(i), itemLabel(i, t)]));
+  const afterLabels = labels(trip);
+  const beforeLabels = before ? labels(before) : new Map<string, string>();
+  const labelOf = (id: string): string => {
+    const now = afterLabels.get(id);
+    if (now !== undefined) return now;
+    const old = beforeLabels.get(id);
+    return old !== undefined ? `${old}（削除済み）` : `${id}（削除済み）`;
+  };
   const d = diff.durationDeltaSeconds;
   return (
     <section className="u1-diff" aria-label="直前の変更の差分">
@@ -51,7 +59,7 @@ export function DiffView({ diff, trip }: { diff: TripDiff; trip: Trip }) {
           ) : (
             <>
               <span>{diff.unknownCostItems.length}件（0円として扱っていません）</span>
-              <ul>{diff.unknownCostItems.map(id => <li key={id}>{labelOf.get(id) ?? `${id}（削除済み）`}</li>)}</ul>
+              <ul>{diff.unknownCostItems.map(id => <li key={id}>{labelOf(id)}</li>)}</ul>
             </>
           )}
         </dd>
@@ -61,21 +69,25 @@ export function DiffView({ diff, trip }: { diff: TripDiff; trip: Trip }) {
 }
 
 /** Edit controls: rename, remove, move up/down. Each sends one K10 patch with the loaded revision. */
-export function EditPanel({ trip, saving, titleDraft, onTitleDraft, onPatch }: {
+export function EditPanel({ trip, saving, locked = false, titleDraft, onTitleDraft, onPatch }: {
   trip: Trip;
   saving: boolean;
+  /** True after a REVISION_CONFLICT: editing stays off until the user reloads. */
+  locked?: boolean;
   titleDraft: string;
   onTitleDraft: (v: string) => void;
   onPatch: (ops: TripOperation[]) => void;
 }) {
+  const off = saving || locked;
   const titleChanged = titleDraft.trim() !== '' && titleDraft.trim() !== trip.title;
   return (
     <section className="u1-edit" aria-label="旅程の編集">
       <h3>編集（版 {trip.revision}）</h3>
+      {locked && <p className="note">旅程が別の場所で更新されたため、編集を止めています。「再読込」で最新の旅程を読み込んでください。</p>}
       <div className="u1-field">
         <label htmlFor="e-title">タイトル</label>
         <input id="e-title" type="text" value={titleDraft} maxLength={200} onChange={e => onTitleDraft(e.target.value)} />
-        <button type="button" className="btn" disabled={saving || !titleChanged}
+        <button type="button" className="btn" disabled={off || !titleChanged}
           onClick={() => onPatch([{ op: 'set_title', title: titleDraft.trim() }])}>
           タイトルを変更
         </button>
@@ -92,11 +104,11 @@ export function EditPanel({ trip, saving, titleDraft, onTitleDraft, onPatch }: {
                 <li key={id} className="u1-edititem">
                   <span className="u1-editlabel">{label}</span>
                   <span className="u1-editbtns">
-                    <button type="button" className="btn" disabled={saving || i === 0} aria-label={`「${label}」を上へ移動`}
+                    <button type="button" className="btn" disabled={off || i === 0} aria-label={`「${label}」を上へ移動`}
                       onClick={() => onPatch([{ op: 'move', itemId: id, toDayIndex: dayIndex, toPosition: i - 1 }])}>上へ</button>
-                    <button type="button" className="btn" disabled={saving || i === day.items.length - 1} aria-label={`「${label}」を下へ移動`}
+                    <button type="button" className="btn" disabled={off || i === day.items.length - 1} aria-label={`「${label}」を下へ移動`}
                       onClick={() => onPatch([{ op: 'move', itemId: id, toDayIndex: dayIndex, toPosition: i + 1 }])}>下へ</button>
-                    <button type="button" className="btn u1-danger" disabled={saving} aria-label={`「${label}」を削除`}
+                    <button type="button" className="btn u1-danger" disabled={off} aria-label={`「${label}」を削除`}
                       onClick={() => onPatch([{ op: 'remove', itemId: id }])}>削除</button>
                   </span>
                 </li>
@@ -153,7 +165,7 @@ function DetailBody({ api, result, onReload, onGuide, onShare }: {
 }) {
   const [edited, setEdited] = useState<Trip | null>(null);
   const trip = edited ?? result.data;
-  const [diff, setDiff] = useState<TripDiff | null>(null);
+  const [diff, setDiff] = useState<{ diff: TripDiff; before: Trip } | null>(null);
   const [saving, setSaving] = useState(false);
   const [patchError, setPatchError] = useState<ApiError | null>(null);
   const [titleDraft, setTitleDraft] = useState(result.data.title);
@@ -161,27 +173,39 @@ function DetailBody({ api, result, onReload, onGuide, onShare }: {
   const patch = async (operations: TripOperation[]) => {
     setSaving(true);
     setPatchError(null);
-    const r = await api.patchTrip(trip.tripId, { expectedRevision: trip.revision, operations });
-    setSaving(false);
-    if (r.ok) {
-      setEdited(r.data.trip);
-      setDiff(r.data.diff);
-      setTitleDraft(r.data.trip.title);
-    } else {
-      setPatchError(r.error);
+    try {
+      const r = await api.patchTrip(trip.tripId, { expectedRevision: trip.revision, operations });
+      if (r.ok) {
+        setDiff({ diff: r.data.diff, before: trip });
+        setEdited(r.data.trip);
+        setTitleDraft(r.data.trip.title);
+      } else {
+        setPatchError(r.error);
+      }
+    } catch (e) {
+      setPatchError(thrownToError(e));
+    } finally {
+      setSaving(false);
     }
   };
 
   /** Reviewer aid: another device changes the trip, this screen stays on the old revision. */
   const simulateOtherDevice = async () => {
     setSaving(true);
-    const r = await api.patchTrip(trip.tripId, {
-      expectedRevision: trip.revision,
-      operations: [{ op: 'set_title', title: `${trip.title.replace(/（別端末で更新）$/, '')}（別端末で更新）` }],
-    });
-    setSaving(false);
-    if (!r.ok) setPatchError(r.error);
+    try {
+      const r = await api.patchTrip(trip.tripId, {
+        expectedRevision: trip.revision,
+        operations: [{ op: 'set_title', title: `${trip.title.replace(/（別端末で更新）$/, '')}（別端末で更新）` }],
+      });
+      if (!r.ok) setPatchError(r.error);
+    } catch (e) {
+      setPatchError(thrownToError(e));
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const conflict = patchError?.code === 'REVISION_CONFLICT';
 
   const reloadLatest = () => {
     setEdited(null);
@@ -210,19 +234,19 @@ function DetailBody({ api, result, onReload, onGuide, onShare }: {
 
       <TripViewer trips={[trip]} />
 
-      {patchError?.code === 'REVISION_CONFLICT' ? (
+      {conflict && patchError ? (
         <ConflictNotice error={patchError} onReload={reloadLatest} />
       ) : (
         patchError && <ErrorBox title="変更を保存できませんでした" error={patchError} />
       )}
-      {diff && <DiffView diff={diff} trip={trip} />}
+      {diff && <DiffView diff={diff.diff} trip={trip} before={diff.before} />}
 
-      <EditPanel trip={trip} saving={saving} titleDraft={titleDraft} onTitleDraft={setTitleDraft} onPatch={ops => void patch(ops)} />
+      <EditPanel trip={trip} saving={saving} locked={conflict} titleDraft={titleDraft} onTitleDraft={setTitleDraft} onPatch={ops => void patch(ops)} />
 
-      <details className="u1-review">
+      <details className="u1-review u1-details">
         <summary>レビュー用: 競合の再現</summary>
         <p className="meta">別の端末が先に更新した状況を作ります。この後に編集すると REVISION_CONFLICT になります（モックのみ）。</p>
-        <button type="button" className="btn" disabled={saving} onClick={() => void simulateOtherDevice()}>別端末の更新を再現</button>
+        <button type="button" className="btn" disabled={saving || conflict} onClick={() => void simulateOtherDevice()}>別端末の更新を再現</button>
       </details>
 
       <p className="u1-srcline"><SourceBadge result={result} /></p>

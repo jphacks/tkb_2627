@@ -5,7 +5,7 @@ import { MoneyTotals } from '../components/MoneyText.tsx';
 import { ScreenHeader } from '../components/ScreenHeader.tsx';
 import { SourceBadge } from '../components/SourceBadge.tsx';
 import { UNKNOWN_LABEL, VALIDATION_LABEL } from '../components/labels.ts';
-import { useMockResult, type AsyncResult } from '../components/useMockResult.ts';
+import { thrownToError, useMockResult, type AsyncResult } from '../components/useMockResult.ts';
 import { formatDay } from '../lib/format.ts';
 import type { MockApi, MockResult } from '../mocks/index.ts';
 
@@ -50,7 +50,7 @@ export function CandidateCard({ candidate, index, busy, onAdopt }: {
         </div>
       )}
       {candidate.reasons.length > 0 && (
-        <details>
+        <details className="u1-details">
           <summary>この候補の理由（{candidate.reasons.length}件）</summary>
           <ul>{candidate.reasons.map(r => <li key={r}>{r}</li>)}</ul>
         </details>
@@ -109,10 +109,15 @@ export function CandidateCompare({ api, batchId, onApplied, onBack }: {
   const adopt = async (candidateId: string) => {
     setBusyId(candidateId);
     setApplyError(null);
-    const r = await api.applyCandidate({ batchId, candidateId, tripId: null, expectedRevision: null });
-    setBusyId(null);
-    if (r.ok) onApplied(r.data.tripId);
-    else setApplyError(r.error);
+    try {
+      const r = await api.applyCandidate({ batchId, candidateId, tripId: null, expectedRevision: null });
+      if (r.ok) onApplied(r.data.tripId);
+      else setApplyError(r.error);
+    } catch (e) {
+      setApplyError(thrownToError(e));
+    } finally {
+      setBusyId(null);
+    }
   };
 
   return (

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { TERMINAL_JOB_STATES } from '@tkb/contracts';
-import type { ApiError, JobStage, JobState, JobStatus } from '@tkb/contracts';
+import type { ApiError, CancelResult, JobStage, JobState, JobStatus } from '@tkb/contracts';
 import { ErrorBox } from '../components/ErrorBox.tsx';
 import { JOB_STAGE_LABEL, JOB_STATE_LABEL } from '../components/labels.ts';
 import { ScreenHeader } from '../components/ScreenHeader.tsx';
+import { thrownToError } from '../components/useMockResult.ts';
 import type { MockApi } from '../mocks/index.ts';
 
 const STEPS: JobStage[] = ['queued', 'collecting_context', 'generating', 'validating', 'saved'];
@@ -95,7 +96,8 @@ export function GenerationProgress({ api, jobId, pollAfterMs, onSucceeded, onBac
   const [polls, setPolls] = useState(0);
   const [resume, setResume] = useState(0);
   const [cancelling, setCancelling] = useState(false);
-  const [cancelledByUser, setCancelledByUser] = useState(false);
+  // Outcome of an accepted cancel request (200/202): cancelled, or already succeeded/failed.
+  const [cancelOutcome, setCancelOutcome] = useState<CancelResult | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<ApiError | null>(null);
   const stopped = useRef(false);
@@ -104,7 +106,13 @@ export function GenerationProgress({ api, jobId, pollAfterMs, onSucceeded, onBac
     let live = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const run = async () => {
-      const r = await api.getJob(jobId);
+      let r: Awaited<ReturnType<typeof api.getJob>>;
+      try {
+        r = await api.getJob(jobId);
+      } catch (e) {
+        if (live) setPollError(thrownToError(e));
+        return;
+      }
       if (!live) return;
       setPolls(n => n + 1);
       if (!r.ok) {
@@ -127,29 +135,36 @@ export function GenerationProgress({ api, jobId, pollAfterMs, onSucceeded, onBac
     setCancelling(true);
     setCancelError(null);
     setNote(null);
-    const r = await api.cancelJob(jobId);
-    setCancelling(false);
-    if (r.ok) {
-      // 200 (already cancelled/failed) and 202 (cancel accepted) are both a success response.
-      if (r.data.state === 'cancelled') {
-        stopped.current = true;
-        setCancelledByUser(true);
+    try {
+      const r = await api.cancelJob(jobId);
+      if (r.ok) {
+        // 200 (already finished) and 202 (cancel accepted) are both success responses.
+        if (r.data.state === 'cancelled' || (r.data.state === 'succeeded' && r.data.batchId !== null)) {
+          stopped.current = true;
+          setCancelOutcome(r.data);
+          if (r.data.state === 'succeeded') setNote('取り消す前に生成が完了していました。候補を比較できます。');
+        }
+      } else if (r.status === 409) {
+        // 409: saving is in progress, so the result is not decided yet. Keep polling.
+        setNote('保存処理が進行中のため取り消せませんでした。結果はまだ確定していません。状態確認を続けます。');
+      } else {
+        setCancelError(r.error);
       }
-    } else if (r.error.code === 'ALREADY_COMMITTED') {
-      setNote('すでに候補が保存されているため取り消せません。次の状態確認で結果が表示されます。');
-    } else {
-      setCancelError(r.error);
+    } catch (e) {
+      setCancelError(thrownToError(e));
+    } finally {
+      setCancelling(false);
     }
   };
 
-  const state: JobState = cancelledByUser ? 'cancelled' : (status?.state ?? 'queued');
+  const state: JobState = cancelOutcome?.state === 'cancelled' || cancelOutcome?.state === 'succeeded' ? cancelOutcome.state : (status?.state ?? 'queued');
   return (
     <section aria-label="生成の進行状況">
       <ScreenHeader title="候補を生成しています" onBack={onBack} />
       <ProgressView
         state={state}
         stage={status?.stage ?? null}
-        batchId={status?.batchId ?? null}
+        batchId={status?.batchId ?? cancelOutcome?.batchId ?? null}
         jobError={status?.error ?? null}
         pollError={pollError}
         note={note}

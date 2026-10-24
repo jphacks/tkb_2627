@@ -2,7 +2,7 @@
  * R01 condition form: pure state/validation. The request is built exactly per
  * packages/contracts (GenerateRequest / TripConstraints); no field is invented.
  */
-import { GenerateRequest, Id, TimeZone } from '@tkb/contracts';
+import { GenerateRequest, TimeZone } from '@tkb/contracts';
 import type { Money, TransportMode } from '@tkb/contracts';
 
 export interface ConditionForm {
@@ -34,13 +34,19 @@ export const FIELD_LABEL: Record<FieldKey, string> = {
 };
 
 export const TIME_ZONE_SUGGESTIONS = ['Asia/Tokyo', 'Asia/Seoul', 'Asia/Taipei', 'Europe/Paris', 'Europe/London', 'America/New_York', 'America/Los_Angeles', 'Australia/Sydney'];
+/** Prefix of every typed 必須地点 sent as a preference (the name is not resolved to a placeId). */
+export const MUST_VISIT_PREFIX = '必須地点（名称・地点ID未解決）: ';
+/** trip.ts: preferences are at most 20 items of at most 200 characters. */
+export const MAX_PREFERENCES = 20;
+export const MAX_PREFERENCE_LENGTH = 200;
 export const CURRENCIES = ['JPY', 'EUR', 'USD'] as const;
 
 export const emptyForm: ConditionForm = {
   area: '',
   startDate: '',
   endDate: '',
-  timeZone: 'Asia/Tokyo',
+  // Required: left empty until the user picks one (nothing is confirmed silently).
+  timeZone: '',
   transportMode: '',
   budgetMode: 'unknown',
   budgetAmount: '',
@@ -140,12 +146,14 @@ export function validateCondition(form: ConditionForm): ConditionResult {
   }
 
   const entries = splitMustVisit(form.mustVisit);
-  const mustVisit = entries.filter(e => Id.safeParse(e).success);
-  // Names that are not place IDs cannot go into mustVisit (Id[]); they are passed as a stated preference.
-  const preferences = entries.filter(e => !Id.safeParse(e).success).map(e => `必須地点（名称・地点ID未解決）: ${e}`);
-  if (mustVisit.length > 30) errors.mustVisit = '地点IDは30件までです。';
-  else if (preferences.length > 20) errors.mustVisit = '地点名は20件までです。';
-  else if (preferences.some(p => p.length > 200)) errors.mustVisit = '地点名が長すぎます（1件あたり約170文字まで）。';
+  // No place picker exists yet, so typed text is never a verified placeId: every entry is sent as a stated
+  // preference and mustVisit stays empty (it is omitted from the request).
+  const preferences = entries.map(e => `${MUST_VISIT_PREFIX}${e}`);
+  const longest = entries.find(e => `${MUST_VISIT_PREFIX}${e}`.length > MAX_PREFERENCE_LENGTH);
+  if (preferences.length > MAX_PREFERENCES) errors.mustVisit = `必須地点は${MAX_PREFERENCES}件までです（現在 ${preferences.length} 件）。`;
+  else if (longest !== undefined) {
+    errors.mustVisit = `「${longest.slice(0, 20)}…」が長すぎます（1件あたり${MAX_PREFERENCE_LENGTH - MUST_VISIT_PREFIX.length}文字まで）。`;
+  }
 
   if (Object.keys(errors).length > 0) return { errors, missing, request: null };
 
@@ -158,7 +166,6 @@ export function validateCondition(form: ConditionForm): ConditionResult {
       timeZone: form.timeZone.trim(),
       transportMode: form.transportMode,
       budget: form.budgetMode === 'amount' ? budget : null,
-      ...(mustVisit.length > 0 ? { mustVisit } : {}),
       ...(preferences.length > 0 ? { preferences } : {}),
     },
   });

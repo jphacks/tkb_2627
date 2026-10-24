@@ -106,6 +106,10 @@ describe('condition form', () => {
     const before = view(emptyForm, false);
     expect(before).toContain('未入力：地域');
     expect(before).toContain('未入力：交通手段');
+    expect(before).toContain('未入力：タイムゾーン');
+    // aria-describedby only points at error elements that exist
+    expect(before).not.toContain('c-area-err');
+    expect(view(emptyForm, true)).toContain('aria-describedby="c-area-err"');
     expect(before).not.toContain('role="alert"');
     const after = view(emptyForm, true);
     expect(after).toContain('role="alert"');
@@ -205,6 +209,27 @@ describe('detail, edit, guide, share, feed', () => {
     expect(withoutDisclaimers(html)).not.toMatch(SHOWN_AS_ZERO);
     const known = renderToString(<DiffView trip={trip} diff={{ durationDeltaSeconds: -1800, knownCostDelta: [{ currency: 'JPY', amountMinor: -500 }], unknownCostItems: [] }} />);
     expect(known).toContain('-30分');
+  });
+
+  it('names a removed item by its title (with 削除済み), not by its raw id', async () => {
+    const before = await firstTrip('normal');
+    const removed = before.days.flatMap(d => d.items).find(i => i.type === 'activity');
+    if (!removed || removed.type !== 'activity') throw new Error('activity');
+    const after: Trip = { ...before, days: before.days.map(d => ({ ...d, items: d.items.filter(i => i !== removed) })) };
+    const html = renderToString(
+      <DiffView before={before} trip={after} diff={{ durationDeltaSeconds: 0, knownCostDelta: [], unknownCostItems: [removed.activityId] }} />,
+    );
+    expect(html).toContain(`${removed.title}（削除済み）`);
+    expect(html).not.toContain(`${removed.activityId}（削除済み）`);
+  });
+
+  it('turns every edit button off while locked after a conflict', async () => {
+    const trip = await firstTrip('normal');
+    const html = renderToString(<EditPanel trip={trip} saving={false} locked titleDraft={`${trip.title}x`} onTitleDraft={noop} onPatch={noop} />);
+    expect(html).toContain('編集を止めています');
+    const buttons = html.match(/<button[^>]*>/g) ?? [];
+    expect(buttons.length).toBeGreaterThan(3);
+    expect(buttons.every(b => b.includes('disabled'))).toBe(true);
   });
 
   it('renders edit controls with accessible names and a conflict notice with 再読込', async () => {

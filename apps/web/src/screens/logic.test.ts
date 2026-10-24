@@ -6,12 +6,14 @@ import { flowReducer, initialFlow } from './flow.ts';
 import { localDateIn, pickGuideTarget } from './guide.ts';
 
 describe('condition form (R01)', () => {
-  it('flags every required field when empty, but defaults the time zone and budget to explicit values', () => {
+  it('flags every required field when empty, including the time zone (nothing is confirmed silently)', () => {
     const r = validateCondition(emptyForm);
     expect(r.request).toBeNull();
-    expect(r.missing).toEqual(['area', 'startDate', 'endDate', 'transportMode']);
-    expect(Object.keys(r.errors).sort()).toEqual(['area', 'endDate', 'startDate', 'transportMode']);
-    expect(emptyForm.timeZone).toBe('Asia/Tokyo');
+    expect(r.missing).toEqual(['area', 'startDate', 'endDate', 'timeZone', 'transportMode']);
+    expect(Object.keys(r.errors).sort()).toEqual(['area', 'endDate', 'startDate', 'timeZone', 'transportMode']);
+    expect(emptyForm.timeZone).toBe('');
+    // Only the budget has a visible default, and it is the explicit "unknown".
+    expect(emptyForm.budgetMode).toBe('unknown');
   });
 
   it('builds a GenerateRequest that passes the contract; budget unknown is null, never 0', () => {
@@ -46,11 +48,32 @@ describe('condition form (R01)', () => {
     expect(validateCondition({ ...sampleForm, timeZone: 'Europe/Paris' }).request?.constraints.timeZone).toBe('Europe/Paris');
   });
 
-  it('sends place IDs as mustVisit and names as stated preferences, without inventing fields', () => {
+  it('sends every typed 必須地点 as a stated preference and never as mustVisit', () => {
     expect(splitMustVisit('兼六園\nplace_kenroku, 兼六園\n\n')).toEqual(['兼六園', 'place_kenroku']);
-    const r = validateCondition({ ...sampleForm, mustVisit: '兼六園\nplace_kenroku' });
-    expect(r.request?.constraints.mustVisit).toEqual(['place_kenroku']);
-    expect(r.request?.constraints.preferences).toEqual(['必須地点（名称・地点ID未解決）: 兼六園']);
+    // Id-looking text ("Louvre", "Tokyo-Tower") is not a verified placeId either.
+    const r = validateCondition({ ...sampleForm, mustVisit: '兼六園\nLouvre\nTokyo-Tower' });
+    expect(r.request?.constraints.mustVisit).toBeUndefined();
+    expect(r.request?.constraints.preferences).toEqual([
+      '必須地点（名称・地点ID未解決）: 兼六園',
+      '必須地点（名称・地点ID未解決）: Louvre',
+      '必須地点（名称・地点ID未解決）: Tokyo-Tower',
+    ]);
+    expect(validateCondition(sampleForm).request?.constraints.preferences).toBeUndefined();
+  });
+
+  it('reports an error instead of truncating when preferences exceed the contract limits', () => {
+    const tooMany = Array.from({ length: 21 }, (_, i) => `地点${i}`).join('\n');
+    const many = validateCondition({ ...sampleForm, mustVisit: tooMany });
+    expect(many.request).toBeNull();
+    expect(many.errors.mustVisit).toContain('20件まで');
+    const exactly20 = validateCondition({ ...sampleForm, mustVisit: tooMany.split('\n').slice(0, 20).join('\n') });
+    expect(exactly20.request?.constraints.preferences).toHaveLength(20);
+
+    const long = validateCondition({ ...sampleForm, mustVisit: 'あ'.repeat(200) });
+    expect(long.request).toBeNull();
+    expect(long.errors.mustVisit).toContain('長すぎます');
+    const fits = validateCondition({ ...sampleForm, mustVisit: 'あ'.repeat(182) });
+    expect(fits.request?.constraints.preferences?.[0]?.length).toBe(200);
   });
 
   it('the mock accepts the built request (K01 202) and the flow moves to progress', async () => {
