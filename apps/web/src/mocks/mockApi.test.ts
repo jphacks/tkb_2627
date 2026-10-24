@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { Feed, JobAccepted, JobStatus, PlanBatch, Trip, TripList, TripPatchResult, TripWriteResult } from '@tkb/contracts';
 import type { Activity } from '@tkb/contracts';
 import { domesticTrip, fixtureTrips, sampleFeed } from '@tkb/fixtures';
-import { MOCK_NOTICE, createMockApi, toProbe } from './index.ts';
+import { MOCK_NOTICE, MOCK_REPLAN_BATCH_ID, createMockApi, toProbe } from './index.ts';
 import type { MockApi, MockResult } from './index.ts';
 
 // Items of the Kanazawa fixture whose cost is unknown. K10 diff lists them on every edit (union of before and after, as main does).
@@ -215,7 +215,7 @@ describe('mock api: K01/K02/K21 jobs', () => {
     expect(errorCode(await api.cancelJob('nope'))).toBe('NOT_FOUND');
   });
 
-  it('cancel stops a running job; a saved job cannot be cancelled', async () => {
+  it('cancel stops a running job; a saved job is reported as succeeded with its batch id (200)', async () => {
     const api = createMockApi();
     const { jobId } = data(await api.generate(GENERATE));
     await api.getJob(jobId);
@@ -228,8 +228,10 @@ describe('mock api: K01/K02/K21 jobs', () => {
     const second = data(await api.generate(GENERATE));
     const done = (await pollToEnd(api, second.jobId)).at(-1);
     const late = await api.cancelJob(second.jobId);
-    expect(errorCode(late)).toBe('ALREADY_COMMITTED');
-    expect(!late.ok && late.error.details).toEqual({ batchId: done?.batchId });
+    expect(late.status).toBe(200);
+    expect(data(late)).toEqual({ jobId: second.jobId, state: 'succeeded', batchId: done?.batchId });
+    expect(data(late).batchId).toBeTruthy();
+    expect(data(await api.getJob(second.jobId)).state).toBe('succeeded');
   });
 
   it('car requests get car legs without fares', async () => {
@@ -268,10 +270,10 @@ describe('mock api: K08 apply-candidate', () => {
 
   it('updates an existing trip (200) and bumps the revision; stale revisions conflict', async () => {
     const api = createMockApi();
-    const res = await api.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_3', tripId: 'fx_trip_kanazawa', expectedRevision: 1 });
+    const res = await api.applyCandidate({ batchId: MOCK_REPLAN_BATCH_ID, candidateId: 'candidate_3', tripId: 'fx_trip_kanazawa', expectedRevision: 1 });
     expect(res.status).toBe(200);
     expect(data(res).revision).toBe(2);
-    const stale = await api.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_3', tripId: 'fx_trip_kanazawa', expectedRevision: 1 });
+    const stale = await api.applyCandidate({ batchId: MOCK_REPLAN_BATCH_ID, candidateId: 'candidate_3', tripId: 'fx_trip_kanazawa', expectedRevision: 1 });
     expect(errorCode(stale)).toBe('REVISION_CONFLICT');
     expect(!stale.ok && stale.error.details).toEqual({ expectedRevision: 1, currentRevision: 2 });
   });
@@ -283,6 +285,27 @@ describe('mock api: K08 apply-candidate', () => {
     expect(errorCode(await api.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_1', tripId: 'nope', expectedRevision: 1 }))).toBe('NOT_FOUND');
     expect(errorCode(await api.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_1', tripId: 'fx_trip_kanazawa', expectedRevision: null }))).toBe('VALIDATION_FAILED');
     expect(errorCode(await api.applyCandidate({ batchId: 'fx_batch_1' } as never))).toBe('VALIDATION_FAILED');
+  });
+
+  it('replan batch is seeded for the Kanazawa trip; fx_batch_1 is not (it only creates new trips)', async () => {
+    const api = createMockApi();
+    const replan = data(await api.getPlanBatch(MOCK_REPLAN_BATCH_ID));
+    expect(replan.baseTripId).toBe('fx_trip_kanazawa');
+    expect(replan.baseRevision).toBe(1);
+    expect(data(await api.getPlanBatch('fx_batch_1')).baseTripId).toBeNull();
+    const wrong = await api.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_3', tripId: 'fx_trip_kanazawa', expectedRevision: 1 });
+    expect(wrong.status).toBe(422);
+    expect(errorCode(wrong)).toBe('VALIDATION_FAILED');
+  });
+
+  it('applying the same candidate again with tripId null returns the same trip (200)', async () => {
+    const api = createMockApi();
+    const req = { batchId: 'fx_batch_1', candidateId: 'candidate_2', tripId: null, expectedRevision: null };
+    const first = await api.applyCandidate(req);
+    const second = await api.applyCandidate(req);
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(200);
+    expect(data(second).tripId).toBe(data(first).tripId);
   });
 });
 
