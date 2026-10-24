@@ -1,7 +1,7 @@
 /**
  * Fixture data for UI and tests. NOT verified travel information:
  * place names are real, but coordinates, hours, times and prices are illustrative only.
- * Every record carries dataStatus 'fixture' so screens can label it as mock data.
+ * Every place and leg carries dataStatus 'fixture' (activity costs carry costStatus) so screens can label it as mock data.
  */
 import type {
   Activity,
@@ -281,3 +281,5 @@ export const sampleFeed: Feed = {
   ],
   nextCursor: null,
 };
+
+export * from './cases.ts';
