@@ -1200,6 +1200,12 @@ job: queued→running→succeeded/failed/cancelled。succeededは候補の共通
   - 作成も取得も旅程の所有者だけです。他人の旅程・exportと存在しないものは、どちらも404です。取得のたびに旅程の所有を確認するので、旅程を削除するとexportも404になります。版違いは409 `REVISION_CONFLICT`、出力できる項目が1つもない場合は422 `RESTRICTED_ASSET`です。
   - 生成は共有サーバー内の固定レイアウト（pdf-lib＋同梱のNoto Sans JP、OFL-1.1、subset埋込み）で行います。ブラウザ・HTML・任意URLは読み込みません。地図画像と写真は描画しません（写真は外部URLのため。件数だけ注記）。不明な値は「未定」「不明」と書き、0にしません。JIS第1・第2水準外の文字は「?」になります。
   - 出力jobはメモリ上のキューで、同時実行1件、待機8件まで（超えると429 `QUEUE_FULL`）、利用者ごとに処理中1件（429 `RATE_LIMITED`）、1件20秒で`failed`（TIMEOUT）、完成したPDFは10分で破棄（`expired`）します。ディスクには書かず、再起動で消えます。ICS・Maps URL（E03）は`@tkb/exports`の関数で、このルートでは返しません。
+- **K19の周辺施設**（U07、D08）：`GET /api/v1/amenities?bbox=south,west,north,east&kind=...`。認証は不要（公開情報）で、応答はすべて`no-store`です。位置は保存もログ出力もしません。
+  - bboxが不正、`kind`や災害種別が不明、範囲が大きすぎる場合は422です。
+  - 取得元が使えない場合（liveは未実装）は503 `UNAVAILABLE`（再試行可）です。
+  - 未対応の地域は、空の`ok`にせず200で`dataStatus=unsupported_region`を返します。対応範囲で施設が無い場合は200・`items=[]`です。
+  - `openNow`は常にnullです。指定されていることは、現在開設中であることを意味しません。
+  - `GET /api/v1/guides`（スポット説明）は登録していません。説明は`Trip.places`で渡ります。
 - **互換の追加（schemaVersion 1のまま）**：
   - `TripConstraints.transportModeByDate`（R6、日ごとの交通手段。指定のない日は`transportMode`を使う。公開snapshotにも含める）
   - `TravelLeg.transit`（R05、乗車駅・降車駅・乗換駅の名前。取得できなければ`null`または空配列で、推測しない）
