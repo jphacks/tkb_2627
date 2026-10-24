@@ -50,4 +50,26 @@ describe('K10 diff follows R11 (unknown cost is never 0)', () => {
     expect(t.days.flatMap((d) => d.items).some((i) => (i.type === 'leg' ? i.arrival === null : i.end === null))).toBe(true);
     expect(computeDiff(t, structuredClone(t)).durationDeltaSeconds).toBeNull();
   });
+
+  it('an id listed twice with one unknown cost is unknown as a whole', () => {
+    const before = base();
+    const after = base();
+    const act = firstPricedActivity(after);
+    after.days[0]!.items.push({ ...act, cost: null, costStatus: 'unknown' });
+    const d = computeDiff(before, after);
+    expect(d.unknownCostItems).toContain(act.activityId);
+    expect(d.knownCostDelta).toEqual([]);
+  });
+
+  it('a change of currency reports each currency separately, never a merged total', () => {
+    const before = base();
+    const after = base();
+    const act = firstPricedActivity(after);
+    const old = act.cost!;
+    act.cost = { amountMinor: 1000, currency: old.currency === 'EUR' ? 'USD' : 'EUR' };
+    const delta = computeDiff(before, after).knownCostDelta;
+    expect(delta).toContainEqual({ amountMinor: -old.amountMinor, currency: old.currency });
+    expect(delta).toContainEqual({ amountMinor: 1000, currency: act.cost.currency });
+    expect(delta).toHaveLength(2);
+  });
 });

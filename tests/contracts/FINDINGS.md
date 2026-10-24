@@ -38,3 +38,10 @@ M-8 以外の比較（M-1〜M-7 以外の status・error code・details のキ�
 ## 担保の分担
 - 本タスクで新規：契約と実装の一致（共有・本人用）、モックと実装の一致、AI の JSON Schema とブループリント拒否、値の境界、fixture と mockApi 全応答の一括検証。
 - 既存に任せたもの：アクセス権限（tests/access）、漏えい・課金（tests/security）、job の異常系（tests/jobs）、CLI 境界（tests/ai）、fixture 個別の意味（packages/fixtures）、モック個別の挙動（apps/web/src/mocks）。
+
+## M-9 K10の差分の定義（M2、U01の前に）
+- 実装：`apps/server/src/trips/operations.ts`の`computeDiff`は`@tkb/planner`の`tripDiff`を使います（docs/03_CONTRACTS.md「K10の差分」）。
+  - 既知の費用が不明に変わった項目は、`knownCostDelta`に入れず、`unknownCostItems`に入れます。
+  - 所要時間は旅程全体の開始から終了までで、時刻が不明な項目があればnullです。
+- モック：`apps/web/src/mocks/mockApi.ts`（19行目の注記、181-188行、530-535行）は旧定義（日ごとの幅）のままです。既知の費用が不明に変わると、負の差額（節約）として数えます。`mockApi.edge.test.ts:665-683`もこの挙動を前提にしています。
+- 修正案：モックの費用と所要時間を`@tkb/planner`の`tripDiff`に寄せ、edgeテストの期待値を直してください。
