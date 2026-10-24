@@ -23,6 +23,7 @@ export function createSharedClient(opts: { baseUrl: string; fetch?: FetchLike; t
         res = await doFetch(`${base}${UPSTREAM_PATHS.login}`, {
           method: 'POST',
           // Only content-type is sent: never client cookies or other headers.
+          // No Origin either: S02 accepts Origin-less requests. If S02 starts requiring it, send the fixed shared origin.
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body),
           redirect: 'manual',

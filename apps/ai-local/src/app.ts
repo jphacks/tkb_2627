@@ -156,7 +156,10 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     const body = LoginRequest.safeParse(req.body);
     if (!body.success) return sendError(reply, req.id, 'VALIDATION_FAILED', 'Invalid request.');
     const r = await shared.login(body.data);
-    if (!r.ok) return sendError(reply, req.id, r.code, 'Login failed.', r.retryable);
+    if (!r.ok) {
+      session.upstream = null; // a failed re-login must not keep the previous identity
+      return sendError(reply, req.id, r.code, 'Login failed.', r.retryable);
+    }
     if (config.ownerUserId === null || r.userId !== config.ownerUserId) {
       session.upstream = null; // discard the upstream session
       return sendError(reply, req.id, 'FORBIDDEN', 'Forbidden.');
@@ -187,6 +190,10 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     };
     // TODO(A06): replan. Never silently run it as generate.
     if (body.data.mode === 'replan') return sendError(reply, req.id, 'VALIDATION_FAILED', 'mode=replan is not supported yet.');
+    // TODO(A04): base trip ownership is checked via the shared server (S04). Until then never accept and drop it.
+    if (body.data.baseTripId != null || body.data.expectedRevision != null) {
+      return sendError(reply, req.id, 'VALIDATION_FAILED', 'baseTripId is not supported yet.');
+    }
     const fingerprint = createHash('sha256').update(JSON.stringify(body.data)).digest('hex');
     const r = jobs.submit(owner, key, fingerprint, input, req.id);
     if (r.kind === 'conflict') return sendError(reply, req.id, 'IDEMPOTENCY_CONFLICT', 'Idempotency-Key reused with a different request.');

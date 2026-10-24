@@ -168,6 +168,20 @@ describe('login proxy', () => {
     const s2 = await pair(empty);
     expect((await post(empty, '/local/v1/auth/login', { loginId: 'a', password: 'b' }, { cookie: s2.cookie, 'x-csrf-token': s2.csrf })).statusCode).toBe(403);
   });
+  it('a failed re-login clears the previous upstream identity', async () => {
+    let status = 200;
+    const ok = loginFetch('u1');
+    const bad = loginFetch('u1', 401);
+    const a = make({ fetch: (url, init) => (status === 200 ? ok : bad)(url, init) });
+    const s = await pair(a);
+    const h = { cookie: s.cookie, 'x-csrf-token': s.csrf };
+    expect((await post(a, '/local/v1/auth/login', { loginId: 'a', password: 'b' }, h)).statusCode).toBe(200);
+    status = 401;
+    expect((await post(a, '/local/v1/auth/login', { loginId: 'a', password: 'x' }, h)).statusCode).toBe(401);
+    const me = await a.app.inject({ url: '/local/v1/session', headers: { host: HOST, cookie: s.cookie } });
+    expect(me.json().userId).toBeNull();
+    expect((await gen(a, h)).statusCode).toBe(401);
+  });
   it('maps upstream 401/429/5xx', async () => {
     for (const [status, expected] of [[401, 'UNAUTHENTICATED'], [429, 'RATE_LIMITED'], [500, 'UNAVAILABLE']] as const) {
       const a = make({ fetch: loginFetch('u1', status) });
@@ -273,6 +287,12 @@ describe('review fixes', () => {
     const replan = await gen(a, h, 'key-replan01', { mode: 'replan', constraints, baseTripId: 'trip1', expectedRevision: 1 });
     expect(replan.statusCode).toBe(422);
     expect(code(replan)).toBe('VALIDATION_FAILED');
+    // Base trip ownership cannot be checked yet (S04/A04): never accept and silently drop it.
+    for (const extra of [{ baseTripId: 'trip1' }, { expectedRevision: 1 }, { baseTripId: 'trip1', expectedRevision: 1 }]) {
+      const r = await gen(a, h, 'key-basetrip1', { constraints, ...extra });
+      expect(r.statusCode).toBe(422);
+      expect(code(r)).toBe('VALIDATION_FAILED');
+    }
     const j = await waitState(a, h, JobAccepted.parse(ok.json()).jobId, 'failed');
     expect(j.error?.requestId).toBe(ok.headers['x-request-id']);
   });

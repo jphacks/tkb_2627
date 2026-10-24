@@ -46,6 +46,25 @@ describe('JobManager owner isolation', () => {
 });
 
 describe('JobManager lifecycle', () => {
+  it('usage limit from the runner fails the job with CLI_LIMIT (no fallback, no retry)', async () => {
+    let calls = 0;
+    const limited: Runner = {
+      run: async () => {
+        calls++;
+        return {
+          exitCode: 1,
+          envelope: null,
+          durationMs: 1,
+          error: { code: 'CLI_LIMIT', message: 'Usage limit reached.', retryable: false, requestId: 'x' },
+        };
+      },
+    };
+    const m = mgr(limited);
+    const id = accept(m.submit('u1', 'key-limit001', 'f1', input));
+    await until(() => m.status('u1', id)?.state === 'failed');
+    expect(m.status('u1', id)?.error?.code).toBe('CLI_LIMIT');
+    expect(calls).toBe(1);
+  });
   it('a runner that ignores AbortSignal cannot block the queue', async () => {
     const m = mgr(never, { timeoutMs: 40 });
     const a = accept(m.submit('u1', 'key-00000001', 'f1', input));
