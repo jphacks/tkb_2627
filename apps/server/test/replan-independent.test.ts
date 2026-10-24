@@ -85,7 +85,7 @@ const legsOf = (t: Trip, d = 0) => t.days[d]!.items.filter(i => i.type === 'leg'
 const byId = (t: Trip, id: string) => acts(t).find(a => a.activityId === id);
 const startMin = (a: any) => (Date.parse(a.start.utc) - atMs(0)) / 60000;
 const unavailable = { kind: 'unavailable', reason: 'denied' } as const;
-const items = () => [act('a1', 1, 0, 30), act('a2', 2, 35, 85), act('a3', 3, 120, 170)];
+const items = () => [act('a1', 1, 0, 50), act('a2', 2, 60, 110), act('a3', 3, 120, 170)];
 const touchesFixed = (ops: any[] | null, id: string) => (ops ?? []).some(o => (o.op === 'update' || o.op === 'remove') && o.itemId === id);
 
 /** Applying `operations` with PATCH must give exactly the previewed diff and days. */
@@ -159,8 +159,8 @@ describe('乗り遅れ (missed connection)', () => {
 
 describe('終電後 (after the last train)', () => {
   const noRoute: RouteProvider = { route: async () => ({ leg: null, reason: 'no_route' as const }) };
-  /** a1 done, a2 planned (both over by now), fixed lodging 23:30-23:59. Now 23:10 JST. */
-  const lateItems = () => [act('a1', 1, 700, 740), act('a2', 2, 745, 775), act('lodge', 4, 870, 899, { fixed: true, kind: 'lodging' })];
+  /** a1 22:00-22:50 done, a2 23:00 planned, fixed lodging 23:30-23:59. Now 23:10 JST. */
+  const lateItems = () => [act('a1', 1, 780, 830), act('a2', 2, 840, 890), act('lodge', 4, 870, 899, { fixed: true, kind: 'lodging' })];
 
   it('untimed remaining stops with the warning, unknown includes legs, nothing invented, fixed lodging kept with travel_unknown', async () => {
     const m = mini(lateItems(), 850, { sources: fixtureSources(noRoute) });
@@ -184,7 +184,7 @@ describe('終電後 (after the last train)', () => {
   });
 
   it('the late warning is not given before 22:00 (a plain no_route is not blamed on the last train)', async () => {
-    const m = mini([act('a1', 1, 0, 30), act('a2', 2, 35, 85)], 90, { sources: fixtureSources(noRoute) });
+    const m = mini([act('a1', 1, 0, 50), act('a2', 2, 60, 110)], 90, { sources: fixtureSources(noRoute) });
     const { res } = await m.replan({ location: unavailable, completedActivityIds: ['a1'] });
     const c = res.candidates[0]!;
     expect(c.warnings.some(w => w.includes('終電後'))).toBe(false);

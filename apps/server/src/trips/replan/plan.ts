@@ -2,7 +2,7 @@ import type { Activity, ItineraryItem, PlaceInfo, TravelLeg, Trip, TripDay, Trip
 import { sequenceDay, toLocal, validateSchedule, type ExclusionReason, type TravelLookup } from '@tkb/planner';
 import type { RouteUnknownReason } from '@tkb/travel-data';
 import { applyOperations, computeDiff } from '../operations.ts';
-import { LegBook, legModeFor } from '../alternatives/leg-book.ts';
+import { LegBook, distanceM, legModeFor } from '../alternatives/leg-book.ts';
 import { operationsBetween } from '../alternatives/ops-between.ts';
 import { reconcileServiceLegs, storableTrip, uniqueLegIds, warnFor } from '../alternatives/plan.ts';
 import { CURRENT_LOCATION_ID, reasonKey, syntheticCurrentPlace } from './routes.ts';
@@ -26,6 +26,8 @@ const NO_START_LEG_WARNING = '現在地からの移動時間が分からない�
 const OVERFLOW_WARNING = '現在時刻がその日の終わりに近いため、残りの予定は時刻を決めていません。';
 /** Local time from which a missing transit route is reported as a possible end of service. */
 const LATE_FROM = '22:00';
+/** A flexible stop counts as "the traveller is here" within this distance of the sent position. */
+const HERE_M = 200;
 
 const acts = (d: TripDay): Activity[] => d.items.filter((i): i is Activity => i.type === 'activity');
 const json = (x: unknown) => JSON.stringify(x);
@@ -73,7 +75,7 @@ export interface DaySplit {
 }
 
 /** `pins` are fixed for this run only (fixedActivityIds); the stored `fixed` flag is not read from them. */
-export function splitDay(day: TripDay, nowMs: number, missedIds: ReadonlySet<string>, pins: ReadonlySet<string>): DaySplit {
+export function splitDay(day: TripDay, nowMs: number, missedIds: ReadonlySet<string>, pins: ReadonlySet<string>, isThere: (a: Activity) => boolean = () => false): DaySplit {
   const kind = new Map<string, 'past' | 'ongoing' | 'stop'>();
   const missed: Activity[] = [];
   const ongoing: Activity[] = [];
@@ -86,8 +88,9 @@ export function splitDay(day: TripDay, nowMs: number, missedIds: ReadonlySet<str
     else if (fixed && ((e !== null && e <= nowMs) || missedIds.has(a.activityId))) {
       kind.set(a.activityId, 'past');
       missed.push(a);
-    } else if (s !== null && e !== null && s <= nowMs && nowMs < e) {
-      // N6: whatever is happening now (fixed or not) stays as it is; the rest starts after it.
+    } else if (s !== null && e !== null && s <= nowMs && nowMs < e && (fixed || isThere(a))) {
+      // A reservation in progress stays. A flexible stop counts as under way only when the traveller is shown to be
+      // there; otherwise they are late or elsewhere and it is re-timed from now like the rest.
       kind.set(a.activityId, 'ongoing');
       ongoing.push(a);
     } else {
@@ -150,7 +153,12 @@ export async function planReplan(ctx: ReplanContext): Promise<ReplanOutcome> {
 
   const pins = new Set(req.fixedActivityIds);
   const isFixed = (a: Activity) => a.fixed || pins.has(a.activityId);
-  const split = splitDay(day, nowMs, new Set(req.missedActivityIds), pins);
+  const isThere = (a: Activity): boolean => {
+    const p = a.placeId === null ? undefined : places.get(a.placeId);
+    if (loc.kind === 'place') return a.placeId === loc.placeId;
+    return loc.kind === 'coords' && !!p?.location && distanceM(loc.point, p.location) <= HERE_M;
+  };
+  const split = splitDay(day, nowMs, new Set(req.missedActivityIds), pins, isThere);
   // Limits: a DST fold (the same wall-clock time twice) is read by sequenceDay as the later instant, and the replan
   // never runs past 23:59 of the current day (after that the remaining stops are untimed, not moved to the next day).
   const cursor = ceilMinute(Math.max(nowMs, ...split.ongoing.map(a => Date.parse(a.end!.utc))));
@@ -205,6 +213,7 @@ export async function planReplan(ctx: ReplanContext): Promise<ReplanOutcome> {
   if (!overflow && stops.length > 0) {
     let t = cursor;
     let prev = startId;
+    const endAt = new Map<string, number>(); // projected end of each stop
     for (const [i, a] of stops.entries()) {
       if (i === 0 || stayMinutes(stops[i - 1]!) === undefined) await pair(startId, a, cursor);
       await pair(prev, a, t);
@@ -212,16 +221,28 @@ export async function planReplan(ctx: ReplanContext): Promise<ReplanOutcome> {
       if (leg?.durationSeconds != null) t += leg.durationSeconds * 1000;
       if (isFixed(a) && a.start && a.end) t = Math.max(t, Date.parse(a.end.utc));
       else t += (stayMinutes(a) ?? 0) * 60_000;
+      endAt.set(a.activityId, t);
       prev = a.placeId ?? prev;
     }
-    const sorted = [...anchors].sort((x, y) => Date.parse(x.start!.utc) - Date.parse(y.start!.utc));
-    if (sorted[0]) await pair(startId, sorted[0], cursor);
-    for (const anchor of sorted) {
-      for (const a of stops) {
-        if (isFixed(a)) continue;
-        await pair(a.placeId, anchor, cursor);
-        await pair(anchor.placeId, a, Date.parse(anchor.end!.utc));
+    // Anchors: each flexible stop -> the first anchor after its original position, and each anchor -> its neighbours.
+    const firstAnchor = anchors.map(a => ({ a, s: Date.parse(a.start!.utc) })).sort((x, y) => x.s - y.s)[0];
+    if (firstAnchor) await pair(startId, firstAnchor.a, cursor);
+    let nextAnchor: Activity | null = null;
+    for (let i = stops.length - 1; i >= 0; i--) {
+      const a = stops[i]!;
+      if (anchors.includes(a)) {
+        nextAnchor = a;
+        continue;
       }
+      if (nextAnchor) await pair(a.placeId, nextAnchor, endAt.get(a.activityId) ?? cursor);
+    }
+    // Stops before an anchor can be pushed after it, so the neighbours on both sides (up to the next anchor) are covered.
+    for (const [i, anchor] of stops.entries()) {
+      if (!anchors.includes(anchor)) continue;
+      const near: Activity[] = [];
+      for (let j = i - 1; j >= 0 && !anchors.includes(stops[j]!); j--) near.push(stops[j]!);
+      for (let j = i + 1; j < stops.length && !anchors.includes(stops[j]!); j++) near.push(stops[j]!);
+      for (const a of near) await pair(anchor.placeId, a, Date.parse(anchor.end!.utc));
     }
   }
   // A start whose first leg is unknown is dropped (not every remaining stop is left untimed because of it).

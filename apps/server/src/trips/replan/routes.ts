@@ -27,7 +27,8 @@ const LATE_SERVICE_MS = 60 * 60_000;
 /**
  * Wraps a provider and records why each pair came back without a leg (e.g. no_route after the last train).
  * B1: a transit answer that departs more than an hour after the asked time, or on a later local date, is the next
- * service (e.g. tomorrow's first train), not a way to travel now: it is turned into `no_route`. Fixture legs carry
+ * service (e.g. tomorrow's first train), not a way to travel now: it is turned into `no_route`. A later local date
+ * counts even when close in time (23:50 -> 00:05): that is conservatively treated as no route too. Fixture legs carry
  * sample times that do not follow the request, so they are exempt.
  */
 export function recordingRoutes(inner: RouteProvider, sink: Map<string, RouteUnknownReason>): RouteProvider {
