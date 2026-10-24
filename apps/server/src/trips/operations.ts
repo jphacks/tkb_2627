@@ -1,4 +1,5 @@
-import type { ItineraryItem, Money, Trip, TripDay, TripDiff, TripOperation } from '@tkb/contracts';
+import type { ItineraryItem, Trip, TripDay, TripDiff, TripOperation } from '@tkb/contracts';
+import { tripDiff } from '@tkb/planner';
 
 export type OpResult =
   | { ok: true; trip: Trip }
@@ -80,61 +81,17 @@ export function applyOperations(trip: Trip, ops: TripOperation[]): OpResult {
   return { ok: true, trip: { ...trip, title, days, validationState } };
 }
 
-/** Sum of per-day spans between the earliest and latest known timestamp; null when nothing is timed. */
-function timedSeconds(trip: Trip): number | null {
-  let total = 0;
-  let any = false;
-  for (const day of trip.days) {
-    const ts: number[] = [];
-    for (const it of day.items) {
-      const pts = it.type === 'activity' ? [it.start, it.end] : [it.departure, it.arrival];
-      for (const p of pts) if (p) ts.push(Date.parse(p.utc));
-    }
-    if (ts.length >= 2) {
-      any = true;
-      total += Math.round((Math.max(...ts) - Math.min(...ts)) / 1000);
-    }
-  }
-  return any ? total : null;
+/** Walking legs have no fare by nature, so they are not cost items (neither known nor unknown). */
+function withoutWalkingLegs(days: Trip['days']): Trip['days'] {
+  return days.map((d) => ({ ...d, items: d.items.filter((it) => it.type === 'activity' || it.mode !== 'walk') }));
 }
 
-function knownCosts(trip: Trip): Map<string, number> {
-  const m = new Map<string, number>();
-  for (const day of trip.days) {
-    for (const it of day.items) {
-      const money = it.type === 'activity' ? it.cost : it.fare;
-      if (money) m.set(money.currency, (m.get(money.currency) ?? 0) + money.amountMinor);
-    }
-  }
-  return m;
-}
-
-/** R11: unknown cost is never counted as 0; it is listed in unknownCostItems instead. */
+/**
+ * K10 diff, defined once in @tkb/planner (R11): an item whose cost is unknown on either side is never counted as 0
+ * (not as a saving, not as a new expense) and is listed in unknownCostItems; duration is null when any item is untimed.
+ */
 export function computeDiff(before: Trip, after: Trip): TripDiff {
-  const b = timedSeconds(before);
-  const a = timedSeconds(after);
-  const cb = knownCosts(before);
-  const ca = knownCosts(after);
-  const knownCostDelta: Money[] = [];
-  for (const cur of [...new Set([...cb.keys(), ...ca.keys()])].sort()) {
-    const delta = (ca.get(cur) ?? 0) - (cb.get(cur) ?? 0);
-    if (delta !== 0) knownCostDelta.push({ amountMinor: delta, currency: cur });
-  }
-  // TravelLeg has a single `fare` field for transit and car (tolls); walking is not treated as unknown cost.
-  // Union of before and after, so removing an unknown-cost item is not shown as "no cost change".
-  const unknownCostItems: string[] = [];
-  for (const t of [before, after]) {
-    for (const day of t.days) {
-      for (const it of day.items) {
-        const unknown = it.type === 'activity' ? it.cost === null : it.mode !== 'walk' && it.fare === null;
-        const id = itemId(it);
-        if (unknown && !unknownCostItems.includes(id)) unknownCostItems.push(id);
-      }
-    }
-  }
-  return {
-    durationDeltaSeconds: a === null || b === null ? null : a - b,
-    knownCostDelta,
-    unknownCostItems,
-  };
+  const duration = tripDiff(before.days, after.days).durationDeltaSeconds;
+  const costs = tripDiff(withoutWalkingLegs(before.days), withoutWalkingLegs(after.days));
+  return { durationDeltaSeconds: duration, knownCostDelta: costs.knownCostDelta, unknownCostItems: costs.unknownCostItems };
 }

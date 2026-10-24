@@ -105,3 +105,16 @@ test('dashboard builds standalone HTML and includes all tasks', () => {
   const raw=html.match(/<script type="application\/json" id="design-data">([\s\S]*?)<\/script>/)?.[1];
   assert.equal(JSON.parse(raw).tasks.length,54);
 });
+test('local GitHub snapshot goes only into the git-ignored dashboard, never tracked HTML', () => {
+  const out=fs.mkdtempSync(path.join(os.tmpdir(),'tkb-dash-'));
+  const snap=path.join(out,'snap.json');
+  fs.writeFileSync(snap,JSON.stringify({repository:'x/y',fetchedAt:'2026-01-01T00:00:00Z',warnings:['$& $$ $\''],tasks:{}}));
+  const r=spawnSync(process.execPath,['scripts/render-dashboard.mjs','--out',out,'--snapshot',snap],{cwd:ROOT,encoding:'utf8',timeout:10000});
+  assert.equal(r.status,0,r.stderr);
+  const data=f=>JSON.parse(fs.readFileSync(path.join(out,f),'utf8').match(/<script type="application\/json" id="design-data">([\s\S]*?)<\/script>/)[1]);
+  try {
+    assert.equal(data('SYSTEM_DESIGN.html').snapshot,null);
+    assert.equal(data('DEVELOPMENT_GUIDE.html').snapshot,null);
+    assert.equal(data('dashboard/index.html').snapshot.fetchedAt,'2026-01-01T00:00:00Z');
+  } finally { fs.rmSync(out,{recursive:true,force:true}); }
+});

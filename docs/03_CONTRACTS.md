@@ -810,6 +810,11 @@ job: queued→running→succeeded/failed/cancelled。succeededは候補の共通
   - 同じ`generationId`の再送は、同じ内容なら200、異なる内容なら409です。
   - `baseTripId`がnullのbatchを既存の旅程に適用しようとすると422です。
   - 差分の`unknownCostItems`には、編集前と編集後の両方の不明費用の項目を含めます（R11）。
+- **K10の差分（TripDiff）**：サーバーの計算は`@tkb/planner`の`tripDiff`に一本化しています（`computeDiff`もこれを使います）。画面用モック（`apps/web/src/mocks`）はまだ旧定義のままです（tests/contracts/FINDINGS.md M-9）。
+  - 費用：編集前と編集後のどちらかで費用が不明な項目は、`knownCostDelta`に含めず、`unknownCostItems`に入れます。不明な費用を節約や新たな出費として数えません（R11）。
+  - `knownCostDelta`は通貨ごとの差額で、差が0の通貨は省きます。空の配列は「既知の変化がない」という意味で、「無料」ではありません。
+  - 徒歩区間には運賃がないので、費用の項目として扱いません。
+  - `durationDeltaSeconds`：旅程全体の開始から終了までの差です（日をまたぐ空き時間も含みます）。時刻が不明な項目が1つでもある場合と、項目が0件の場合はnullにします。
 - **K12/K15**：グループが存在しない場合と非所属の場合は、どちらも422にします（グループの存在を漏らさないため）。K13の確定時に所属を失っていた場合は404です。
 - **K14**：
   - 匿名で読めるのは`scope=public`と公開投稿の詳細だけです。
