@@ -21,7 +21,7 @@ provider（Google Places / Routes）を呼ぶ前に必ず通す制限と、取�
 - 入力1件あたり8回まで
 - 同時に2件まで
 
-共有サーバーの env では、**小さくする方向にだけ**変えられます。既定値より大きい値や不正な値を指定すると、`usageLimitsFromEnv` が例外を投げ、サーバーは起動しません。
+共有サーバーの env では、**小さくする方向にだけ**変えられます。既定値より大きい値や不正な値を指定すると、`usageLimitsFromEnv` が例外を投げます（apps/server は、これで起動を止める想定です）。
 
 | env | 意味 | 範囲 |
 |---|---|---|
@@ -29,7 +29,7 @@ provider（Google Places / Routes）を呼ぶ前に必ず通す制限と、取�
 | `TRAVEL_MAX_CALLS_PER_INPUT` | 入力1件あたりの呼出し回数 | 0〜8 |
 | `TRAVEL_MAX_CONCURRENT` | 同時に走らせる呼出しの数 | 1〜2 |
 
-`apps/server` は、起動時に `usageLimitsFromEnv(process.env)` と `createUsageControls(limits)` を1回だけ作り、adapter に渡します。契約（contracts）には入れません。
+**未接続です。** `apps/server` が起動時に `usageLimitsFromEnv(process.env)` と `createUsageControls(limits)` を1回だけ作り、adapter に渡す予定です。D03/D04 を接続するときに、apps/server 側で行います（`.env.example` への `TRAVEL_*` の追記も、そのときに行います）。契約（contracts）には入れません。
 
 ### 再起動で1日の回数が0に戻る
 

@@ -21,10 +21,14 @@ describe('usageLimitsFromEnv', () => {
     expect(() => usageLimitsFromEnv({ [LIMIT_ENV.daily]: '21' })).toThrow(/can only be lowered/);
     expect(() => usageLimitsFromEnv({ [LIMIT_ENV.perInput]: '9' })).toThrow(/can only be lowered/);
     expect(() => usageLimitsFromEnv({ [LIMIT_ENV.concurrent]: '3' })).toThrow(/can only be lowered/);
+    expect(() => usageLimitsFromEnv({ [LIMIT_ENV.daily]: '99999999999999999999' })).toThrow(/can only be lowered/);
+    // Leading zeros are read as decimal: 020 is the limit itself, 021 is above it.
+    expect(usageLimitsFromEnv({ [LIMIT_ENV.daily]: '020' }).dailyPerSku[SKU.routesDrive]).toBe(20);
+    expect(() => usageLimitsFromEnv({ [LIMIT_ENV.daily]: '021' })).toThrow(/can only be lowered/);
   });
 
   it('refuses malformed values instead of guessing', () => {
-    for (const bad of ['-1', '1.5', 'ten', '1e1', '0x5', '5 calls']) {
+    for (const bad of ['-1', '+5', '1.5', 'ten', '1e1', '0x5', '5 calls', '５', '٥']) {
       expect(() => usageLimitsFromEnv({ [LIMIT_ENV.daily]: bad }), bad).toThrow(/invalid/);
     }
     expect(() => usageLimitsFromEnv({ [LIMIT_ENV.concurrent]: '0' })).toThrow(/invalid/);

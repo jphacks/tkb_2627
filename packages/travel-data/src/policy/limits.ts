@@ -1,6 +1,9 @@
 import { DailyQuota, Gate, type Clock } from './budget.ts';
 
-/** SKUs the D03/D04 adapters charge (docs/provider-probe.md). The tier follows the field mask. */
+/**
+ * SKUs the D03/D04 adapters charge (docs/provider-probe.md). For Places the tier follows the field mask; Routes is
+ * keyed by travel mode because the TRANSIT tier is not confirmed yet.
+ */
 export const SKU = {
   placesTextSearchPro: 'places.text_search.pro',
   placesTextSearchEnterprise: 'places.text_search.enterprise',
@@ -43,9 +46,10 @@ export const LIMIT_ENV = {
 function lowered(env: Readonly<Record<string, string | undefined>>, name: string, max: number, min: number): number {
   const raw = env[name]?.trim();
   if (!raw) return max;
+  if (!/^\d+$/.test(raw)) throw new Error(`invalid ${name}: expected an integer from ${min} to ${max}`);
   const value = Number(raw);
-  if (!/^\d+$/.test(raw) || !Number.isSafeInteger(value) || value < min) throw new Error(`invalid ${name}: expected an integer from ${min} to ${max}`);
-  if (value > max) throw new Error(`${name}=${value} is above the safe default ${max}; it can only be lowered`);
+  if (value > max) throw new Error(`${name}=${raw} is above the safe default ${max}; it can only be lowered`);
+  if (value < min) throw new Error(`invalid ${name}: expected an integer from ${min} to ${max}`);
   return value;
 }
 
