@@ -421,4 +421,23 @@ describe('fixture cases: empty and feed', () => {
       expect(l.dataStatus).toBe('unknown');
     }
   });
+
+  it('car legs never carry transit stop names, even when the source leg had them', () => {
+    const sourceLeg = itemsOf(domesticTrip).find(i => i.type === 'leg' && i.mode === 'transit');
+    if (!sourceLeg || sourceLeg.type !== 'leg') throw new Error('fixture has no transit leg');
+    const original = sourceLeg.transit;
+    const hadTransit = 'transit' in sourceLeg;
+    sourceLeg.transit = { boardingStop: '金沢駅', alightingStop: '兼六園下', transferStops: ['香林坊'] };
+    try {
+      const carLegs = itemsOf(createCarTrip()).filter(i => i.type === 'leg' && i.mode === 'car');
+      expect(carLegs.length).toBeGreaterThan(0);
+      for (const l of carLegs) {
+        if (l.type !== 'leg') continue;
+        expect(l.transit).toBeNull();
+      }
+    } finally {
+      if (hadTransit) sourceLeg.transit = original;
+      else delete sourceLeg.transit;
+    }
+  });
 });

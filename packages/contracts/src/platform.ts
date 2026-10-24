@@ -47,13 +47,27 @@ export type Health = z.infer<typeof Health>;
 
 /** K18 exports */
 export const ExportRequest = z.strictObject({
+  /** Optional echo of the path id (K18 example); must equal it when sent. */
+  tripId: Id.optional(),
   expectedRevision: z.number().int().positive(),
   format: z.enum(['pdf', 'ics', 'maps']),
 });
+export type ExportRequest = z.infer<typeof ExportRequest>;
+/** An item left out of an export because its provider does not allow export (K18 転載不可の素材). */
+export const ExportWithheld = z.object({
+  kind: z.enum(['place', 'leg', 'photo']),
+  id: Id,
+});
+export type ExportWithheld = z.infer<typeof ExportWithheld>;
 export const ExportStatus = z.object({
   exportId: Id,
+  /** `queued` covers both waiting and running jobs. */
   status: z.enum(['queued', 'ready', 'failed', 'expired']),
   url: z.string().nullable(),
+  /** Added (schemaVersion 1): items not written to the file. */
+  withheld: z.array(ExportWithheld).optional(),
+  /** Added (schemaVersion 1): why a job failed (e.g. TIMEOUT). */
+  error: z.object({ code: z.string(), message: z.string() }).nullable().optional(),
 });
 export type ExportStatus = z.infer<typeof ExportStatus>;
 

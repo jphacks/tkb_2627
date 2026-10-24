@@ -101,7 +101,8 @@ export function splitDay(day: TripDay, nowMs: number, missedIds: ReadonlySet<str
   const kept = (i: ItineraryItem | undefined) => i?.type === 'activity' && kind.get(i.activityId) !== 'stop';
   const prefix: ItineraryItem[] = [];
   day.items.forEach((it, i) => {
-    if (it.type === 'activity' ? kept(it) : kept(day.items[i - 1]) && kept(day.items[i + 1])) prefix.push(it);
+    // A leg is kept when both ends are kept; the day's first leg (from the departure point) only needs its arrival kept.
+    if (it.type === 'activity' ? kept(it) : (i === 0 || kept(day.items[i - 1])) && kept(day.items[i + 1])) prefix.push(it);
   });
   return { prefix, missed, ongoing, stops };
 }
@@ -423,7 +424,7 @@ export async function planReplan(ctx: ReplanContext): Promise<ReplanOutcome> {
     startLeg,
     candidate: {
       kind: 'keep_order',
-      summary: '現在時刻から残りの予定を詰め直した案（完了済みと固定の予定はそのまま。順序は変えない）',
+      summary: '現在時刻から残りの予定を詰め直した案（完了済みと固定の予定はそのまま。順序は変えず、時刻を決められない予定は末尾に回す）',
       trip: { ...trip, validationState: stored?.ok ? stored.trip.validationState : trip.validationState, warnings: w },
       diff,
       ...(displayOnly ? { displayOnly } : {}),

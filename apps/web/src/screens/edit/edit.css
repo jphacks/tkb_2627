@@ -1,0 +1,26 @@
+/* U06 edit / travel screens. Uses the variables of styles.css. Touch targets are at least 44px. */
+.ed-list { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ed-item { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.ed-item.ed-leg { border-style: dashed; color: var(--mut); font-size: 14px; }
+.ed-item.ed-new { outline: 2px solid var(--acc); }
+.ed-title { font-weight: 700; margin: 0; overflow-wrap: anywhere; }
+.ed-meta { margin: 2px 0; font-size: 13px; color: var(--mut); }
+.ed-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ed-actions .btn, .ed-form .btn, .ed-bar .btn { min-height: 44px; min-width: 44px; }
+.ed-form { display: grid; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); margin: 8px 0; }
+.ed-form label { display: grid; gap: 2px; font-size: 14px; }
+.ed-form input { font: inherit; min-height: 44px; padding: 0 8px; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+.ed-times { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ed-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.ed-pending { margin: 8px 0; padding: 8px 10px 8px 28px; background: var(--accbg); border-radius: 8px; font-size: 14px; }
+.ed-cand { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.ed-diff { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; margin: 6px 0; font-size: 14px; }
+.ed-diff dt { color: var(--mut); }
+.ed-diff dd { margin: 0; overflow-wrap: anywhere; }
+.ed-flag { display: inline-block; font-size: 12px; border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; margin-right: 4px; }
+.ed-flag.ed-warn { color: var(--warn); border-color: var(--warn); }
+.ed-consent { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); font-size: 14px; margin: 8px 0; }
+.ed-item button[aria-pressed="true"] { background: var(--acc); color: var(--bg); border-color: var(--acc); }
+.ed-note { font-size: 13px; color: var(--mut); margin: 4px 0; }
+.ed-links { display: flex; gap: 12px; flex-wrap: wrap; margin: 4px 0 8px; font-size: 14px; }
+.ed-links a { min-height: 44px; display: inline-flex; align-items: center; }

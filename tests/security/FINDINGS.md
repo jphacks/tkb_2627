@@ -11,6 +11,16 @@
 | O-2 | `apps/ai-local/src/main.ts` は単回使用ペアリングコードを端末へ `console.log` する | 設計どおり(A02)。端末のみ・HTTP非公開 | 変更不要。ソース走査は補間された秘密を禁止する範囲に限定 |
 | O-3 | CI は `check:secrets` というスクリプト名を含むが secrets 参照ではない | なし | 試験の正規表現は `${{ secrets` / `secrets.` / GITHUB_TOKEN のみ対象 |
 
+## PDF出力(E02/K18)を追加: `exports.test.ts` (37件、実レンダラー、外部通信なし)
+不具合なし。担保した観点:
+- 本文は strict: url/html/template/出力先/footer 等の追加項目、format の URL/html/docx/配列/オブジェクト、ics/maps、別 tripId、配列/null/文字列は 422(VALIDATION_FAILED)で、枠を消費しない。非JSONの content-type は 4xx。パスの trip id の traversal/URL は 404 で反響なし。
+- CSRF 無し・他人のCSRF・偽トークンは POST/DELETE とも 403。https PUBLIC_ORIGIN での Origin/Host/X-Forwarded-Host 偽装は他の書込みと同様 403。
+- 応答: PDF は application/pdf、`attachment; filename="安全な固定名"`、no-store、nosniff。エラー・401・202・204 も no-store。ファイル名にタイトルや改行/パス片が入らない。
+- PDF 本体(生バイトと全 Flate ストリーム、ToUnicode の code point)に privateNotes・自宅名・出発地ラベル・mayExport=false の文言がない。タイトルの code point は見える(陽性対照)。URL・/URI・/JavaScript・/Launch・/OpenAction・/EmbeddedFile も無い。
+- 上限: 同一ユーザーの並列20件で 202 は1件、残りは 429 RATE_LIMITED。複数セッション・複数旅程でも1枠。ユーザー横断の並列で QUEUE_FULL が効く。描画失敗/タイムアウトで枠が戻り、内部パス・例外文言が出ない。
+- /local: 共有 app に /local・generations の経路がなく、exports ソースは child_process/@tkb/ai/ネットワーククライアント/process.env を使わない。
+- 注意: 「削除して再作成を繰り返す」試験は、削除後に枠が空き再投入できる現行仕様(同時実行は1のまま)を固定しており、短時間に何度でも描画を始められる点は上限ではない(観測。不具合とは扱わない)。
+
 ## D02 後に追加(未統合のため未試験)
 D02(M3、外部APIの呼出し上限・課金回数制限)は main 未統合。次を D02 統合後に追加する。
 - 外部API(地図/運行情報等)の呼出し回数上限と、上限超過時に追加課金が発生せず固定の失敗(例 RATE_LIMITED/UNAVAILABLE)になること。
