@@ -10,6 +10,7 @@ import {
 } from '@tkb/contracts';
 import { checkConnection, migrate, openDatabase, type Db } from '@tkb/db';
 import { registerAuth } from './auth/index.ts';
+import { registerGroups } from '../social/groups/index.ts';
 import type { SharedConfig } from './config.ts';
 
 export interface BuildAppOptions {
@@ -69,6 +70,7 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
   app.setNotFoundHandler((req, reply) => sendError(reply, req.id, 'NOT_FOUND', 'Not found.'));
 
   registerAuth(app, handle, config);
+  registerGroups(app, handle, config);
 
   app.get('/api/v1/health', async (req, reply) => {
     if (!checkConnection(handle)) {
