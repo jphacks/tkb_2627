@@ -25,6 +25,9 @@ import { requireActor } from '../platform/auth/index.ts';
 import type { SharedConfig } from '../platform/config.ts';
 import { applyOperations, computeDiff } from './operations.ts';
 import { registerPlanningContext } from './generation/index.ts';
+import { registerAlternatives, type AlternativesDeps } from './alternatives/index.ts';
+import { registerReplan, type ReplanDeps } from './replan/index.ts';
+import { unsourcedServiceLeg } from './alternatives/ops-between.ts';
 import { batchReferencesOnlyKnownPlaces, carriesRestrictedProviderContent } from './generation/verify-batch.ts';
 
 function fail(
@@ -125,9 +128,11 @@ function parseListQuery(q: unknown): { limit: number; cursor?: string } | null {
 // TODO(retention): expired plan_batches are only hidden (410), never deleted; add a cleanup job.
 // TODO(S05): when a trip delete API is added, call hidePostsForTrip in the same transaction as the soft delete.
 /** K07-K10. Owner always comes from the session; other owners' resources are indistinguishable from missing ones. */
-export function registerTrips(app: FastifyInstance, db: Db, config: SharedConfig): void {
+export function registerTrips(app: FastifyInstance, db: Db, config: SharedConfig, deps: { alternatives?: AlternativesDeps; replan?: ReplanDeps } = {}): void {
   const pre = { preHandler: app.authenticate };
   registerPlanningContext(app, config); // K05
+  registerAlternatives(app, db, config, deps.alternatives); // A05 preview (no write)
+  registerReplan(app, db, config, deps.replan); // A06 preview (no write)
 
   app.addHook('onSend', async (req, reply) => {
     if (req.url.startsWith('/api/v1/trips') || req.url.startsWith('/api/v1/plan-batches')) {
@@ -383,6 +388,9 @@ export function registerTrips(app: FastifyInstance, db: Db, config: SharedConfig
     if (trip.revision !== body.data.expectedRevision) return conflict(trip.revision);
     const nowMs = Date.now();
     for (const op of body.data.operations) {
+      if ((op.op === 'add' || op.op === 'update') && unsourcedServiceLeg(op.item)) {
+        return fail(reply, req.id, 'RESTRICTED_ASSET', 'Data may not be stored.');
+      }
       if ((op.op === 'add' || op.op === 'update') && op.item.type === 'leg' && op.item.provenance && !storable(op.item.provenance, nowMs)) {
         return fail(reply, req.id, 'RESTRICTED_ASSET', 'Data may not be stored.');
       }

@@ -17,11 +17,11 @@ provider（Google Places / Routes）を呼ぶ前に必ず通す制限と、取�
 
 安全な既定値をコードに置いています（`SAFE_DEFAULT_LIMITS`）。
 
-- 各 SKU 1日20件（Places は4つの SKU で計80件、Routes は2つの SKU で計40件。どちらも GCP の quota 100件より下）
+- Places は各 SKU 1日20件（4つの SKU で計80件）、Routes は各 SKU 1日60件（2つの SKU で計120件）。2026-10-25 に M1 が利用者の了承を得て Routes を引き上げた。GCP 側の Routes の quota は無制限で歯止めにならないため、このコードの上限が唯一の歯止め（docs/provider-probe.md）
 - 入力1件あたり8回まで
 - 同時に2件まで
 
-共有サーバーの env では、**小さくする方向にだけ**変えられます。既定値より大きい値や不正な値を指定すると、`usageLimitsFromEnv` が例外を投げます（apps/server は、これで起動を止める想定です）。
+共有サーバーの env では、**小さくする方向にだけ**変えられます。`TRAVEL_DAILY_LIMIT_PER_SKU` は全 SKU に共通の値で、各 SKU はその値と自分の既定値の小さい方になります（最大60）。既定値より大きい値や不正な値を指定すると、`usageLimitsFromEnv` が例外を投げます（apps/server は、これで起動を止める想定です）。
 
 | env | 意味 | 範囲 |
 |---|---|---|

@@ -616,7 +616,7 @@
 
 失敗：404所有権／409 REVISION_CONFLICT（details: expectedRevision、currentRevision）／422 CONSTRAINT_UNSATISFIED（操作を適用できない。details: operationIndex、reason）／422 VALIDATION_FAILED（形式不正、50件超）／422 RESTRICTED_ASSET
 
-操作は先頭から順に、全部成功するか全部失敗するかで適用する。差分の定義は本書末尾のK10の差分（TripDiff）のとおり。公開の手動編集はClaude不要。AIで残りを作り直す操作はK01経由。
+操作は先頭から順に、全部成功するか全部失敗するかで適用する。差分の定義は本書末尾のK10の差分（TripDiff）のとおり。公開の手動編集はClaude不要。AIで残りを作り直す操作はK01経由。【拡張：A05の代替案プレビュー】POST /api/v1/trips/{id}/alternatives。要求はAlternativesRequest（PATCHと同じ厳格なbody＋maxAlternatives?（1〜3））。戻り値は200 AlternativesResult（tripId、baseRevision、candidates[]：candidateId、kind=requested|reorder|swap、summary、trip（表示用）、diff（このoperationsをPATCHしたときと同じ差分）、displayOnly?、affectedSegments[]（travel=known|none|unknown）、validationState、warnings、unknown、operations（PATCHでそのまま適用できる操作。書けない場合はnull））。何も保存せず、版も上げず、cache-control: no-store。適用はoperationsをexpectedRevision=baseRevisionでPATCHする（古い版なら409）。失敗：401／403 CSRF／404（他人・不存在）／409 REVISION_CONFLICT／422 VALIDATION_FAILED・CONSTRAINT_UNSATISFIED・RESTRICTED_ASSET／429 RATE_LIMITED（1人同時1件。live・mixedではK05と同じ1日の上限と、K05と共有するlive経路の上限LIVE_ROUTE_CALLS_PER_USER_PER_DAY（既定20、最大20）。使い切ったら区間は不明のまま警告を付ける）。live経路の詳細は表示用のtripにだけ入り、operationsには入れない。【拡張：A06の旅行中の再計画プレビュー】POST /api/v1/trips/{id}/replan。要求はReplanRequest（厳格なbody：expectedRevision、location（coords｜place｜unavailable=denied|error|skipped）、completedActivityIds、missedActivityIds、fixedActivityIds（この実行のときだけ固定扱い）、operations（先に適用する行き先の変更）、maxCandidates（1〜2、既定1））。現在時刻はクライアントから受け取らず、サーバーの時計を使う。戻り値は200 ReplanResult（tripId、baseRevision、now、dayIndex、start（kind・placeId。座標は含めない）、startLeg（表示専用。tripとoperationsには入れない）、candidates[]：kind=keep_order|reorder、trip、diff、operations、kept、retimed、untimed、reservationConflicts（missed|unreachable|travel_unknown|time_unknown））。完了済みの予定と固定予約は動かさない。何も保存しない。適用はoperationsをexpectedRevision=baseRevisionでPATCHする。現在地の座標は保存せず、ログにも応答にも出さず、Claudeにも渡さない。live・mixedでは「現在地→次の予定」の経路検索にだけ使う（#118でM1が承認）。失敗：401／403 CSRF／404／409 REVISION_CONFLICT／422 VALIDATION_FAILED・CONSTRAINT_UNSATISFIED（旅行期間外など）・RESTRICTED_ASSET／429 RATE_LIMITED（live経路の上限はK05・A05と共有）。
 
 入力例：
 ```json
@@ -1211,3 +1211,5 @@ job: queued→running→succeeded/failed/cancelled。succeededは候補の共通
   - 既知の制約（reviewer O3）：liveモードでは2回目のK05で地点検索をもう一度行うため、呼出し回数に余裕がありません。デモはmixedで行います。
   - 既知の制約（reviewer O7）：時刻のない立ち寄り先は、1日にまとめて配置されます。
   - 既知の差：本人用App Serverのcapabilitiesは`dataMode=fixture`を固定で返します（A05で修正予定）。
+- **A05の代替案（#114）**：型は`packages/contracts`の`AlternativesRequest`／`AlternativesResult`（K10の拡張、schemaVersion 1のまま）。既知の制約：`reorder`の案は、1日の終わりを23:59とみなして詰めて並べます（案の説明に「詰めた案」と明記）。宿の到着時刻などの実際の終了時刻は、まだ考慮していません。
+- **A06の再計画（#118）**：型は`packages/contracts`の`ReplanRequest`／`ReplanResult`（K10の拡張、schemaVersion 1のまま）。既知の制約：その日の23:59までしか組み直さず、入りきらない予定は時刻なしで残します（翌日へは移しません）。0:00〜4:00の「経路なし」は終電後と判定しません。AIで残りを作り直すK01 replan（A06b）は後回しです。

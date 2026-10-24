@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type { DataMode } from '@tkb/contracts';
 import { usageLimitsFromEnv } from '@tkb/travel-data';
 import { dailyPerUserFromEnv } from '../trips/generation/user-limit.ts';
+import { liveRouteCallsPerUserFromEnv } from '../trips/generation/live-route-budget.ts';
 
 export interface SharedConfig {
   bind: string;
@@ -43,6 +44,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): SharedConfig {
     throw new Error(`PROVIDER_MODE=${mode} requires GOOGLE_MAPS_SERVER_KEY`);
   }
   dailyPerUserFromEnv(env); // refuse an invalid per-user K05 cap at startup
+  liveRouteCallsPerUserFromEnv(env); // refuse an invalid per-user live route budget at startup
   usageLimitsFromEnv(env); // throws on an invalid or raised limit: refuse to start rather than spend more than intended
   const port = Number(env.SHARED_PORT ?? 4310);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('invalid SHARED_PORT');
