@@ -1,6 +1,6 @@
 {
   "repository": "jphacks/tkb_2627",
-  "fetchedAt": "2026-10-24T20:37:30.670Z",
+  "fetchedAt": "2026-10-24T20:45:41.655Z",
   "warnings": [],
   "tasks": {
     "B01": {
@@ -265,11 +265,12 @@
       }
     },
     "A04": {
-      "status": "todo",
+      "status": "review",
       "issue": {
         "number": 28,
         "url": "https://github.com/jphacks/tkb_2627/issues/28",
         "assignees": [
+          "KatTanaka",
           "poyyk"
         ]
       }
