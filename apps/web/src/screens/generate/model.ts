@@ -221,3 +221,19 @@ export function summarizeCandidate(c: PlanCandidate, places: PlanBatch['places']
 export function buildApplyRequest(batchId: string, candidateId: string): ApplyCandidateRequest {
   return ApplyCandidateRequest.parse({ batchId, candidateId, tripId: null, expectedRevision: null });
 }
+
+/** UI review on #33: the next step is shown without the user having to scroll. Focus follows for screen readers. */
+export function revealStep(
+  el: { scrollIntoView(o?: ScrollIntoViewOptions): void; focus(o?: FocusOptions): void } | null,
+  reducedMotion: boolean,
+): void {
+  if (!el) return;
+  el.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+  el.focus({ preventScroll: true });
+}
+
+/** UI review on #33: after adopting, open the U04 map of the new trip from the top of the page. */
+export function openMap(href: string, win: { scrollTo(x: number, y: number): void; location: { hash: string } }): void {
+  win.scrollTo(0, 0);
+  win.location.hash = href;
+}

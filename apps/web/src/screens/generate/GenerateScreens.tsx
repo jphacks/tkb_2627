@@ -260,10 +260,12 @@ export function CompareView(p: CompareViewProps) {
   );
 }
 
-export function CompareScreen({ api, batchId, mapHrefFor, onBack, onBatchLoaded }: {
+export function CompareScreen({ api, batchId, mapHrefFor, onApplied, onBack, onBatchLoaded }: {
   api: GenerateFlowApi;
   batchId: string;
   mapHrefFor: (tripId: string) => string;
+  /** Called with the map link once the candidate is saved (the app opens the map). The link stays as a fallback. */
+  onApplied?: (mapHref: string) => void;
   onBack: () => void;
   /** Called with the loaded batch (U04 preview under the form). */
   onBatchLoaded?: (batch: PlanBatch) => void;
@@ -291,8 +293,10 @@ export function CompareScreen({ api, batchId, mapHrefFor, onBack, onBatchLoaded 
     setApplyError(null);
     const r = await api.apply(buildApplyRequest(batchId, candidateId));
     setBusyId(null);
-    if (r.ok) setApplied(r.data);
-    else setApplyError(r.error);
+    if (r.ok) {
+      setApplied(r.data);
+      onApplied?.(mapHrefFor(r.data.tripId));
+    } else setApplyError(r.error);
   };
 
   return (
