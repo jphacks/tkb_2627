@@ -206,16 +206,22 @@ export interface SharedCapabilitiesClient {
   getDataMode(): Promise<DataMode | null>;
 }
 
-/** GET of one fixed public path with manual redirects. Successful answers are cached for `ttlMs` (default 60 s); failures are not. */
-export function createCapabilitiesClient(opts: { baseUrl: string; fetch?: FetchLike; timeoutMs?: number; ttlMs?: number; now?: () => number }): SharedCapabilitiesClient {
+/** GET of one fixed public path with manual redirects. Successful answers are cached for `ttlMs` (default 60 s), failures for 10 s; the body is capped at 64 KB. */
+export function createCapabilitiesClient(opts: { baseUrl: string; fetch?: FetchLike; timeoutMs?: number; ttlMs?: number; failureTtlMs?: number; now?: () => number }): SharedCapabilitiesClient {
   const doFetch: FetchLike = opts.fetch ?? defaultFetch;
   const base = opts.baseUrl.replace(/\/+$/, '');
   const now = opts.now ?? Date.now;
   const ttl = opts.ttlMs ?? 60_000;
+  const failureTtl = opts.failureTtlMs ?? 10_000;
   let cached: { mode: DataMode; at: number } | null = null;
+  let failedAt: number | null = null;
+  const MAX_BODY = 64 * 1024;
   return {
     async getDataMode() {
       if (cached && now() - cached.at < ttl) return cached.mode;
+      // A failure is remembered briefly so an unreachable server is not asked on every capabilities call.
+      if (failedAt !== null && now() - failedAt < failureTtl) return null;
+      failedAt = now();
       try {
         const res = await doFetch(`${base}${UPSTREAM_CAPABILITIES_PATHS.capabilities}`, {
           method: 'GET',
@@ -224,8 +230,12 @@ export function createCapabilitiesClient(opts: { baseUrl: string; fetch?: FetchL
           signal: AbortSignal.timeout(opts.timeoutMs ?? 3_000),
         });
         if (res.status !== 200) return null;
-        const mode = Capabilities.parse(await res.json()).dataMode;
+        if (Number(res.headers.get('content-length') ?? 0) > MAX_BODY) return null;
+        const text = await res.text();
+        if (text.length > MAX_BODY) return null;
+        const mode = Capabilities.parse(JSON.parse(text)).dataMode;
         cached = { mode, at: now() };
+        failedAt = null;
         return mode;
       } catch {
         return null;

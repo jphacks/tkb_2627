@@ -3,12 +3,15 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
 import { ApiError, Trip, type PlaceInfo, type TravelLeg, type TripOperation } from '@tkb/contracts';
 import { createUser, getTripForOwner, insertTrip, migrate, openDatabase } from '@tkb/db';
-import { FixtureRouteProvider } from '@tkb/travel-data';
+import { FixtureRouteProvider, type RouteProvider } from '@tkb/travel-data';
 import { buildApp } from '../src/platform/app.ts';
 import { hashPassword } from '../src/platform/auth/password.ts';
 import { loadConfig } from '../src/platform/config.ts';
-import { registerAlternatives, type AlternativesResult } from '../src/trips/alternatives/index.ts';
-import { applyOperations } from '../src/trips/operations.ts';
+import type { AlternativesResult } from '../src/trips/alternatives/index.ts';
+import { registerTrips } from '../src/trips/index.ts';
+import { registerPlanningContext } from '../src/trips/generation/index.ts';
+import { createUserRouteBudget, liveRouteCallsPerUserFromEnv, type UserRouteBudget } from '../src/trips/generation/live-route-budget.ts';
+import { applyOperations, computeDiff } from '../src/trips/operations.ts';
 import { createContextSources, type ContextSources } from '../src/trips/generation/sources.ts';
 
 const PW = 'correct horse battery';
@@ -63,22 +66,23 @@ function seedUsers(db: ReturnType<typeof openDatabase>) {
 }
 
 /** Mini app with a fake session (no CSRF layer) and injectable sources. */
-function mini(trip: Trip, sources: ContextSources = { ...createContextSources({ providerMode: 'fixture' }), routes: new FixtureRouteProvider(MATRIX) }, mode: 'fixture' | 'mixed' = 'fixture') {
+function mini(trip: Trip, sources: ContextSources = { ...createContextSources({ providerMode: 'fixture' }), routes: new FixtureRouteProvider(MATRIX) }, _mode: 'fixture' | 'mixed' = 'fixture', routeBudget: UserRouteBudget = createUserRouteBudget({ perDay: 20 })) {
   const db = openDatabase(':memory:');
   migrate(db);
   seedUsers(db);
   insertTrip(db, 'user_a', trip, '2026-10-01T00:00:00Z');
   const app = Fastify({ logger: false });
   app.decorate('authenticate', async (req: { actor?: unknown }) => void (req.actor = { userId: 'user_a', displayName: 'A' }));
-  registerAlternatives(app, db, { providerMode: mode } as never, { sources });
+  registerTrips(app, db, { providerMode: 'fixture' } as never, { alternatives: { sources, routeBudget } });
   closers.push(app);
+  const patch = (revision: number, operations: unknown, id = trip.tripId) => app.inject({ method: 'PATCH', url: `/api/v1/trips/${id}`, payload: { expectedRevision: revision, operations } as object });
   const post = async (payload: unknown, id = trip.tripId) => app.inject({ method: 'POST', url: `/api/v1/trips/${id}/alternatives`, payload: payload as object });
   const preview = async (operations: TripOperation[], extra: object = {}) => {
     const r = await post({ expectedRevision: 1, operations, ...extra });
     expect(r.statusCode, r.payload).toBe(200);
     return r.json() as AlternativesResult;
   };
-  return { app, db, post, preview };
+  return { app, db, post, preview, patch };
 }
 const acts = (t: Trip, d = 0) => t.days[d]!.items.filter(i => i.type === 'activity') as any[];
 const startMin = (a: any) => (Date.parse(a.start.utc) - Date.UTC(2026, 10, 1)) / 60000;
@@ -291,14 +295,14 @@ describe('A05 variants (deterministic, no AI)', () => {
 });
 
 describe('A05 mixed mode: live legs, call budget and storage rules (fake fetch only)', () => {
-  function liveMini(items: unknown[]) {
+  function liveMini(items: unknown[], routeBudget?: UserRouteBudget) {
     const urls: string[] = [];
     const fakeFetch = (async (url: string) => {
       urls.push(url);
-      return new Response(JSON.stringify({ routes: [{ duration: '900s', distanceMeters: 4000 }] }), { status: 200 });
+      return new Response(JSON.stringify({ routes: [{ duration: '900s', distanceMeters: 4000, travelAdvisory: { transitFare: { currencyCode: 'JPY', units: '200' } } }] }), { status: 200 });
     }) as unknown as typeof fetch;
-    const sources = createContextSources({ providerMode: 'mixed' }, { GOOGLE_MAPS_SERVER_KEY: 'test-key' }, { fetch: fakeFetch });
-    return { urls, ...mini(mkTrip(items), sources, 'mixed') };
+    const sources = createContextSources({ providerMode: 'mixed' }, { GOOGLE_MAPS_SERVER_KEY: 'test-key' }, { fetch: fakeFetch, now: () => Date.UTC(2026, 9, 24) });
+    return { urls, sources, ...mini(mkTrip(items), sources, 'mixed', routeBudget) };
   }
   const noLegs = (n: number) => Array.from({ length: n }, (_, i) => act(`b${i}`, (i % 6) + 1, i * 70, i * 70 + 50));
 
@@ -327,5 +331,222 @@ describe('A05 mixed mode: live legs, call budget and storage rules (fake fetch o
     const { urls, preview } = liveMini(noLegs(5));
     await preview([{ op: 'update', itemId: 'b0', item: act('b0', 2, 0, 40) }], { maxAlternatives: 3 });
     expect(urls.length).toBeLessThanOrEqual(6);
+  });
+});
+
+describe('A05 shift-only re-timing (B3)', () => {
+  it('a later activity keeps its start after an earlier one is edited (nothing is pulled earlier)', async () => {
+    const items = [act('a1', 1, 0, 50), act('a2', 2, 180, 230), act('a3', 3, 300, 350)];
+    const { preview } = mini(mkTrip(items));
+    const c = (await preview([{ op: 'update', itemId: 'a1', item: act('a1', 1, 0, 30) }])).candidates[0]!;
+    expect(acts(c.trip).map(a => [a.activityId, startMin(a)])).toEqual([['a1', 0], ['a2', 180], ['a3', 300]]);
+    expect(c.warnings.some(w => w.includes('遅らせ'))).toBe(false);
+  });
+
+  it('removing the first activity does not pull the day earlier or compress gaps', async () => {
+    const { preview } = mini(mkTrip(baseItems()));
+    const c = (await preview([{ op: 'remove', itemId: 'a1' }])).candidates[0]!;
+    expect(acts(c.trip).map(a => [a.activityId, startMin(a)])).toEqual([['a2', 60], ['a3', 120]]);
+  });
+
+  it('pushes later by the least needed and says so; the order stays as the operations specify', async () => {
+    const { preview } = mini(mkTrip(baseItems()));
+    const c = (await preview([{ op: 'update', itemId: 'a2', item: act('a2', 4, 60, 110) }])).candidates[0]!;
+    expect(acts(c.trip).map(a => [a.activityId, startMin(a)])).toEqual([['a1', 0], ['a2', 80], ['a3', 140]]);
+    expect(acts(c.trip)[1].end).toEqual(at(130)); // length kept
+    expect(c.warnings.some(w => w.includes('a2') && w.includes('20分遅らせ'))).toBe(true);
+  });
+
+  it('an item that would run past midnight stays in place, untimed, with a warning (never moved into the evening)', async () => {
+    const items = [act('a1', 1, 800, 845), act('a2', 2, 855, 895)];
+    const { preview } = mini(mkTrip(items));
+    const c = (await preview([{ op: 'update', itemId: 'a1', item: act('a1', 5, 800, 845) }])).candidates[0]!;
+    expect(acts(c.trip).map(a => a.activityId)).toEqual(['a1', 'a2']);
+    expect(acts(c.trip)[1]).toMatchObject({ start: null, end: null });
+    expect(c.warnings.some(w => w.includes('a2') && w.includes('収まらない'))).toBe(true);
+  });
+
+  it('a stop that would be closed after the push stays in place untimed with a warning', async () => {
+    const places = [1, 2, 3, 4, 5, 6, 7].map(n => (n === 2 ? { ...place(2), openingHours: '9:00-10:50' } : place(n)));
+    const { preview } = mini(mkTrip([act('a1', 1, 0, 50), act('a2', 2, 60, 110)], { places }));
+    const c = (await preview([{ op: 'update', itemId: 'a1', item: act('a1', 4, 0, 50) }])).candidates[0]!;
+    expect(acts(c.trip).map(a => a.activityId)).toEqual(['a1', 'a2']);
+    expect(acts(c.trip)[1]).toMatchObject({ start: null, end: null });
+    expect(c.warnings.some(w => w.includes('営業時間'))).toBe(true);
+  });
+
+  it('only the reorder variant reorders and packs, and its summary says so', async () => {
+    const items = [act('a1', 1, 0, 50), act('a2', 3, 70, 120), act('a3', 2, 130, 180)];
+    const { preview } = mini(mkTrip(items));
+    const r = await preview([{ op: 'update', itemId: 'a1', item: act('a1', 1, 0, 40) }]);
+    expect(acts(r.candidates[0]!.trip).map(a => a.activityId)).toEqual(['a1', 'a2', 'a3']);
+    expect(acts(r.candidates[0]!.trip).map(startMin)).toEqual([0, 70, 130]);
+    expect(r.candidates.find(c => c.kind === 'reorder')!.summary).toContain('詰め直し');
+  });
+
+  it('a day with more than 5 movable stops gets no reorder variant (permutation cap)', async () => {
+    const items = [1, 2, 3, 4, 5, 6].map((n, i) => act(`b${i}`, n, i * 70, i * 70 + 50));
+    const { preview } = mini(mkTrip(items));
+    const r = await preview([{ op: 'update', itemId: 'b0', item: act('b0', 1, 0, 40) }]);
+    expect(r.candidates.map(c => c.kind)).not.toContain('reorder');
+  });
+});
+
+describe('A05 timetable legs (B4)', () => {
+  const service = { ...legOf(1, 2, 600, 200, 'svc'), lineName: 'X線', platform: '3', departure: at(50), arrival: at(60) };
+  const items = () => [act('a1', 1, 0, 50), service, act('a2', 2, 60, 110), { ...legOf(2, 3, 600, null, 'plain'), departure: at(110), arrival: at(120) }, act('a3', 3, 120, 170)];
+
+  it('when the time of a leg with line/platform changes, its times, line, platform and fare are dropped with a notice', async () => {
+    const { preview } = mini(mkTrip(items()));
+    const c = (await preview([{ op: 'update', itemId: 'a1', item: act('a1', 1, 0, 70) }])).candidates[0]!;
+    const svc = c.trip.days[0]!.items.find((i: any) => i.legId === 'svc') as TravelLeg;
+    expect(svc).toMatchObject({ departure: null, arrival: null, lineName: null, platform: null, fare: null, durationSeconds: 600 });
+    expect(c.warnings.some(w => w.includes('便が変わるため乗車情報は再確認'))).toBe(true);
+    const plain = c.trip.days[0]!.items.find((i: any) => i.legId === 'plain') as TravelLeg;
+    expect(plain.departure).not.toBeNull(); // no timetable fields: derived from the known duration
+    expect(plain.lineName).toBeNull();
+  });
+
+  it('an unchanged leg keeps its service information verbatim', async () => {
+    const { preview } = mini(mkTrip(items()));
+    const c = (await preview([{ op: 'update', itemId: 'a3', item: act('a3', 3, 130, 180) }])).candidates[0]!;
+    expect(c.trip.days[0]!.items.find((i: any) => i.legId === 'svc')).toEqual(service);
+    expect(c.warnings.some(w => w.includes('便が変わる'))).toBe(false);
+  });
+});
+
+describe('A05 diff equals PATCH diff (B1), validation state (O7), unsourced legs (O2), busy guard (O5)', () => {
+  const reorderItems = () => [act('a1', 1, 0, 50), act('a2', 3, 70, 120), act('a3', 2, 130, 180)];
+  const scenarios: [string, () => Trip, TripOperation[]][] = [
+    ['same-area update', () => mkTrip(baseItems()), [{ op: 'update', itemId: 'a2', item: act('a2', 4, 60, 110) }]],
+    ['reorder + swap', () => mkTrip(reorderItems()), [{ op: 'update', itemId: 'a1', item: act('a1', 1, 0, 40) }]],
+    ['swap', () => mkTrip(baseItems()), [{ op: 'update', itemId: 'a3', item: act('a3', 5, 120, 170) }]],
+  ];
+
+  it.each(scenarios)('fixture: every candidate diff deep-equals the PATCH diff of its operations (%s)', async (_n, mk, ops) => {
+    const first = await mini(mk()).preview(ops);
+    expect(first.candidates.length).toBeGreaterThan(0);
+    for (const c of first.candidates) {
+      const m = mini(mk());
+      const r = await m.patch(1, c.operations);
+      expect(r.statusCode, r.payload).toBe(200);
+      expect(r.json().diff).toEqual(c.diff);
+      expect(r.json().trip.validationState).toBe(c.trip.validationState); // O7
+      expect(c.trip.validationState).toBe('needs_revalidation');
+      expect(r.json().trip.days).toEqual(c.trip.days);
+    }
+  });
+
+  it('a title-only preview keeps the stored validation state', async () => {
+    const c = (await mini(mkTrip(baseItems())).preview([{ op: 'set_title', title: 'N' }])).candidates[0]!;
+    expect(c.trip.validationState).toBe('valid');
+  });
+
+  it('mixed: diff equals the PATCH diff (live details are not stored), displayOnly shows the fares, and the apply round trip stores no Google content', async () => {
+    const items = Array.from({ length: 3 }, (_, i) => act(`b${i}`, i + 1, i * 70, i * 70 + 50));
+    const live = (function () {
+      const urls: string[] = [];
+      const fakeFetch = (async (u: string) => (urls.push(u), new Response(JSON.stringify({ routes: [{ duration: '900s', distanceMeters: 4000, travelAdvisory: { transitFare: { currencyCode: 'JPY', units: '200' } } }] }), { status: 200 }))) as unknown as typeof fetch;
+      return createContextSources({ providerMode: 'mixed' }, { GOOGLE_MAPS_SERVER_KEY: 'k' }, { fetch: fakeFetch, now: () => Date.UTC(2026, 9, 24) });
+    })();
+    const m = mini(mkTrip(items), live, 'mixed');
+    const r = await m.preview([{ op: 'move', itemId: 'b0', toDayIndex: 0, toPosition: 2 }]);
+    const c = r.candidates[0]!;
+    expect(c.trip.days[0]!.items.some((i: any) => i.provenance?.source === 'google_routes')).toBe(true);
+    expect(c.displayOnly).toBeDefined();
+    expect(c.displayOnly!.knownCostDelta.some(x => x.currency === 'JPY')).toBe(true);
+    expect(c.diff.knownCostDelta.some(x => x.currency === 'JPY' && x.amountMinor === c.displayOnly!.knownCostDelta[0]!.amountMinor)).toBe(false);
+    const res = await m.patch(r.baseRevision, c.operations);
+    expect(res.statusCode, res.payload).toBe(200);
+    expect(res.json().diff).toEqual(c.diff);
+    expect(JSON.stringify(res.json().trip)).not.toContain('google_routes');
+    expect(JSON.stringify(m.db.prepare('SELECT days_json FROM trips').all())).not.toContain('google_routes');
+    const stored = Trip.parse(res.json().trip);
+    expect(computeDiff(mkTrip(items), stored)).toEqual(c.diff);
+  });
+
+  it('a leg with a line or platform but no provenance is refused (422 RESTRICTED_ASSET) by PATCH and by the preview', async () => {
+    const m = mini(mkTrip(baseItems()));
+    const bad = { ...legOf(1, 3, 600, null, 'x1'), lineName: 'X', provenance: null, dataStatus: 'unknown' };
+    const op = [{ op: 'add', dayIndex: 0, position: 1, item: bad }];
+    for (const r of [await m.patch(1, op), await m.post({ expectedRevision: 1, operations: op })]) {
+      expect(r.statusCode).toBe(422);
+      expect(ApiError.parse(r.json()).code).toBe('RESTRICTED_ASSET');
+    }
+    const ok = await m.patch(1, [{ op: 'add', dayIndex: 0, position: 1, item: { ...bad, lineName: null } }]);
+    expect(ok.statusCode).toBe(200);
+  });
+
+  it('one preview at a time per user, even in fixture mode', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>(res => (release = res));
+    const routes: RouteProvider = { route: async () => (await gate, { leg: null, reason: 'no_route' as const }) };
+    const m = mini(mkTrip(baseItems()), { ...createContextSources({ providerMode: 'fixture' }), routes });
+    const body = { expectedRevision: 1, operations: [{ op: 'update', itemId: 'a2', item: act('a2', 4, 60, 110) }] };
+    const first = m.post(body);
+    await new Promise(r => setTimeout(r, 20));
+    const second = await m.post(body);
+    expect(second.statusCode).toBe(429);
+    expect(ApiError.parse(second.json()).code).toBe('RATE_LIMITED');
+    release();
+    expect((await first).statusCode).toBe(200);
+    expect((await m.post(body)).statusCode).toBe(200);
+  });
+});
+
+describe('per-user daily live route budget, shared by K05 and A05 (B2)', () => {
+  it('counts calls per user per UTC day with a fake clock; another user is unaffected', () => {
+    let t = Date.UTC(2026, 9, 24, 12);
+    const b = createUserRouteBudget({ perDay: 3, now: () => t });
+    expect([1, 2, 3, 4].map(() => b.take('u1'))).toEqual([true, true, true, false]);
+    expect(b.remaining('u1')).toBe(0);
+    expect(b.remaining('u2')).toBe(3);
+    expect(b.take('u2')).toBe(true);
+    t += 24 * 3600_000;
+    expect(b.take('u1')).toBe(true);
+  });
+
+  it('LIVE_ROUTE_CALLS_PER_USER_PER_DAY: default 6, 0..20, invalid values refused at startup', () => {
+    expect(liveRouteCallsPerUserFromEnv({})).toBe(6);
+    expect(liveRouteCallsPerUserFromEnv({ LIVE_ROUTE_CALLS_PER_USER_PER_DAY: '20' })).toBe(20);
+    expect(liveRouteCallsPerUserFromEnv({ LIVE_ROUTE_CALLS_PER_USER_PER_DAY: '0' })).toBe(0);
+    for (const bad of ['21', '-1', 'abc', '1.5']) {
+      expect(() => liveRouteCallsPerUserFromEnv({ LIVE_ROUTE_CALLS_PER_USER_PER_DAY: bad }), bad).toThrow(/LIVE_ROUTE_CALLS_PER_USER_PER_DAY/);
+      expect(() => loadConfig({ SESSION_SECRET: 's'.repeat(40), LIVE_ROUTE_CALLS_PER_USER_PER_DAY: bad }), bad).toThrow(/LIVE_ROUTE_CALLS_PER_USER_PER_DAY/);
+    }
+  });
+
+  it('K05 and A05 draw on the same counter; when it is used up the pair is unknown with a warning, not an error', async () => {
+    const budget = createUserRouteBudget({ perDay: 3 });
+    const urls: string[] = [];
+    const fakeFetch = (async (u: string) => (urls.push(u), new Response(JSON.stringify({ routes: [{ duration: '600s', distanceMeters: 3000 }] }), { status: 200 }))) as unknown as typeof fetch;
+    const sources = createContextSources({ providerMode: 'mixed' }, { GOOGLE_MAPS_SERVER_KEY: 'k' }, { fetch: fakeFetch, now: () => Date.UTC(2026, 9, 24) });
+    // K05: two live legs for user_a
+    const k05 = Fastify({ logger: false });
+    k05.decorate('authenticate', async (req: { actor?: unknown }) => void (req.actor = { userId: 'user_a', displayName: 'A' }));
+    registerPlanningContext(k05, { providerMode: 'mixed' } as never, { sources, routeBudget: budget });
+    closers.push(k05);
+    const q = (to: string) => ({ fromPlaceId: 'fx_kanazawa_station', toPlaceId: to, departureUtc: '2026-11-01T00:00:00Z', mode: 'car' });
+    const kr = await k05.inject({ method: 'POST', url: '/api/v1/planning-context', payload: { area: '金沢', transportMode: 'car', legs: [q('fx_kenrokuen'), q('fx_sushi')] } });
+    expect(kr.statusCode).toBe(200);
+    expect(urls).toHaveLength(2);
+    expect(budget.remaining('user_a')).toBe(1);
+    // A05 for the same user: only one more live call is possible
+    const items = Array.from({ length: 4 }, (_, i) => act(`b${i}`, i + 1, i * 70, i * 70 + 50));
+    const m = mini(mkTrip(items), sources, 'mixed', budget);
+    const r = await m.preview([{ op: 'move', itemId: 'b0', toDayIndex: 0, toPosition: 3 }]);
+    expect(urls).toHaveLength(3);
+    const c = r.candidates[0]!;
+    expect(c.warnings.some(w => w.includes('上限'))).toBe(true);
+    expect(c.unknown).toContain('legs');
+    expect(acts(c.trip).some(a => a.start === null)).toBe(true);
+    expect(budget.remaining('user_a')).toBe(0);
+    expect(budget.remaining('user_b')).toBe(3);
+    // K05 after exhaustion: 200 with the leg unknown
+    const again = await k05.inject({ method: 'POST', url: '/api/v1/planning-context', payload: { area: '金沢', transportMode: 'car', legs: [q('fx_kenrokuen')] } });
+    expect(again.statusCode).toBe(200);
+    expect(again.json().legs).toEqual([]);
+    expect(again.json().unknown).toContain('legs');
+    expect(urls).toHaveLength(3);
   });
 });

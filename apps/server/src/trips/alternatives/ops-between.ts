@@ -46,3 +46,8 @@ export function operationsBetween(base: Trip, target: Trip): TripOperation[] | n
   if (!applied.ok) return null;
   return JSON.stringify(applied.trip.days) === JSON.stringify(target.days) && applied.trip.title === target.title ? ops : null;
 }
+
+/** O2: a leg that names a line or platform must say where that came from; provenance null means "no source". */
+export function unsourcedServiceLeg(it: ItineraryItem): boolean {
+  return it.type === 'leg' && it.provenance === null && (it.lineName !== null || it.platform !== null);
+}

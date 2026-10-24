@@ -128,7 +128,7 @@ describe('T05-2 SSRF: no path lets a client choose an outbound URL', () => {
   });
 
   it('the only outbound call target is baseUrl + a constant path; client-controlled values never reach the URL', () => {
-    const t = read(sourceFiles(['apps/ai-local/src/shared-client'])[0]!);
+    const t = read(sourceFiles(['apps/ai-local/src/shared-client']).find(f => f.endsWith('shared-client/index.ts'))!);
     expect(t).toContain('`${base}${UPSTREAM_PATHS.login}`');
     expect(Object.values(UPSTREAM_PATHS)).toEqual(['/api/v1/auth/login']);
     expect(t).toContain("redirect: 'manual'");
@@ -200,7 +200,7 @@ describe('T05-2 SSRF: no path lets a client choose an outbound URL', () => {
   it('ContextClient (K05) exposes exactly getPlanningContext, calls one constant path with manual redirects, and no /local route reaches it', () => {
     expect(Object.keys(createContextClient({ baseUrl: 'http://127.0.0.1:4310' }))).toEqual(['getPlanningContext']);
     expect(Object.values(UPSTREAM_CONTEXT_PATHS)).toEqual(['/api/v1/planning-context']);
-    const t = read(sourceFiles(['apps/ai-local/src/shared-client'])[0]!);
+    const t = read(sourceFiles(['apps/ai-local/src/shared-client']).find(f => f.endsWith('shared-client/index.ts'))!);
     expect(t).toContain('`${base}${UPSTREAM_CONTEXT_PATHS.planningContext}`');
     expect(read(join(ROOT, 'apps/ai-local/src/app.ts'))).not.toMatch(/contextClient\.\w+\(/);
   });
@@ -208,7 +208,7 @@ describe('T05-2 SSRF: no path lets a client choose an outbound URL', () => {
   it('CapabilitiesClient exposes exactly getDataMode, calls one constant public path with manual redirects and no credentials', () => {
     expect(Object.keys(createCapabilitiesClient({ baseUrl: 'http://127.0.0.1:4310' }))).toEqual(['getDataMode']);
     expect(Object.values(UPSTREAM_CAPABILITIES_PATHS)).toEqual(['/api/v1/capabilities']);
-    const t = read(sourceFiles(['apps/ai-local/src/shared-client'])[0]!);
+    const t = read(sourceFiles(['apps/ai-local/src/shared-client']).find(f => f.endsWith('shared-client/index.ts'))!);
     expect(t).toContain('`${base}${UPSTREAM_CAPABILITIES_PATHS.capabilities}`');
     expect([...read(join(ROOT, 'apps/ai-local/src/app.ts')).matchAll(/capabilitiesClient\.\w+\(/g)].map(m => m[0])).toEqual(['capabilitiesClient.getDataMode(']);
   });

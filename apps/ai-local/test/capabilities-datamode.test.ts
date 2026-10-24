@@ -38,14 +38,26 @@ describe('/local/v1/capabilities dataMode comes from the shared server', () => {
       if (step === 'status') return new Response('x', { status: 503 });
       return upstream('live');
     };
-    const app = buildApp({ config: loadConfig({}), fetch });
+    let t = 5_000;
+    const client = createCapabilitiesClient({ baseUrl: 'http://shared.test', fetch, now: () => t });
+    const app = buildApp({ config: loadConfig({}), capabilitiesClient: client });
     const mode = async () => Capabilities.parse((await app.inject({ method: 'GET', url: '/local/v1/capabilities', headers: H })).json()).dataMode;
     expect(await mode()).toBe('fixture');
     step = 'bad';
+    t += 11_000;
     expect(await mode()).toBe('fixture');
     step = 'status';
+    t += 11_000;
     expect(await mode()).toBe('fixture');
     step = 'up';
+    expect(await mode()).toBe('fixture'); // negative cache: not asked again within 10 s
+    t += 11_000;
     expect(await mode()).toBe('live');
+  });
+
+  it('refuses an oversized answer (64 KB cap)', async () => {
+    const big = new Response(JSON.stringify({ pad: 'x'.repeat(70_000) }), { status: 200 });
+    const client = createCapabilitiesClient({ baseUrl: 'http://shared.test', fetch: async () => big });
+    expect(await client.getDataMode()).toBeNull();
   });
 });

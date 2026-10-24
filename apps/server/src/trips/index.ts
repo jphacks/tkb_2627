@@ -26,6 +26,7 @@ import type { SharedConfig } from '../platform/config.ts';
 import { applyOperations, computeDiff } from './operations.ts';
 import { registerPlanningContext } from './generation/index.ts';
 import { registerAlternatives, type AlternativesDeps } from './alternatives/index.ts';
+import { unsourcedServiceLeg } from './alternatives/ops-between.ts';
 import { batchReferencesOnlyKnownPlaces, carriesRestrictedProviderContent } from './generation/verify-batch.ts';
 
 function fail(
@@ -385,6 +386,9 @@ export function registerTrips(app: FastifyInstance, db: Db, config: SharedConfig
     if (trip.revision !== body.data.expectedRevision) return conflict(trip.revision);
     const nowMs = Date.now();
     for (const op of body.data.operations) {
+      if ((op.op === 'add' || op.op === 'update') && unsourcedServiceLeg(op.item)) {
+        return fail(reply, req.id, 'RESTRICTED_ASSET', 'Data may not be stored.');
+      }
       if ((op.op === 'add' || op.op === 'update') && op.item.type === 'leg' && op.item.provenance && !storable(op.item.provenance, nowMs)) {
         return fail(reply, req.id, 'RESTRICTED_ASSET', 'Data may not be stored.');
       }
