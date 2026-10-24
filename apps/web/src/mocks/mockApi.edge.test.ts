@@ -738,7 +738,7 @@ describe('mock api edge: unknown cost is never 0 (budgetUnknown)', () => {
     }
   });
 
-  it('patch: replacing a known cost by null shows a negative known delta and lists the item as unknown; null to known is a positive delta', async () => {
+  it('patch: changing a cost to or from unknown is never a saving or a new expense: no known delta, the item is listed as unknown', async () => {
     const a = createMockApi();
     const lunch = itemsOf(domesticTrip).find(i => idOf(i) === 'fx_act_lunch');
     if (!lunch || lunch.type !== 'activity' || !lunch.cost) throw new Error('fixture shape changed');
@@ -748,13 +748,13 @@ describe('mock api edge: unknown cost is never 0 (budgetUnknown)', () => {
         operations: [{ op: 'update', itemId: 'fx_act_lunch', item: { ...lunch, cost: null, costStatus: 'unknown' } }],
       }),
     );
-    expect(toUnknown.diff.knownCostDelta).toEqual([{ currency: 'JPY', amountMinor: -lunch.cost.amountMinor }]);
+    expect(toUnknown.diff.knownCostDelta).toEqual([]); // not a -4000 saving (R11)
     expect(toUnknown.diff.unknownCostItems).toContain('fx_act_lunch');
     const back = data(
       await a.patchTrip(KANAZAWA, { expectedRevision: 2, operations: [{ op: 'update', itemId: 'fx_act_lunch', item: lunch }] }),
     );
-    expect(back.diff.knownCostDelta).toEqual([{ currency: 'JPY', amountMinor: lunch.cost.amountMinor }]);
-    // Unknown before the update, so still listed: the positive delta is not measured from 0.
+    expect(back.diff.knownCostDelta).toEqual([]); // not a +4000 expense measured from 0 (R11)
+    // Unknown before the update, so still listed.
     expect(back.diff.unknownCostItems).toContain('fx_act_lunch');
   });
 
@@ -838,12 +838,13 @@ describe('mock api edge: DST and time zones survive the mock', () => {
 
   it('the duration of a Paris item is computed from UTC instants (no off-by-one-hour around the switch)', async () => {
     const a = createMockApi();
-    // Lasts from 2026-10-25T00:30Z (02:30 CEST) to 2026-10-25T01:30Z (02:30 CET): 3600 real seconds.
+    // Starts 2026-10-25T00:30Z (02:30 CEST), crosses the switch at 01:00Z and ends 2026-10-25T14:00Z (15:00 CET).
+    // The elapsed span of the trip (2026-10-24T08:00Z to 2026-10-25T13:00Z = 29 real hours) grows by 3600 real seconds.
     const across = activityItem('dst_cross', 0, {
       cost: null,
       costStatus: 'unknown',
       start: { utc: '2026-10-25T00:30:00Z', timeZone: 'Europe/Paris' },
-      end: { utc: '2026-10-25T01:30:00Z', timeZone: 'Europe/Paris' },
+      end: { utc: '2026-10-25T14:00:00Z', timeZone: 'Europe/Paris' },
     });
     const res = data(await a.patchTrip(PARIS, { expectedRevision: 1, operations: [{ op: 'add', dayIndex: 1, position: 0, item: across }] }));
     expect(res.diff.durationDeltaSeconds).toBe(3600);

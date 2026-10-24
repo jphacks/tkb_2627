@@ -9,9 +9,15 @@
  * - Unknown cost stays null. It is never turned into 0 (R11).
  *
  * Known differences from the main implementation (screens must not depend on them):
- * - K01: main rejects baseTripId, expectedRevision and mode=replan with 422 until A04; the mock accepts
- *   them and returns 404/409. generate ignores the request and returns the Kanazawa candidates.
- *   No Idempotency-Key.
+ * - K01: the local App Server (apps/ai-local) rejects mode=replan with 422 until A06, and baseTripId /
+ *   expectedRevision with 422 until A04; the mock accepts them and returns 404/409. generate ignores the
+ *   request and returns the Kanazawa candidates.
+ *   Idempotency-Key (options.idempotencyKey) is aligned: format check (422), same key + same body -> the same
+ *   job, same key + different body -> 409 IDEMPOTENCY_CONFLICT. Still different: the key is optional here
+ *   (the App Server requires it and answers 422 without one), a key is kept per mock instance for the life of
+ *   the instance (the App Server evicts old jobs and starts a new attempt when the outcome of the earlier
+ *   attempt is unknown, see docs/03 K21), there is no owner, and a reserved key reused with a replan body
+ *   answers 409 here while the App Server rejects replan first with 422.
  * - K07: only GET. Batches are created by generate and the seed data; constraints are kept inside.
  * - K08: follows main's order (invalid/needs_revalidation candidate 422, trip lookup, expectedRevision null
  *   422, baseTripId mismatch 422, baseRevision mismatch 409, then expectedRevision value 409; applying the
@@ -21,8 +27,12 @@
  *   whose trip was deleted (the mock has no delete), no 422 for a batch without constraints (mock batches
  *   always keep them) or for a trip that fails the schema. The invalid-candidate path cannot be reached with
  *   the fixture candidates (they are valid or needs_review).
- * - K10: durationDeltaSeconds is the sum of item durations (main uses the span of each day). Unknown
- *   placeIds and item type changes are not rejected.
+ * - K10: operations are validated as in main (unknown placeId and item type change on update -> 422
+ *   CONSTRAINT_UNSATISFIED, together with the range, duplicate-id and id-mismatch checks) and
+ *   durationDeltaSeconds is the change of the elapsed span from the earliest start to the latest end
+ *   (null when any item has no start or end; the Kanazawa fixture has an untimed leg, so it is null there).
+ *   knownCostDelta and unknownCostItems follow main too: items are matched by id, and an item whose cost is
+ *   unknown on either side is only listed in unknownCostItems, never counted as 0 (R11).
  * - K14: no authorization. 'mine' is the demo user's posts and 'groups' is always empty.
  * - K21: a succeeded job returns 200 with its batchId, as main does. The mock has no saving stage, so main's
  *   409 for a cancel during saving or restart recovery is not reproduced.
@@ -106,9 +116,25 @@ export type MockResult<T> =
   | { ok: true; data: T; source: typeof MOCK_SOURCE; status: number }
   | { ok: false; error: ApiError; source: typeof MOCK_SOURCE; status: number };
 
-/** Converts to the `Probe<T>` of lib/api.ts (error becomes the message text). */
-export function toProbe<T>(result: MockResult<T>): { ok: true; data: T } | { ok: false; error: string } {
-  return result.ok ? { ok: true, data: result.data } : { ok: false, error: result.error.message };
+/** `Probe<T>` of lib/api.ts, plus `source` so a screen can still show that the data is mock. */
+export type MockProbe<T> =
+  | { ok: true; data: T; source: typeof MOCK_SOURCE }
+  | { ok: false; error: string; source: typeof MOCK_SOURCE };
+
+/** Converts to the `Probe<T>` of lib/api.ts (error becomes the message text) and keeps `source`. */
+export function toProbe<T>(result: MockResult<T>): MockProbe<T> {
+  return result.ok
+    ? { ok: true, data: result.data, source: result.source }
+    : { ok: false, error: result.error.message, source: result.source };
+}
+
+/** Per-call options of generate(). */
+export interface GenerateOptions {
+  /**
+   * The `Idempotency-Key` header of K01 (8 to 128 characters of A-Z a-z 0-9 _ -). Optional in the mock
+   * (main requires it): the screens do not send one yet.
+   */
+  idempotencyKey?: string;
 }
 
 type ClientInput<S extends z.ZodType> = z.input<S>;
@@ -167,26 +193,112 @@ function moneyOf(item: ItineraryItem): Money | null {
   return item.type === 'activity' ? item.cost : item.fare;
 }
 
-/** Seconds an item takes when known: leg duration, or activity end - start. */
-function durationOf(item: ItineraryItem): number | null {
-  if (item.type === 'leg') return item.durationSeconds;
-  if (item.start === null || item.end === null) return null;
-  return Math.round((Date.parse(item.end.utc) - Date.parse(item.start.utc)) / 1000);
+/**
+ * Same as main (@tkb/planner tripElapsedSeconds): seconds from the earliest start/departure to the latest
+ * end/arrival across all days (gaps included). null when there are no items or any item lacks a start or end:
+ * unknown is never 0 (R11).
+ */
+function elapsedSeconds(days: readonly Trip['days'][number][]): number | null {
+  let min = Infinity;
+  let max = -Infinity;
+  let count = 0;
+  for (const day of days) {
+    for (const item of day.items) {
+      const start = item.type === 'activity' ? item.start : item.departure;
+      const end = item.type === 'activity' ? item.end : item.arrival;
+      if (start === null || end === null) return null;
+      min = Math.min(min, Date.parse(start.utc));
+      max = Math.max(max, Date.parse(end.utc));
+      count += 1;
+    }
+  }
+  if (count === 0) return null;
+  return Math.round((max - min) / 1000);
 }
 
-function allItems(trip: Trip): ItineraryItem[] {
-  return trip.days.flatMap(d => d.items);
+/** Same as main: an activity placeId / leg endpoint that is not null must be one of the trip's places. */
+function referencesUnknownPlace(trip: Trip, item: ItineraryItem): boolean {
+  const known = new Set(trip.places.map(p => p.placeId));
+  const refs = item.type === 'activity' ? [item.placeId] : [item.fromPlaceId, item.toPlaceId];
+  return refs.some(ref => ref !== null && !known.has(ref));
 }
 
-function sumKnownDurations(trip: Trip): number {
-  return allItems(trip).reduce((sum, item) => sum + (durationOf(item) ?? 0), 0);
+/** Idempotency-Key format accepted by apps/ai-local (K01). */
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,128}$/;
+
+/**
+ * K10 cost part of the diff, as main (apps/server computeDiff → @tkb/planner tripDiff, walking legs removed first).
+ * Items are matched by id. An item whose cost is unknown on either side is left out of knownCostDelta entirely and
+ * listed in unknownCostItems (after's plan order, then ids only in before), so an unknown cost is never counted as
+ * 0 — neither as a saving nor as a new expense (R11). Currencies whose delta is 0 are omitted.
+ */
+function costDiff(before: Trip['days'], after: Trip['days']): Pick<TripDiff, 'knownCostDelta' | 'unknownCostItems'> {
+  const costsById = (days: Trip['days']): Map<string, (Money | null)[]> => {
+    const byId = new Map<string, (Money | null)[]>();
+    for (const day of days) {
+      for (const item of day.items) {
+        if (item.type === 'leg' && item.mode === 'walk') continue;
+        const list = byId.get(itemId(item));
+        if (list) list.push(moneyOf(item));
+        else byId.set(itemId(item), [moneyOf(item)]);
+      }
+    }
+    return byId;
+  };
+  const isKnown = (costs: readonly (Money | null)[]): costs is Money[] => costs.every(c => c !== null);
+  const costsBefore = costsById(before);
+  const costsAfter = costsById(after);
+  const delta = new Map<string, number>();
+  const add = (costs: readonly Money[], sign: 1 | -1) => {
+    for (const m of costs) delta.set(m.currency, (delta.get(m.currency) ?? 0) + sign * m.amountMinor);
+  };
+  const unknownCostItems: string[] = [];
+  for (const [id, afterCosts] of costsAfter) {
+    const beforeCosts = costsBefore.get(id) ?? [];
+    if (!isKnown(afterCosts) || !isKnown(beforeCosts)) {
+      unknownCostItems.push(id);
+      continue;
+    }
+    add(afterCosts, 1);
+    add(beforeCosts, -1);
+  }
+  for (const [id, beforeCosts] of costsBefore) {
+    if (costsAfter.has(id)) continue;
+    if (isKnown(beforeCosts)) add(beforeCosts, -1);
+    else unknownCostItems.push(id);
+  }
+  const knownCostDelta: Money[] = [...delta.keys()]
+    .sort()
+    .map(currency => ({ currency, amountMinor: delta.get(currency) ?? 0 }))
+    .filter(m => m.amountMinor !== 0);
+  return { knownCostDelta, unknownCostItems };
 }
 
-/** Ids of items whose cost is unknown. Walking legs have no fare, so they are not unknown (same as main K10). */
-function unknownCostIds(trip: Trip): string[] {
-  return allItems(trip)
-    .filter(item => (item.type === 'activity' ? item.cost === null : item.mode !== 'walk' && item.fare === null))
-    .map(itemId);
+/**
+ * Car legs for a car request: the same places, but times, duration, line, platform, transfers and fare
+ * are unknown (null). Mirrors the fixtures' car trip; nothing is borrowed from public transit.
+ */
+function withCarLegs(days: PlanCandidate['days']): PlanCandidate['days'] {
+  return days.map(day => ({
+    ...day,
+    items: day.items.map(item =>
+      item.type === 'leg' && item.mode === 'transit'
+        ? {
+            ...item,
+            mode: 'car' as const,
+            departure: null,
+            arrival: null,
+            durationSeconds: null,
+            lineName: null,
+            platform: null,
+            transfers: null,
+            fare: null,
+            dataStatus: 'unknown' as const,
+            provenance: null,
+          }
+        : item,
+    ),
+  }));
 }
 
 /** Trip title from a candidate, as main does: at most 200 characters, the area when the title is blank. */
@@ -194,23 +306,9 @@ function candidateTitle(candidate: PlanCandidate, constraints: TripConstraints):
   return candidate.title.trim() ? candidate.title.slice(0, 200) : constraints.area;
 }
 
-function knownCostByCurrency(trip: Trip): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const item of allItems(trip)) {
-    const money = moneyOf(item);
-    if (money) map.set(money.currency, (map.get(money.currency) ?? 0) + money.amountMinor);
-  }
-  return map;
-}
-
-/** Candidate days with transit legs switched to car legs (no fare: fuel and tolls are unknown). */
+/** Candidate days with transit legs switched to car legs (time, duration and fare unknown: not borrowed from transit). */
 function candidateForCar(c: PlanCandidate): PlanCandidate {
-  const days = c.days.map(day => ({
-    ...day,
-    items: day.items.map(item =>
-      item.type === 'leg' && item.mode === 'transit' ? { ...item, mode: 'car' as const, lineName: null, fare: null } : item,
-    ),
-  }));
+  const days = withCarLegs(c.days);
   return { ...c, days, ...summarizeKnownCost(days) };
 }
 
@@ -228,6 +326,8 @@ export function createMockApi(options: MockApiOptions = {}) {
   const jobs = new Map<string, JobRecord>();
   /** `${batchId}|${candidateId}` -> tripId created from it, so applying the same candidate again returns that trip. */
   const appliedNew = new Map<string, string>();
+  /** Idempotency-Key -> the job it created and the request body it was created for (K01). */
+  const idempotent = new Map<string, { jobId: string; fingerprint: string }>();
   let feedPosts: PostSummary[] = [];
   let counter = 0;
   const nextId = (prefix: string): string => `${prefix}_${(counter += 1)}`;
@@ -329,12 +429,30 @@ export function createMockApi(options: MockApiOptions = {}) {
       return trip ? ok(Trip, trip) : fail('NOT_FOUND');
     },
 
-    /** K01 POST /local/v1/generations. Returns 202 JobAccepted; the job outcome comes from getJob. */
-    async generate(request: ClientInput<typeof GenerateRequest>): Promise<MockResult<JobAccepted>> {
+    /**
+     * K01 POST /local/v1/generations. Returns 202 JobAccepted; the job outcome comes from getJob.
+     * With `options.idempotencyKey` (the Idempotency-Key header): a malformed key -> 422 VALIDATION_FAILED; the
+     * same key with the same body -> 202 with the same jobId (no new job); the same key with a different
+     * body -> 409 IDEMPOTENCY_CONFLICT. Keys are remembered per mock instance. Without a key every call
+     * creates a new job (main requires the key).
+     */
+    async generate(request: ClientInput<typeof GenerateRequest>, options: GenerateOptions = {}): Promise<MockResult<JobAccepted>> {
       await pause();
+      const key = options.idempotencyKey;
+      if (key !== undefined && !IDEMPOTENCY_KEY.test(key)) return fail('VALIDATION_FAILED', 'Idempotency-Key が不正です。');
       const parsed = GenerateRequest.safeParse(request);
       if (!parsed.success) return invalidInput(parsed.error);
       const req = parsed.data;
+      const fingerprint = JSON.stringify(req);
+      if (key !== undefined) {
+        const prior = idempotent.get(key);
+        if (prior) {
+          if (prior.fingerprint !== fingerprint) {
+            return fail('IDEMPOTENCY_CONFLICT', '同じ Idempotency-Key が別の入力で使われています。');
+          }
+          return ok(JobAccepted, { jobId: prior.jobId, state: 'queued', pollAfterMs }, 202);
+        }
+      }
       if (req.mode === 'replan') {
         const base = req.baseTripId ? trips.get(req.baseTripId) : undefined;
         if (!base) return fail('NOT_FOUND');
@@ -368,6 +486,7 @@ export function createMockApi(options: MockApiOptions = {}) {
         constraints: scenario === 'budgetUnknown' ? { ...req.constraints, budget: null } : req.constraints,
         registered: false,
       });
+      if (key !== undefined) idempotent.set(key, { jobId, fingerprint });
       return ok(JobAccepted, { jobId, state: 'queued', pollAfterMs }, 202);
     },
 
@@ -509,9 +628,6 @@ export function createMockApi(options: MockApiOptions = {}) {
       }
 
       const after = structuredClone(before);
-      const touched: ItineraryItem[] = []; // items added or updated
-      const removed: ItineraryItem[] = [];
-      const replaced: ItineraryItem[] = []; // previous versions of updated items
       let itineraryChanged = false;
 
       const locate = (id: string): { day: number; index: number } | null => {
@@ -534,16 +650,15 @@ export function createMockApi(options: MockApiOptions = {}) {
             if (!day) return unsatisfied(op, 'dayIndex が範囲外です');
             if (op.position > day.items.length) return unsatisfied(op, 'position が範囲外です');
             if (locate(itemId(op.item))) return unsatisfied(op, 'ID が重複しています');
+            if (referencesUnknownPlace(before, op.item)) return unsatisfied(op, '旅程に無い placeId を参照しています');
             day.items.splice(op.position, 0, structuredClone(op.item));
-            touched.push(op.item);
             itineraryChanged = true;
             break;
           }
           case 'remove': {
             const at = locate(op.itemId);
             if (!at) return unsatisfied(op, '対象が見つかりません');
-            const [item] = (after.days[at.day] as Trip['days'][number]).items.splice(at.index, 1);
-            if (item) removed.push(item);
+            (after.days[at.day] as Trip['days'][number]).items.splice(at.index, 1);
             itineraryChanged = true;
             break;
           }
@@ -565,31 +680,22 @@ export function createMockApi(options: MockApiOptions = {}) {
             if (itemId(op.item) !== op.itemId) return unsatisfied(op, 'item の ID が itemId と一致しません');
             const items = (after.days[at.day] as Trip['days'][number]).items;
             const previous = items[at.index];
-            if (previous) replaced.push(previous);
+            if (previous && previous.type !== op.item.type) return unsatisfied(op, 'item の type は変更できません');
+            if (referencesUnknownPlace(before, op.item)) return unsatisfied(op, '旅程に無い placeId を参照しています');
             items[at.index] = structuredClone(op.item);
-            touched.push(op.item);
             itineraryChanged = true;
             break;
           }
         }
       }
 
-      // R11: unknown is never treated as 0. If an added/removed/updated item has no known duration,
-      // or an updated item had no known duration before, the duration delta is unknown (null);
-      // moves and renames do not change durations.
-      const durationUnknown = [...touched, ...removed, ...replaced].some(item => durationOf(item) === null);
-      const beforeCost = knownCostByCurrency(before);
-      const afterCost = knownCostByCurrency(after);
-      const knownCostDelta: Money[] = [...new Set([...beforeCost.keys(), ...afterCost.keys()])]
-        .sort()
-        .map(currency => ({ currency, amountMinor: (afterCost.get(currency) ?? 0) - (beforeCost.get(currency) ?? 0) }))
-        .filter(m => m.amountMinor !== 0);
+      // R11, as main: the duration delta is the change of the elapsed span (earliest start to latest end, gaps
+      // included). It is null when either side has an item without a start or end, or has no items at all.
+      const elapsedBefore = elapsedSeconds(before.days);
+      const elapsedAfter = elapsedSeconds(after.days);
       const diff: TripDiff = {
-        durationDeltaSeconds: durationUnknown ? null : sumKnownDurations(after) - sumKnownDurations(before),
-        knownCostDelta,
-        // Union of before and after (as main K10 does), so removing an unknown-cost item or giving it a
-        // price is not shown as "no unknown cost".
-        unknownCostItems: [...new Set([...unknownCostIds(before), ...unknownCostIds(after)])],
+        durationDeltaSeconds: elapsedBefore === null || elapsedAfter === null ? null : elapsedAfter - elapsedBefore,
+        ...costDiff(before.days, after.days),
       };
 
       after.revision = before.revision + 1;

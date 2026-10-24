@@ -236,6 +236,8 @@
 
 通信：POST /api/v1/plan-batches / GET /api/v1/plan-batches/{id}
 
+追加（A04、M1承認待ち）：GET /api/v1/plan-batches?generationId={id}。本人所有のbatchを`generationId`（本人用App Serverの`operationKey`）で照会し、200 `{batchId}`を返す。queryは`generationId`の1キーだけで、`Id`形式で検証する（それ以外は422）。未認証は401。他人のbatchと存在しないbatchは同じ404。`cache-control: no-store`。再起動後に保存済みのbatchを探し、二重保存を防ぐために使う。
+
 権限：アプリ本人セッション。AI認証とは無関係
 
 入力：GenerationResult：候補、制約、根拠、baseTripId?、baseRevision?、ローカル生成識別子。

@@ -92,7 +92,35 @@ export function createBudgetUnknownOverseasTrip(): Trip {
   };
 }
 
-/** Domestic trip by car: every transit leg becomes a car leg; no fare (fuel/toll are unknown). */
+/**
+ * Copy of `days` where every transit leg becomes a car leg. The public-transit times, duration, line, platform,
+ * transfers and fare do not carry over to a car: they are unknown (null, dataStatus 'unknown', no provenance),
+ * because driving time, fuel and tolls were not fetched (R11). Walking legs and activities are unchanged.
+ */
+function withCarLegs(days: Days): Days {
+  return days.map(day => ({
+    ...day,
+    items: day.items.map(item =>
+      item.type === 'leg' && item.mode === 'transit'
+        ? {
+            ...item,
+            mode: 'car' as const,
+            departure: null,
+            arrival: null,
+            durationSeconds: null,
+            lineName: null,
+            platform: null,
+            transfers: null,
+            fare: null,
+            dataStatus: 'unknown' as const,
+            provenance: null,
+          }
+        : item,
+    ),
+  }));
+}
+
+/** Domestic trip by car: every transit leg becomes a car leg with unknown time and no fare (fuel/toll are unknown). */
 export function createCarTrip(): Trip {
   const base = structuredClone(domesticTrip);
   return {
@@ -100,13 +128,8 @@ export function createCarTrip(): Trip {
     tripId: 'fx_trip_kanazawa_car',
     title: '金沢 1泊2日・車移動（fixture）',
     constraints: { ...base.constraints, transportMode: 'car' },
-    days: base.days.map(day => ({
-      ...day,
-      items: day.items.map(item =>
-        item.type === 'leg' && item.mode === 'transit' ? { ...item, mode: 'car' as const, lineName: null, fare: null } : item,
-      ),
-    })),
-    warnings: ['車移動の燃料・高速料金は未取得です（fixture）'],
+    days: withCarLegs(base.days),
+    warnings: ['車移動の所要時間・燃料・高速料金は未取得です（fixture）'],
   };
 }
 

@@ -151,9 +151,9 @@ describe('journey: normal scenario, 条件入力 -> 比較 -> 編集 -> ガイ�
     expect(patched.diff.unknownCostItems).toContain(unknownItem.activityId);
     expect(patched.diff.knownCostDelta).toEqual([]);
     expect(patched.diff.knownCostDelta.every(m => m.amountMinor !== 0)).toBe(true);
-    const unknownDuration = unknownItem.start === null || unknownItem.end === null;
-    if (unknownDuration) expect(patched.diff.durationDeltaSeconds).toBeNull();
-    else expect(patched.diff.durationDeltaSeconds).toBe(-Math.round((Date.parse(unknownItem.end?.utc ?? '') - Date.parse(unknownItem.start?.utc ?? '')) / 1000));
+    // Main's duration delta is the change of the elapsed span, which is unknown (null) while any item has no
+    // start or end. The Kanazawa fixture has such an item (fx_leg_3 has no arrival), so it is null, never 0.
+    expect(patched.diff.durationDeltaSeconds).toBeNull();
     const diffHtml = renderToString(<DiffView trip={patched.trip} before={before} diff={patched.diff} />);
     expect(diffHtml).toContain('0円として扱っていません');
     expect(withoutDisclaimers(diffHtml)).not.toMatch(SHOWN_AS_ZERO);

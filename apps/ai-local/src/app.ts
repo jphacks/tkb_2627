@@ -17,11 +17,12 @@ import {
   type GenerationInput,
 } from '@tkb/contracts';
 import { FakeRunner, type Runner } from '@tkb/ai';
+import { createRunner, type CreatedRunner, type RunnerFactoryDeps, type RunnerStatus } from './runner-factory.ts';
 import { PairingStore, safeEqual } from './auth/pairing.ts';
 import { SESSION_COOKIE, SessionStore, parseCookies, sessionCookieHeader, type LocalSession } from './auth/session.ts';
 import type { PersonalConfig } from './config.ts';
 import { FileJobStore, JobManager, type JobManagerOptions, type JobStore } from './jobs/index.ts';
-import { createSharedClient, type FetchLike, type SharedClient } from './shared-client/index.ts';
+import { createPlanBatchClient, createSharedClient, type FetchLike, type PlanBatchClient, type SharedClient } from './shared-client/index.ts';
 
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,128}$/;
 const STATE_CHANGING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -30,9 +31,13 @@ const PAIR_PATH = '/local/v1/pair';
 export interface BuildAppOptions {
   config: PersonalConfig;
   pairing?: PairingStore;
+  /** Test/override runner. When given, the factory is bypassed and capabilities stay fake (flag-derived reason). */
   runner?: Runner;
+  /** Deps for the single runner factory (W2), e.g. an injected preflight in tests. */
+  runnerDeps?: RunnerFactoryDeps;
   fetch?: FetchLike;
   sharedClient?: SharedClient;
+  planClient?: PlanBatchClient;
   /** Place IDs a runner result may reference (A04 will derive these from permitted facts). */
   allowedPlaceIds?: readonly string[];
   /** Job journal; default: file store at config.jobDir if set, else in-memory. */
@@ -59,17 +64,38 @@ function sendError(reply: FastifyReply, requestId: string, code: ErrorCode, mess
 
 export function buildApp(opts: BuildAppOptions): FastifyInstance {
   const { config } = opts;
-  const pairing = opts.pairing ?? new PairingStore({ ttlMs: config.pairingTtlMs });
   const sessions = new SessionStore();
+  const pairing = opts.pairing ?? new PairingStore({ ttlMs: config.pairingTtlMs });
   const shared = opts.sharedClient ?? createSharedClient({ baseUrl: config.sharedBaseUrl, fetch: opts.fetch });
-  // No real Claude CLI runner exists yet (A01 terms unconfirmed): always the fake, even if execution is allowed.
+  const planClient = opts.planClient ?? createPlanBatchClient({ baseUrl: config.sharedBaseUrl, fetch: opts.fetch });
+  // Runner: injected one, else whatever the single factory decides at startup (onReady). Until then (and for the
+  // fake) jobs use a FakeRunner. Nothing here ever builds a real runner directly (W2).
+  let created: CreatedRunner | null = null;
+  const initialRunner = opts.runner ?? new FakeRunner();
+  const lazyRunner: Runner = { run: (i, s) => (opts.runner ? initialRunner : (created?.runner ?? initialRunner)).run(i, s) };
+  const flagStatus = (): RunnerStatus => ({
+    available: false,
+    runner: 'fake',
+    reason: !config.allowClaudeExecution ? 'CLAUDE_EXECUTION_DISABLED' : 'TERMS_NOT_CONFIRMED',
+  });
+  const runnerStatus = async (): Promise<RunnerStatus> => (opts.runner || !created ? flagStatus() : created.refresh());
   const jobs = new JobManager({
-    runner: opts.runner ?? new FakeRunner(),
+    runner: lazyRunner,
     queueLimit: config.aiQueueLimit,
     timeoutMs: config.aiTimeoutMs,
     allowedPlaceIds: opts.allowedPlaceIds ?? [],
     store: opts.jobStore ?? (config.jobDir ? new FileJobStore(config.jobDir) : undefined),
-    findSavedBatch: opts.findSavedBatch,
+    // Restart recovery: ask the shared server (K07 by generationId = operationKey) using the owner's upstream session.
+    // No such session (e.g. right after a restart, before login) throws, which JobManager counts as lookupFailed.
+    findSavedBatch:
+      opts.findSavedBatch ??
+      (async (ownerId, operationKey) => {
+        const s = sessions.findUpstream(ownerId);
+        if (!s) throw new Error('no upstream session');
+        return planClient.findPlanBatchByGenerationId(s, operationKey);
+      }),
+    // TODO(A04-D03/D04): wire `save` (savePlanBatch) once K05 places/facts exist; until then a valid result ends failed/UNAVAILABLE
+    // unless a saver is injected.
     save: opts.save,
     saveTimeoutMs: config.saveTimeoutMs,
   });
@@ -110,6 +136,7 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     }
   });
   app.addHook('onReady', async () => {
+    if (!opts.runner) created = await createRunner(config, opts.runnerDeps); // startup preflight, cached
     await jobs.ready; // restart recovery must finish before serving
   });
   app.addHook('onSend', async (req, reply) => {
@@ -136,12 +163,8 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
   app.get('/local/v1/capabilities', async () =>
     Capabilities.parse({
       entry: 'personal',
-      // Never available yet: no real runner (A01). Enabling execution only changes the reason.
-      aiGeneration: {
-        available: false,
-        runner: 'fake',
-        reason: config.allowClaudeExecution ? 'TERMS_NOT_CONFIRMED' : 'CLAUDE_EXECUTION_DISABLED',
-      },
+      // available:true only when the factory returned the real runner AND the (cached) preflight is ok.
+      aiGeneration: await runnerStatus(),
       storage: 'shared-server',
       dataMode: 'fixture',
       schemaVersion: SCHEMA_VERSION,
