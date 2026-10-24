@@ -44,6 +44,8 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     logger: false,
     genReqId: () => randomUUID(),
     requestIdHeader: false,
+    // Ids may be up to 128 chars (contracts Id); longer params become 414 → K23 404.
+    maxParamLength: 128,
     trustProxy: config.trustProxy,
     // Malformed URLs (FST_ERR_BAD_URL etc.) also use the K23 error shape.
     frameworkErrors: (err, req, reply) => {

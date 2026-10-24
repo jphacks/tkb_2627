@@ -501,6 +501,10 @@ describe('K09 list and detail', () => {
     const a = await login(app, 'user-a');
     expect((await call(app, a, 'GET', `/api/v1/trips/${'a'.repeat(200)}`)).statusCode).toBe(404);
     expect((await call(app, a, 'GET', `/api/v1/plan-batches/${'a'.repeat(200)}`)).statusCode).toBe(404);
+    // 128 is the longest valid Id: it reaches the handler (404 because it does not exist), not the router limit.
+    const r128 = await call(app, a, 'GET', `/api/v1/trips/${'a'.repeat(128)}`);
+    expect(r128.statusCode).toBe(404);
+    expect(r128.json().code).toBe('NOT_FOUND');
   });
 });
 
