@@ -11,6 +11,7 @@ import {
 import { checkConnection, migrate, openDatabase, type Db } from '@tkb/db';
 import { registerAuth } from './auth/index.ts';
 import { registerGroups } from '../social/groups/index.ts';
+import { registerCopy } from '../social/copy/index.ts';
 import { registerPosts } from '../social/posts/index.ts';
 import { registerTrips } from '../trips/index.ts';
 import type { SharedConfig } from './config.ts';
@@ -91,6 +92,7 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
   registerGroups(app, handle, config);
   registerPosts(app, handle);
   registerTrips(app, handle, config);
+  registerCopy(app, handle);
 
   app.get('/api/v1/health', async (req, reply) => {
     if (!checkConnection(handle)) {
