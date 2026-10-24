@@ -8,7 +8,7 @@ export const NOT_VISIBLE = '見つからないか閲覧権限がありません'
 const BY_CODE: Partial<Record<ErrorCode, string>> = {
   UNAUTHENTICATED: 'ログインが必要です。ログインしてからもう一度お試しください。',
   FORBIDDEN: 'この操作の権限がありません。',
-  NOT_FOUND: `${NOT_VISIBLE}。`,
+  NOT_FOUND: `${NOT_VISIBLE}（削除されたか、公開範囲が変わった可能性があります）。`,
   REVISION_CONFLICT: 'ほかの操作で内容が更新されました。読み込み直してからやり直してください。',
   ALREADY_COMMITTED: 'すでに使用済みです。同じ確認画面や招待は2回使えません。',
   EXPIRED: '有効期限が切れました。最初からやり直してください。',

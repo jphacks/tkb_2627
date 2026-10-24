@@ -2,7 +2,6 @@
 .s8-server-banner { position: sticky; top: 0; z-index: 30; display: flex; gap: 8px; align-items: center; padding: 6px 12px; font-size: 14px; font-weight: 600;
   color: var(--acc); background: var(--accbg); border-bottom: 3px solid var(--acc); }
 .s8-server-tag { flex: none; background: var(--acc); color: var(--bg); border-radius: 4px; padding: 0 8px; font-size: 12px; letter-spacing: .08em; }
-.u1-scenario select:focus-visible { outline: 3px solid #e0a100; outline-offset: -3px; }
 .s8-session { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .s8-login { flex-direction: column; align-items: stretch; }
 .s8-login .u1-field input { font: inherit; min-height: 44px; width: 100%; background: var(--card); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
