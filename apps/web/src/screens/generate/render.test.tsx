@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { renderToString as renderRaw } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { JobStatus, PlanBatch } from '@tkb/contracts';
+import { kanazawaPlaces } from '@tkb/fixtures';
 import { CompareView, LiveBanner, ModeChip, ProgressView, SummaryCard, type ProgressViewProps } from './GenerateScreens.tsx';
 import { initialPoll, pollReducer, summarizeCandidate } from './model.ts';
 
@@ -46,6 +47,18 @@ const cand = (over: Partial<PlanBatch['candidates'][number]> = {}): PlanBatch['c
 });
 
 describe('candidate rendering', () => {
+  it('R04: each candidate shows its excluded places with that candidate\'s own reason; no reason stays 不明', () => {
+    const places = [{ ...kanazawaPlaces[1]!, placeId: 'p1', name: '地点1' }, { ...kanazawaPlaces[1]!, placeId: 'p2', name: '地点2' }, { ...kanazawaPlaces[1]!, placeId: 'p3', name: '地点3' }] as PlanBatch['places'];
+    const a = summarizeCandidate(cand({ candidateId: 'a', excludedPlaceIds: ['p1'], warnings: ['「地点1」は日程に収まらないため除外しました。'] }), places);
+    const b = summarizeCandidate(cand({ candidateId: 'b', excludedPlaceIds: ['p2', 'p3'], warnings: ['「地点2」は営業時間外のため除外しました。'] }), places);
+    const outA = html(<SummaryCard summary={a} index={0} busy={false} onAdopt={noop} />);
+    const outB = html(<SummaryCard summary={b} index={1} busy={false} onAdopt={noop} />);
+    expect(outA).toContain('理由: 「地点1」は日程に収まらないため除外しました。');
+    expect(outB).toContain('理由: 「地点2」は営業時間外のため除外しました。');
+    expect(outB).not.toContain('日程に収まらない');
+    expect(outB).toContain('地点3');
+    expect(outB).toContain('理由: 不明（記録なし）'); // p3 has no reason: shown as unknown, not invented
+  });
   it('unknown cost is shown as 不明 and never as 0', () => {
     const out = html(<SummaryCard summary={summarizeCandidate(cand(), [])} index={0} busy={false} onAdopt={noop} />);
     expect(out).toContain('既知の費用');

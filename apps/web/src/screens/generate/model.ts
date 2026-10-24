@@ -170,7 +170,8 @@ export interface CandidateSummary {
   validationState: ValidationState;
   reasons: string[];
   warnings: string[];
-  excluded: { placeId: string; name: string | null }[];
+  /** `reason` is the candidate's own exclusion warning for that place (from the planner); null when none names it. */
+  excluded: { placeId: string; name: string | null; reason: string | null }[];
   /** Known totals per currency. Empty means nothing known (shown as 不明, never 0). */
   totals: Money[];
   hasUnknownCost: boolean;
@@ -202,7 +203,10 @@ export function summarizeCandidate(c: PlanCandidate, places: PlanBatch['places']
     validationState: c.validationState,
     reasons: c.reasons,
     warnings: c.warnings,
-    excluded: c.excludedPlaceIds.map(id => ({ placeId: id, name: names.get(id) ?? null })),
+    excluded: c.excludedPlaceIds.map(id => {
+      const name = names.get(id) ?? null;
+      return { placeId: id, name, reason: name === null ? null : c.warnings.find(w => w.includes(`「${name}」`) && w.includes('除外')) ?? null };
+    }),
     totals: c.totalKnownCost,
     hasUnknownCost: c.hasUnknownCost,
     days: c.days.length,
