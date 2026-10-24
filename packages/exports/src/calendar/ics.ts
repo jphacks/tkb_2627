@@ -180,7 +180,7 @@ export function tripToIcs(trip: Pick<Trip, 'tripId' | 'title' | 'days' | 'places
           continue;
         }
         const place = exportable(item.placeId);
-        const where = [place?.name, item.areaName].filter((v): v is string => Boolean(v)).join(' / ');
+        const where = [...new Set([place?.name, item.areaName].filter((v): v is string => Boolean(v)))].join(' / ');
         const description = [
           `${KIND_LABEL[item.kind]}${item.fixed ? '（固定予定）' : ''}${item.status === 'completed' ? '（訪問済み）' : ''}`,
           `費用: ${money(item.cost)}`,
