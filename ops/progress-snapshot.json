@@ -1,6 +1,6 @@
 {
   "repository": "jphacks/tkb_2627",
-  "fetchedAt": "2026-10-24T19:55:47.689Z",
+  "fetchedAt": "2026-10-24T20:37:30.670Z",
   "warnings": [],
   "tasks": {
     "B01": {
@@ -144,7 +144,7 @@
       }
     },
     "D06": {
-      "status": "todo",
+      "status": "review",
       "issue": {
         "number": 16,
         "url": "https://github.com/jphacks/tkb_2627/issues/16",
