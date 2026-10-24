@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FIXTURE_NOTICE, fixtureTrips } from '@tkb/fixtures';
+import { ConditionsApp } from './screens/conditions/ConditionsApp.tsx';
 import { ItineraryScreen } from './screens/itinerary/ItineraryScreen.tsx';
 import { parseItineraryHash } from './screens/itinerary/route.ts';
 import { U01App } from './screens/U01App.tsx';
@@ -32,5 +33,7 @@ export function App() {
   if (itinerary) return <ItineraryScreen key={`${itinerary.mode}:${itinerary.tripId}`} route={itinerary} onBack={() => { location.hash = ''; }} />;
   // The U01 screens are the default (M1, #9). The skeleton stays reachable for development only.
   if (hash === '#dev-shell') return <DevShell />;
+  // U03 condition input (mock / live switch). Joins the U01 flow once U05 progress is wired (#31).
+  if (hash === '#conditions') return <ConditionsApp />;
   return <U01App />;
 }
