@@ -1,0 +1,73 @@
+{
+  "note": "D03 live check approved by M1 (#14 / #13): 2 calls through GooglePlacesProvider. Shape of the responses only (field names, counts, which period parts are present); no provider content.",
+  "approvedTotal": 20,
+  "usedBefore": 8,
+  "calls": 2,
+  "textSearchEnterprise": {
+    "fetchedAt": "2026-10-24T10:18:13.813Z",
+    "reason": null,
+    "dropped": 0,
+    "adapterOpeningHoursIsDaily": true,
+    "adapterOpeningHoursNull": false,
+    "kind": "spot",
+    "raw": {
+      "places": 1,
+      "fields": [
+        "displayName",
+        "formattedAddress",
+        "id",
+        "location",
+        "primaryType",
+        "regularOpeningHours",
+        "types"
+      ],
+      "withHours": 1,
+      "periods": 7,
+      "periodsWithOpenDay": 7,
+      "periodsWithClose": 7,
+      "periodsWithCloseDay": 7,
+      "openDays": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "weekdayDescriptions": [
+        7
+      ],
+      "attributions": 0
+    }
+  },
+  "nearbyPro": {
+    "fetchedAt": "2026-10-24T10:18:14.587Z",
+    "reason": null,
+    "dropped": 0,
+    "returned": 5,
+    "kinds": [
+      "restaurant",
+      "spot"
+    ],
+    "raw": {
+      "places": 5,
+      "fields": [
+        "displayName",
+        "formattedAddress",
+        "id",
+        "location",
+        "primaryType",
+        "types"
+      ],
+      "withHours": 0,
+      "periods": 0,
+      "periodsWithOpenDay": 0,
+      "periodsWithClose": 0,
+      "periodsWithCloseDay": 0,
+      "openDays": [],
+      "weekdayDescriptions": [],
+      "attributions": 0
+    }
+  }
+}
