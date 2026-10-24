@@ -3,6 +3,9 @@ import { FIXTURE_NOTICE, fixtureTrips } from '@tkb/fixtures';
 import { ConditionsApp } from './screens/conditions/ConditionsApp.tsx';
 import { ItineraryScreen } from './screens/itinerary/ItineraryScreen.tsx';
 import { parseItineraryHash } from './screens/itinerary/route.ts';
+import { EditScreen } from './screens/edit/EditScreen.tsx';
+import { parseTripScreenHash } from './screens/edit/route.ts';
+import { TravelScreen } from './screens/travel/TravelScreen.tsx';
 import { U01App } from './screens/U01App.tsx';
 import { ConnectionChips } from './shell/ConnectionChips.tsx';
 import { TripViewer } from './shell/TripViewer.tsx';
@@ -31,6 +34,11 @@ export function App() {
   // U04: #/trips/<id>/map (server) or #/mock/trips/<id>/map (mock). Reload refetches the trip by id.
   const itinerary = parseItineraryHash(hash);
   if (itinerary) return <ItineraryScreen key={`${itinerary.mode}:${itinerary.tripId}`} route={itinerary} onBack={() => { location.hash = ''; }} />;
+  // U06: #/trips/<id>/edit and #/trips/<id>/travel (+ #/mock/... variants).
+  const edit = parseTripScreenHash(hash, 'edit');
+  if (edit) return <EditScreen key={`${edit.mode}:${edit.tripId}`} route={edit} />;
+  const travel = parseTripScreenHash(hash, 'travel');
+  if (travel) return <TravelScreen key={`${travel.mode}:${travel.tripId}`} route={travel} />;
   // The U01 screens are the default (M1, #9). The skeleton stays reachable for development only.
   if (hash === '#dev-shell') return <DevShell />;
   // U03 condition input (mock / live switch). Joins the U01 flow once U05 progress is wired (#31).
