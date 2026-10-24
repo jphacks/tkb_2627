@@ -53,6 +53,7 @@ function run(args, { stdin = '', cwd, timeoutMs = 30_000 } = {}) {
     const finish = r => { clearTimeout(timer); clearTimeout(killTimer); resolve({ ...r, timedOut, errLen: errText.length, errText, ms: Date.now() - started }); };
     child.on('error', e => finish({ code: null, spawnError: e.code, out: '' }));
     child.on('close', (code, signal) => finish({ code, signal, out }));
+    child.stdin.on('error', () => {}); // EPIPE when the CLI exits before reading stdin
     child.stdin.end(stdin);
   });
 }
@@ -81,22 +82,39 @@ try {
 report.billingEnv = Object.fromEntries(BILLING_ENV.map(k => [k, k in process.env ? 'SET' : 'unset']));
 report.otherAnthropicEnv = Object.keys(process.env).filter(k => isBillingEnv(k) && !BILLING_ENV.includes(k));
 
-// Rejected by the CLI before any model call: costs nothing. Only a fixed stderr prefix is recorded.
-const bad = await run(['-p', '--output-format', 'json', '--json-schema', '{"type":"nope"}', '--tools', '', '--no-session-persistence'], { stdin: 'x' });
-report.invalidSchema = {
-  exitCode: bad.code,
-  stdoutBytes: bad.out.length,
-  stderrStartsWithSchemaError: bad.errText.startsWith('Error: --json-schema is not a valid JSON Schema'),
-};
+const unsafe =
+  Object.values(report.billingEnv).includes('SET') || report.otherAnthropicEnv.length > 0 || report.auth.authMethod !== 'claude.ai';
+
+/** Fresh empty cwd per `-p` call so no project hooks, .mcp.json or CLAUDE.md are picked up. */
+async function inTempCwd(fn) {
+  const cwd = mkdtempSync(join(tmpdir(), 'tkb-claude-probe-'));
+  try {
+    return await fn(cwd);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+}
+
+// Observed (2.1.301) to be rejected before any model call, but not guaranteed: guarded like --live.
+// Only a fixed stderr prefix is recorded.
+if (unsafe) {
+  report.invalidSchema = { skipped: true, reason: 'API billing env or non-subscription auth detected' };
+} else {
+  const bad = await inTempCwd(cwd =>
+    run(['-p', '--output-format', 'json', '--json-schema', '{"type":"nope"}', '--tools', '', '--strict-mcp-config', '--no-session-persistence'], { cwd, stdin: 'x' }),
+  );
+  report.invalidSchema = {
+    exitCode: bad.code,
+    stdoutBytes: bad.out.length,
+    stderrStartsWithSchemaError: bad.errText.startsWith('Error: --json-schema is not a valid JSON Schema'),
+  };
+}
 
 if (LIVE) {
-  const unsafe =
-    Object.values(report.billingEnv).includes('SET') || report.otherAnthropicEnv.length > 0 || report.auth.authMethod !== 'claude.ai';
   if (unsafe) {
     report.live = { skipped: true, reason: 'API billing env or non-subscription auth detected; refusing to run' };
   } else {
-    const cwd = mkdtempSync(join(tmpdir(), 'tkb-claude-probe-'));
-    try {
+    await inTempCwd(async cwd => {
       const args = [
         '-p', '--output-format', 'json', '--json-schema', JSON.stringify(SCHEMA),
         '--tools', '', '--strict-mcp-config', '--no-session-persistence', '--model', process.env.CLAUDE_MODEL || 'sonnet',
@@ -120,9 +138,7 @@ if (LIVE) {
         structuredOutputMatches: env?.structured_output?.ok === true && env?.structured_output?.echo === 'tkb_2627 probe',
         envelopeKeys: env ? Object.keys(env).sort() : [],
       };
-    } finally {
-      rmSync(cwd, { recursive: true, force: true });
-    }
+    });
   }
 }
 
