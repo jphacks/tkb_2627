@@ -76,9 +76,12 @@ export function ProgressView(p: ProgressViewProps) {
         </div>
       )}
       {!terminal && (
-        <button type="button" className="btn" onClick={p.onCancel} disabled={p.cancelling}>
-          {p.cancelling ? '取消中…' : '取消'}
-        </button>
+        <>
+          <button type="button" className="btn" onClick={p.onCancel} disabled={p.cancelling}>
+            {p.cancelling ? '取消中…' : '取消'}
+          </button>
+          <p className="meta">この画面を離れると（戻る・タブの切替）、生成を取り消します。</p>
+        </>
       )}
     </>
   );
@@ -168,6 +171,11 @@ export function GenerationProgress({ api, jobId, pollAfterMs, onSucceeded, onBac
       } else if (r.status === 409) {
         // 409: saving is in progress, so the result is not decided yet. Keep polling.
         setNote('保存処理が進行中のため取り消せませんでした。結果はまだ確定していません。状態確認を続けます。');
+        // If polling had stopped on an error, resume it so the note is true.
+        if (pollError) {
+          setPollError(null);
+          setResume(n => n + 1);
+        }
       } else {
         setCancelError(r.error);
       }
