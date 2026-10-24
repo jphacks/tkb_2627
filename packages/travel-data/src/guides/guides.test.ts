@@ -50,7 +50,7 @@ describe('content helpers', () => {
     expect(normalizeLicense('CC BY-SA 2.1 jp')).toBe('CC BY-SA 2.1 JP');
     expect(normalizeLicense('CC0')).toBe('CC0');
     expect(normalizeLicense('Public domain')).toBe('Public domain');
-    for (const bad of ['Fair use', 'All rights reserved', 'CC BY-NC 4.0', 'CC BY-ND 4.0', '', undefined]) expect(normalizeLicense(bad), String(bad)).toBeNull();
+    for (const bad of ['Fair use', 'All rights reserved', 'CC BY-NC 4.0', 'CC BY-ND 4.0', 'CC BY 4.0 NC', 'CC BY 4.0 nd-xx', '', undefined]) expect(normalizeLicense(bad), String(bad)).toBeNull();
   });
 
   it('builds a photo only with URL, licence and author all known (画像権利欠落)', () => {
@@ -62,6 +62,7 @@ describe('content helpers', () => {
     expect(photoFrom({ url: IMG, artist: 'Taro', licenseShortName: undefined }).rejected).toBe('license_missing');
     expect(photoFrom({ url: IMG, artist: 'Taro', licenseShortName: 'Fair use' }).rejected).toBe('license_not_allowed');
     expect(photoFrom({ url: IMG, artist: '', licenseShortName: 'CC BY 4.0' }).rejected).toBe('attribution_missing');
+    expect(photoFrom({ url: IMG, artist: 'Unknown author', licenseShortName: 'CC BY 4.0' }).rejected).toBe('attribution_missing');
     expect(photoFrom({ url: 'https://evil.example/x.jpg', artist: 'Taro', licenseShortName: 'CC BY 4.0' }).rejected).toBe('url_not_allowed');
     expect(photoFrom({ url: null, artist: 'Taro', licenseShortName: 'CC BY 4.0' }).rejected).toBe('no_image');
   });
@@ -89,7 +90,7 @@ describe('WikipediaGuideSource', () => {
       kind: 'spot',
       description: '兼六園は、石川県金沢市にある日本庭園。 日本三名園 の一つ。',
       photo: { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Kenroku-en_garden.jpg/640px-Kenroku-en_garden.jpg', attribution: 'Taro / Wikimedia Commons', license: 'CC BY-SA 4.0' },
-      provenance: { source: 'wikipedia', attribution: 'Wikipedia (CC BY-SA 4.0)', mayStore: true, mayExport: true, maySendToModel: false },
+      provenance: { source: 'wikipedia', attribution: 'Wikipedia「兼六園」(ja.wikipedia.org), CC BY-SA 4.0（抜粋・HTML除去）', mayStore: true, mayExport: true, maySendToModel: false },
     });
     expect(String(fetchMock.mock.calls[0]![0])).toBe(`https://ja.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent('兼六園')}`);
     expect(String(fetchMock.mock.calls[1]![0])).toContain('commons.wikimedia.org/w/api.php');

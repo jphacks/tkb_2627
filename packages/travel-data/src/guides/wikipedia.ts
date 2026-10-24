@@ -126,7 +126,8 @@ export class WikipediaGuideSource implements GuideSource {
       location: place.location,
       description,
       photo,
-      provenance: provenanceFor('wikipedia', this.now()),
+      // CC BY-SA asks for the source of the work: credit the article, not only "Wikipedia". The text is an excerpt.
+      provenance: { ...provenanceFor('wikipedia', this.now()), attribution: `Wikipedia「${summary.title ?? title}」(${lang}.wikipedia.org), CC BY-SA 4.0（抜粋・HTML除去）` },
     };
     return { item, reason: null, photoRejected: photo ? null : photoRejected };
   }

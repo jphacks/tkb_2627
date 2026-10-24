@@ -55,7 +55,8 @@ export function normalizeLicense(shortName: string | null | undefined): string |
   if (!s) return null;
   if (/^(cc0|cc0 1\.0|public domain|pd(-[a-z0-9-]+)?)$/i.test(s)) return /^cc0/i.test(s) ? 'CC0' : 'Public domain';
   // Versions 1.0-4.0 including 2.1 / 2.5 (CC BY 2.5 was the live Kenrokuen image, D07), optional port such as 'jp'.
-  const m = /^cc[- ]by(-sa)?[- ]([1-4]\.[0-9])(?:[- ]([a-z]{2,}))?$/i.exec(s);
+  // The port is a 2-letter jurisdiction (or 'igo'); NC / ND are restrictions, never a port.
+  const m = /^cc[- ]by(-sa)?[- ]([1-4]\.[0-9])(?:[- ](?!(?:nc|nd)$)([a-z]{2}|igo))?$/i.exec(s);
   if (m) return `CC BY${m[1] ? '-SA' : ''} ${m[2]}${m[3] ? ` ${m[3].toUpperCase()}` : ''}`;
   return null;
 }
@@ -79,7 +80,9 @@ export function photoFrom(meta: ImageMeta, source = 'Wikimedia Commons'): { phot
   if (!meta.licenseShortName?.trim()) return { photo: null, rejected: 'license_missing' };
   const license = normalizeLicense(meta.licenseShortName);
   if (!license) return { photo: null, rejected: 'license_not_allowed' };
-  const artist = plainText(meta.artist, 200);
+  const named = plainText(meta.artist, 200);
+  // "Unknown author" / "Anonymous" is no credit.
+  const artist = named && !/^(unknown|anonymous)\b/i.test(named) ? named : null;
   if (!artist && license !== 'Public domain' && license !== 'CC0') return { photo: null, rejected: 'attribution_missing' };
   // Public-domain / CC0 images need no author; then only the source is credited (no invented name).
   return { photo: { url, attribution: artist ? `${artist} / ${source}` : source, license }, rejected: null };
