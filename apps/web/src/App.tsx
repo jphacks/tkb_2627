@@ -10,6 +10,8 @@ import { EditScreen } from './screens/edit/EditScreen.tsx';
 import { parseTripScreenHash } from './screens/edit/route.ts';
 import { TravelScreen } from './screens/travel/TravelScreen.tsx';
 import { U01App } from './screens/U01App.tsx';
+import { HomeApp } from './screens/hub/HomeApp.tsx';
+import { parseHubHash } from './screens/hub/route.ts';
 import { SocialApp } from './screens/social/SocialApp.tsx';
 import { ConnectionChips } from './shell/ConnectionChips.tsx';
 import { TripViewer } from './shell/TripViewer.tsx';
@@ -46,7 +48,7 @@ export function App() {
   if (edit) return <EditScreen key={`${edit.mode}:${edit.tripId}`} route={edit} />;
   const travel = parseTripScreenHash(hash, 'travel');
   if (travel) return <TravelScreen key={`${travel.mode}:${travel.tripId}`} route={travel} />;
-  // The U01 screens are the default (M1, #9). The skeleton stays reachable for development only.
+  // The skeleton stays reachable for development only.
   if (hash === '#dev-shell') return <DevShell />;
   // U03 condition input (mock / live switch). Joins the U01 flow once U05 progress is wired (#31).
   if (hash === '#conditions') return <ConditionsApp />;
@@ -55,5 +57,7 @@ export function App() {
   // U08: SNS and group screens (#social), and the K17 invite link /invite#<token> (shared server).
   if (typeof location !== 'undefined' && location.pathname === '/invite') return <SocialApp initialMode="server" inviteToken={location.hash.slice(1) || null} />;
   if (hash === '#social') return <SocialApp />;
-  return <U01App />;
+  // Navigation hub: empty hash and #home. The mock-only U01 prototype stays at #u01.
+  if (parseHubHash(hash) === 'u01') return <U01App />;
+  return <HomeApp />;
 }
