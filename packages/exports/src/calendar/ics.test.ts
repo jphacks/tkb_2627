@@ -42,7 +42,8 @@ function readIcs(ics: string) {
     const active = [...list].reverse().find(o => o.localStart <= local) ?? list[0]!;
     return new Date(local - active.to * 60000).toISOString().replace('.000Z', 'Z');
   };
-  return { lines, events: events.map(e => ({ ...e, startUtc: resolve(e.DTSTART!), endUtc: resolve(e.DTEND!) })) };
+  const read: (Record<string, string> & { startUtc: string; endUtc: string })[] = events.map(e => Object.assign({}, e, { startUtc: resolve(e.DTSTART!), endUtc: resolve(e.DTEND!) }));
+  return { lines, events: read };
 }
 
 const timedItems = (trip: Trip) =>
