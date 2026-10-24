@@ -1,4 +1,4 @@
-import { ApiError, Id, LoginRequest, LoginResponse, PlanBatchCreated, type ErrorCode, type PlanBatchCreate } from '@tkb/contracts';
+import { ApiError, Id, LoginRequest, LoginResponse, PlanBatchCreated, PlanningContext, type ErrorCode, type PlanBatchCreate, type PlanningContextRequest } from '@tkb/contracts';
 import type { UpstreamSession } from '../auth/session.ts';
 
 /** The only upstream paths this process may call. Clients never choose a URL or path. */
@@ -6,6 +6,9 @@ export const UPSTREAM_PATHS = { login: '/api/v1/auth/login' } as const;
 
 /** K07 path (fixed, allowlisted). Kept apart from the login client so the K11 login proxy surface stays login-only. */
 export const UPSTREAM_PLAN_PATHS = { planBatches: '/api/v1/plan-batches' } as const;
+
+/** K05 path (fixed, allowlisted). Its own client so the login proxy and the K07 client keep their small surfaces. */
+export const UPSTREAM_CONTEXT_PATHS = { planningContext: '/api/v1/planning-context' } as const;
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -141,6 +144,56 @@ export function createPlanBatchClient(opts: { baseUrl: string; fetch?: FetchLike
       }
       if (res.status !== 200) throw new Error(`lookup failed: ${res.status}`);
       return Id.parse(((await res.json()) as { batchId?: unknown }).batchId);
+    },
+  };
+}
+
+export type ContextOutcome = { ok: true; context: PlanningContext } | { ok: false; code: ErrorCode; retryable: boolean };
+
+export interface ContextClient {
+  /** K05 for the owner's own upstream session. `signal` is the job's: cancelling the job cancels the call. */
+  getPlanningContext(session: UpstreamHolder, body: PlanningContextRequest, signal?: AbortSignal): Promise<ContextOutcome>;
+}
+
+export function createContextClient(opts: { baseUrl: string; fetch?: FetchLike; timeoutMs?: number }): ContextClient {
+  const doFetch: FetchLike = opts.fetch ?? defaultFetch;
+  const base = opts.baseUrl.replace(/\/+$/, '');
+  return {
+    async getPlanningContext(session, body, signal) {
+      const u = session.upstream;
+      if (!u) return { ok: false, code: 'UNAUTHENTICATED', retryable: false };
+      const timeout = AbortSignal.timeout(opts.timeoutMs ?? 60_000);
+      let res: Response;
+      try {
+        res = await doFetch(`${base}${UPSTREAM_CONTEXT_PATHS.planningContext}`, {
+          method: 'POST',
+          // Only the stored upstream cookie + upstream csrf; nothing from the local client is forwarded.
+          headers: { 'content-type': 'application/json', cookie: u.cookie, 'x-csrf-token': u.csrfToken },
+          body: JSON.stringify(body),
+          redirect: 'manual',
+          signal: signal ? AbortSignal.any([timeout, signal]) : timeout,
+        });
+      } catch {
+        return signal?.aborted ? { ok: false, code: 'CANCELLED', retryable: false } : { ok: false, code: 'PROVIDER_UNAVAILABLE', retryable: true };
+      }
+      if (res.status === 200) {
+        try {
+          return { ok: true, context: PlanningContext.parse(await res.json()) };
+        } catch {
+          return { ok: false, code: 'PROVIDER_UNAVAILABLE', retryable: true };
+        }
+      }
+      if (res.status === 401) {
+        session.upstream = null;
+        return { ok: false, code: 'UNAUTHENTICATED', retryable: false };
+      }
+      const err = ApiError.safeParse(await res.json().catch(() => null));
+      const code = err.success ? err.data.code : null;
+      if (res.status === 422) return { ok: false, code: code === 'PROVIDER_UNSUPPORTED_REGION' ? code : 'VALIDATION_FAILED', retryable: false };
+      if (res.status === 429) {
+        return code === 'PROVIDER_RATE_LIMIT' ? { ok: false, code, retryable: false } : { ok: false, code: 'RATE_LIMITED', retryable: true };
+      }
+      return { ok: false, code: 'PROVIDER_UNAVAILABLE', retryable: true };
     },
   };
 }

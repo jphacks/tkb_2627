@@ -128,10 +128,13 @@ describe('trips API', () => {
     expect((await call(app, a, 'POST', '/api/v1/plan-batches', batchBody({ places: [restricted] }))).statusCode).toBe(422);
   });
 
-  it('K07: client "valid" is downgraded when places are missing; generationId is idempotent', async () => {
+  it('K07: a batch referencing places it does not carry is refused (A04); client "valid" is downgraded; generationId is idempotent', async () => {
     const { app } = make();
     const a = await login(app, 'user-a');
-    const body = batchBody({ candidates: [candidate('c1', 'valid')], places: [] });
+    const dangling = await call(app, a, 'POST', '/api/v1/plan-batches', batchBody({ candidates: [candidate('c1', 'valid')], places: [] }));
+    expect(dangling.statusCode).toBe(422);
+    expect(errOf(dangling).code).toBe('VALIDATION_FAILED');
+    const body = batchBody({ candidates: [candidate('c1', 'valid')] });
     const r1 = await call(app, a, 'POST', '/api/v1/plan-batches', body);
     expect(PlanBatchCreated.parse(r1.json()).validationState).toBe('needs_review');
     const r2 = await call(app, a, 'POST', '/api/v1/plan-batches', body);

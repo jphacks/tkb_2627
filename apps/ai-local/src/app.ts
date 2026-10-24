@@ -21,8 +21,10 @@ import { createRunner, type CreatedRunner, type RunnerFactoryDeps, type RunnerSt
 import { PairingStore, safeEqual } from './auth/pairing.ts';
 import { SESSION_COOKIE, SessionStore, parseCookies, sessionCookieHeader, type LocalSession } from './auth/session.ts';
 import type { PersonalConfig } from './config.ts';
-import { FileJobStore, JobManager, type JobManagerOptions, type JobStore } from './jobs/index.ts';
-import { createPlanBatchClient, createSharedClient, type FetchLike, type PlanBatchClient, type SharedClient } from './shared-client/index.ts';
+import { FileJobStore, JobManager, type GenerationPipeline, type JobManagerOptions, type JobStore } from './jobs/index.ts';
+import { createContextClient, createPlanBatchClient, createSharedClient, type ContextClient, type FetchLike, type PlanBatchClient, type SharedClient } from './shared-client/index.ts';
+import { createPipeline } from './generation/pipeline.ts';
+import type { JobMetrics } from './generation/metrics.ts';
 
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,128}$/;
 const STATE_CHANGING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -38,13 +40,21 @@ export interface BuildAppOptions {
   fetch?: FetchLike;
   sharedClient?: SharedClient;
   planClient?: PlanBatchClient;
-  /** Place IDs a runner result may reference (A04 will derive these from permitted facts). */
+  contextClient?: ContextClient;
+  /**
+   * The A04 generation pipeline (K05 -> model -> assemble -> K07). Default: built from the shared clients. Pass `false`,
+   * or give the legacy `allowedPlaceIds` / `save`, to run jobs without it (tests of the job machinery).
+   */
+  pipeline?: GenerationPipeline | false;
+  /** Called with content-free metrics when a pipeline job ends. */
+  onMetrics?: (m: JobMetrics) => void;
+  /** Legacy (no pipeline): place IDs a runner result may reference. */
   allowedPlaceIds?: readonly string[];
   /** Job journal; default: file store at config.jobDir if set, else in-memory. */
   jobStore?: JobStore;
   /** Restart recovery lookup (S04/A04). */
   findSavedBatch?: (ownerId: string, operationKey: string) => Promise<string | null>;
-  /** Candidate saver (S04/A04). Absent: valid output fails UNAVAILABLE. */
+  /** Legacy candidate saver (no pipeline). Absent: valid output fails UNAVAILABLE. */
   save?: JobManagerOptions['save'];
 }
 
@@ -68,6 +78,7 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
   const pairing = opts.pairing ?? new PairingStore({ ttlMs: config.pairingTtlMs });
   const shared = opts.sharedClient ?? createSharedClient({ baseUrl: config.sharedBaseUrl, fetch: opts.fetch });
   const planClient = opts.planClient ?? createPlanBatchClient({ baseUrl: config.sharedBaseUrl, fetch: opts.fetch });
+  const contextClient = opts.contextClient ?? createContextClient({ baseUrl: config.sharedBaseUrl, fetch: opts.fetch });
   // Runner: injected one, else whatever the single factory decides at startup (onReady). Until then (and for the
   // fake) jobs use a FakeRunner. Nothing here ever builds a real runner directly (W2).
   let created: CreatedRunner | null = null;
@@ -79,7 +90,11 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     reason: !config.allowClaudeExecution ? 'CLAUDE_EXECUTION_DISABLED' : 'TERMS_NOT_CONFIRMED',
   });
   const runnerStatus = async (): Promise<RunnerStatus> => (opts.runner || !created ? flagStatus() : created.refresh());
+  const legacy = opts.pipeline === false || (opts.pipeline === undefined && (opts.save !== undefined || opts.allowedPlaceIds !== undefined));
+  const pipeline: GenerationPipeline | undefined = legacy ? undefined : (opts.pipeline || createPipeline({ contextClient, planClient, sessions }));
   const jobs = new JobManager({
+    pipeline,
+    onMetrics: opts.onMetrics,
     runner: lazyRunner,
     queueLimit: config.aiQueueLimit,
     timeoutMs: config.aiTimeoutMs,
@@ -94,8 +109,6 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
         if (!s) throw new Error('no upstream session');
         return planClient.findPlanBatchByGenerationId(s, operationKey);
       }),
-    // TODO(A04-D03/D04): wire `save` (savePlanBatch) once K05 places/facts exist; until then a valid result ends failed/UNAVAILABLE
-    // unless a saver is injected.
     save: opts.save,
     saveTimeoutMs: config.saveTimeoutMs,
   });
@@ -215,23 +228,25 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     }
     const body = GenerateRequest.safeParse(req.body);
     if (!body.success) return sendError(reply, req.id, 'VALIDATION_FAILED', 'Invalid request.');
-    // User strings stay inside constraints as data; no command line is ever built from them.
-    const input: GenerationInput = {
+    // User strings stay inside constraints as data; no command line is ever built from them. The model input
+    // (allowed place IDs, facts) is built later from K05 by the pipeline, never from this request.
+    const legacyInput: GenerationInput = {
       schemaVersion: SCHEMA_VERSION,
       constraints: body.data.constraints,
-      allowedPlaceIds: [], // real allowed IDs come from the shared server (A04); mustVisit is user input
+      allowedPlaceIds: [],
       facts: [],
       fixedActivities: [],
       instructions: 'Return a plan blueprint as structured output.',
     };
     // TODO(A06): replan. Never silently run it as generate.
     if (body.data.mode === 'replan') return sendError(reply, req.id, 'VALIDATION_FAILED', 'mode=replan is not supported yet.');
-    // TODO(A04): base trip ownership is checked via the shared server (S04). Until then never accept and drop it.
+    // TODO(A06): base trips (replan/edit) are checked via the shared server. Until then never accept and drop it.
     if (body.data.baseTripId != null || body.data.expectedRevision != null) {
       return sendError(reply, req.id, 'VALIDATION_FAILED', 'baseTripId is not supported yet.');
     }
     const fingerprint = createHash('sha256').update(JSON.stringify(body.data)).digest('hex');
-    const r = jobs.submit(owner, key, fingerprint, input, req.id);
+    const work = pipeline ? { constraints: body.data.constraints, baseTripId: null, baseRevision: null } : legacyInput;
+    const r = jobs.submit(owner, key, fingerprint, work, req.id);
     if (r.kind === 'conflict') return sendError(reply, req.id, 'IDEMPOTENCY_CONFLICT', 'Idempotency-Key reused with a different request.');
     if (r.kind === 'full') return sendError(reply, req.id, 'QUEUE_FULL', 'Queue is full.', true);
     return reply.status(202).send({ jobId: r.jobId, state: 'queued', pollAfterMs: 2000 });

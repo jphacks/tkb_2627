@@ -1,6 +1,15 @@
 import { z } from 'zod';
-import { DataMode, Id, LatLng, Money, SchemaVersion, TransportMode, UtcInstant } from './common.ts';
+import { DataMode, Id, LatLng, Money, SchemaVersion, TimeZone, TransportMode, UtcInstant } from './common.ts';
 import { ItineraryItem, PlaceInfo, Trip, TripConstraints, TripDay, TripSummary, TravelLeg, ValidationState } from './trip.ts';
+
+/** K06 adapter query for one segment. */
+export const RouteQuery = z.object({
+  fromPlaceId: Id,
+  toPlaceId: Id,
+  departureUtc: UtcInstant,
+  mode: z.enum(['transit', 'car', 'walk']),
+});
+export type RouteQuery = z.infer<typeof RouteQuery>;
 
 /** K05 POST /api/v1/planning-context */
 export const PlanningContextRequest = z.object({
@@ -8,6 +17,10 @@ export const PlanningContextRequest = z.object({
   transportMode: TransportMode,
   maxPlaces: z.number().int().min(1).max(30).default(8),
   placeIds: z.array(Id).max(30).optional(),
+  /** Additive (C-1, M1 on #28): IANA zone of the trip area; a place search needs it (PlaceInfo.timeZone). */
+  timeZone: TimeZone.optional(),
+  /** Additive (C-1): segments to look up. Place ids are resolved against the same area set as `placeIds`. */
+  legs: z.array(RouteQuery).max(8).optional(),
 });
 export type PlanningContextRequest = z.infer<typeof PlanningContextRequest>;
 
@@ -19,15 +32,6 @@ export const PlanningContext = z.object({
   dataMode: DataMode,
 });
 export type PlanningContext = z.infer<typeof PlanningContext>;
-
-/** K06 adapter query for one segment. */
-export const RouteQuery = z.object({
-  fromPlaceId: Id,
-  toPlaceId: Id,
-  departureUtc: UtcInstant,
-  mode: z.enum(['transit', 'car', 'walk']),
-});
-export type RouteQuery = z.infer<typeof RouteQuery>;
 
 export const PlanCandidate = z.object({
   candidateId: Id,

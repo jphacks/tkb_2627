@@ -8,12 +8,20 @@ export interface SafeError {
   requestId: string;
 }
 
+/** Run metadata that carries no content (A04 metrics). Null where the CLI did not report it. */
+export interface RunnerMeta {
+  model: string | null;
+  numTurns: number | null;
+  durationApiMs: number | null;
+}
+
 export interface RunnerResult {
   exitCode: number;
   /** Raw CLI envelope. Not trusted until parseBlueprint succeeds. */
   envelope: unknown;
   durationMs: number;
   error?: SafeError;
+  meta?: RunnerMeta;
 }
 
 export interface Runner {

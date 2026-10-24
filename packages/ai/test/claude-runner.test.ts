@@ -36,6 +36,7 @@ process.stdin.on('end', () => {
   fs.writeFileSync(process.env.FAKE_REC, JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd(), envKeys: Object.keys(process.env), stdin }));
   switch (mode) {
     case 'success': return out(ok);
+    case 'meta': return out({ ...ok, num_turns: 2, duration_api_ms: 1234, modelUsage: { 'claude-test-model': { inputTokens: 1 } }, result: 'CONTENT-MARK' });
     case 'is_error': return out({ ...ok, is_error: true, subtype: 'error_during_execution' });
     case 'no_structured': return out({ type: 'result', subtype: 'success', is_error: false, result: 'text' });
     case 'limit': out({ type: 'result', subtype: 'success', is_error: true, api_error_status: 429, result: 'RAWTEXT usage limit' }); return process.exit(1);
@@ -102,6 +103,13 @@ describe.skipIf(process.platform === 'win32')('ClaudeCodeRunner', () => {
     expect(rc.cwd).not.toBe(dir);
     expect(existsSync(rc.cwd)).toBe(false);
     expect(readdirSync(dir).filter(f => f.startsWith('tkb-claude-'))).toEqual([]);
+  });
+
+  it('reports content-free run metadata (model from modelUsage keys, turns, API time)', async () => {
+    const r = await run('meta');
+    expect(r.meta).toEqual({ model: 'claude-test-model', numTurns: 2, durationApiMs: 1234 });
+    expect(JSON.stringify(r.meta)).not.toContain('CONTENT-MARK');
+    expect((await run('success')).meta).toEqual({ model: null, numTurns: null, durationApiMs: null });
   });
 
   it('buildPrompt contains only the input fields', () => {

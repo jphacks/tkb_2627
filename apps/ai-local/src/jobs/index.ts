@@ -1,7 +1,8 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto';
-import { Id, type ErrorCode, type GenerationInput, type JobStage, type JobState, type JobStatus } from '@tkb/contracts';
+import { Id, type ErrorCode, type GenerationInput, type JobStage, type JobState, type JobStatus, type PlanBatchCreate, type PlanBlueprint, type TripConstraints } from '@tkb/contracts';
 import { parseBlueprint, type Runner } from '@tkb/ai';
 import { isSavingOrLater, isTerminalState, recoveryTransition, transition } from './state.ts';
+import type { JobMetrics, StageInfo } from '../generation/metrics.ts';
 import { MemoryJobStore, type JobRecord, type JobStore } from './store.ts';
 
 export { transition } from './state.ts';
@@ -12,6 +13,28 @@ interface SafeError {
   message: string;
   retryable: boolean;
   requestId: string;
+}
+
+/** What a job is asked to generate (A04). Held in memory only; never journaled. */
+export interface JobRequest {
+  constraints: TripConstraints;
+  baseTripId: null;
+  baseRevision: null;
+}
+
+export type StageFail = { ok: false; code: ErrorCode; retryable: boolean };
+
+/**
+ * The A04 stages around the runner. Each returns only a code and a retryable flag on failure; no text from
+ * upstream or from the model is ever kept (FIXED_MESSAGES supplies the message).
+ */
+export interface GenerationPipeline {
+  /** Stage collecting_context: K05 facts plus the model input. Must fail before any Claude run when the data is unusable. */
+  collect(ownerId: string, req: JobRequest, signal: AbortSignal): Promise<{ ok: true; input: GenerationInput; ctx: unknown; info?: StageInfo } | StageFail>;
+  /** Stage validating: deterministic assembly and checks of the parsed blueprint into a K07 body. */
+  build(ownerId: string, blueprint: PlanBlueprint, ctx: unknown, operationKey: string, signal: AbortSignal): Promise<{ ok: true; batch: PlanBatchCreate; info?: StageInfo } | StageFail>;
+  /** Stage saving: K07. Same semantics as the legacy `save` option (own timeout, unknown outcome consults findSavedBatch). */
+  save(ownerId: string, batch: PlanBatchCreate, signal: AbortSignal): Promise<{ batchId: string }>;
 }
 
 /**
@@ -41,6 +64,11 @@ interface Job {
   error: SafeError | null;
   updatedAt: string;
   input: GenerationInput | null;
+  /** Only for pipeline jobs. */
+  request: JobRequest | null;
+  ctx: unknown;
+  /** Stage timings and info for onMetrics (memory only). */
+  mx: { t0: number; marks: Record<string, number>; model: string | null; numTurns: number | null; info: StageInfo };
   ctl: AbortController;
   timer: ReturnType<typeof setTimeout> | null;
   cancelled: boolean;
@@ -55,7 +83,9 @@ export interface JobManagerOptions {
    * Expiry while queued fails the job with CLI_TIMEOUT; while running it aborts the runner.
    */
   timeoutMs: number;
-  /** Real allowed place IDs come from the shared server in A04; default is none. */
+  /** A04 pipeline (K05 collect, assemble, K07 save). Without it jobs run the legacy path below. */
+  pipeline?: GenerationPipeline;
+  /** Legacy (pre-pipeline) allowed place IDs; used only when no pipeline is set. Default is none. */
   allowedPlaceIds?: readonly string[];
   /** Terminal jobs (and their idempotency entries) kept before the oldest are evicted. */
   maxFinished?: number;
@@ -69,12 +99,13 @@ export interface JobManagerOptions {
    */
   findSavedBatch?: (ownerId: string, operationKey: string) => Promise<string | null>;
   /**
-   * Saves a validated blueprint to the shared DB (S04/A04). Must pass `operationKey` so the
-   * server can dedupe. Absent: valid output fails with UNAVAILABLE.
+   * Legacy saver (no pipeline). Must pass `operationKey` so the server can dedupe. Absent: valid output fails with UNAVAILABLE.
    */
   save?: (ctx: SaveContext) => Promise<{ batchId: string }>;
   /** Upper bound for one save call (default 60s). On expiry findSavedBatch is consulted before failing. */
   saveTimeoutMs?: number;
+  /** Content-free metrics when a pipeline job ends (A04). */
+  onMetrics?: (m: JobMetrics) => void;
   /** Upper bound for one findSavedBatch call (default 10s); expiry counts as a failed lookup. */
   lookupTimeoutMs?: number;
 }
@@ -89,6 +120,7 @@ export interface SaveContext {
 
 export type SubmitResult = { kind: 'accepted'; jobId: string } | { kind: 'conflict' } | { kind: 'full' };
 
+const newMx = (): Job['mx'] => ({ t0: Date.now(), marks: {}, model: null, numTurns: null, info: {} });
 const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 const isActive = (j: Job) => !isTerminalState(j.state);
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -101,6 +133,15 @@ const FIXED_MESSAGES: Partial<Record<ErrorCode, string>> = {
   CLI_LIMIT: 'Usage limit reached.',
   INVALID_OUTPUT: 'The generator returned an invalid result.',
   UNAVAILABLE: 'The service is unavailable.',
+  UNAUTHENTICATED: 'Login required; please sign in again.',
+  VALIDATION_FAILED: 'The request could not be used.',
+  RATE_LIMITED: 'Too many requests; please retry later.',
+  PROVIDER_UNAVAILABLE: 'The travel data source is unavailable.',
+  PROVIDER_RATE_LIMIT: 'The travel data limit was reached.',
+  PROVIDER_UNSUPPORTED_REGION: 'This region is not supported yet.',
+  CONSTRAINT_UNSATISFIED: 'No usable plan could be built from the available data.',
+  RESTRICTED_ASSET: 'Some data may not be stored.',
+  CANCELLED: 'The request was cancelled.',
 };
 
 export interface CancelOutcome {
@@ -167,6 +208,9 @@ export class JobManager {
         lookupDone: true,
         keepJournal: false,
         input: null,
+        request: null,
+        ctx: null,
+        mx: newMx(),
         ctl: new AbortController(),
         timer: null,
         cancelled: false,
@@ -232,6 +276,9 @@ export class JobManager {
       lookupDone: true,
       keepJournal: false,
       input: null,
+      request: null,
+      ctx: null,
+      mx: newMx(),
       ctl: new AbortController(),
       timer: null,
       cancelled: false,
@@ -242,7 +289,9 @@ export class JobManager {
     return job;
   }
 
-  submit(ownerId: string, key: string, fingerprint: string, input: GenerationInput, requestId: string = randomUUID()): SubmitResult {
+  /** `work` is a JobRequest (pipeline) or, for the legacy path, a ready GenerationInput. */
+  submit(ownerId: string, key: string, fingerprint: string, work: JobRequest | GenerationInput, requestId: string = randomUUID()): SubmitResult {
+    const legacy = 'allowedPlaceIds' in work;
     const k = this.mac(`idem\n${ownerId}\n${key}`);
     const fp = this.mac(fingerprint);
     const prev = this.idem.get(k);
@@ -270,7 +319,10 @@ export class JobManager {
       stage: 'queued',
       error: null,
       updatedAt: nowIso(),
-      input,
+      input: legacy ? work : null,
+      request: legacy ? null : work,
+      ctx: null,
+      mx: newMx(),
       ctl: new AbortController(),
       timer: null,
       cancelled: false,
@@ -333,8 +385,34 @@ export class JobManager {
         /* otherwise the in-memory state stays authoritative; a lost write only weakens restart recovery */
       }
     }
-    if (!isActive(job)) job.input = null; // not needed once terminal
+    if (!isActive(job)) {
+      if (!opts.recovery) this.emitMetrics(job);
+      job.input = null; // not needed once terminal
+      job.request = null;
+      job.ctx = null;
+    }
     if (!isActive(job)) this.finish(job);
+  }
+
+  private emitMetrics(job: Job): void {
+    if (!this.o.onMetrics || !this.o.pipeline) return;
+    const m = job.mx.marks;
+    try {
+      this.o.onMetrics({
+        state: job.state,
+        errorCode: job.error?.code ?? null,
+        collectMs: m.collectMs ?? null,
+        generateMs: m.generateMs ?? null,
+        buildMs: m.buildMs ?? null,
+        saveMs: m.saveMs ?? null,
+        totalMs: Date.now() - job.mx.t0,
+        model: job.mx.model,
+        numTurns: job.mx.numTurns,
+        info: job.mx.info,
+      });
+    } catch {
+      /* metrics must never affect a job */
+    }
   }
 
   private finish(job: Job): void {
@@ -400,31 +478,63 @@ export class JobManager {
       }
       if (job.ctl.signal.aborted) return this.set(job, 'failed', job.stage, this.err(job, 'CLI_TIMEOUT', 'The generator timed out.', true));
     }
-    this.set(job, 'running', 'generating');
-    // Race against abort so a runner that ignores the signal cannot block the queue.
+    // Race against abort so a stage that ignores the signal cannot block the queue (deadline covers collect, runner and build).
     const aborted = new Promise<never>((_, reject) => {
       if (job.ctl.signal.aborted) return reject(new DOMException('aborted', 'AbortError'));
       job.ctl.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
     });
     aborted.catch(() => {});
+    const guarded = <T>(p: Promise<T>): Promise<T> => {
+      p.catch(() => {});
+      return Promise.race([p, aborted]);
+    };
+    const pipe = this.o.pipeline;
     try {
-      const run = this.o.runner.run(job.input!, job.ctl.signal);
-      run.catch(() => {});
-      const r = await Promise.race([run, aborted]);
+      if (pipe) {
+        if (!job.request) return this.set(job, 'failed', job.stage, this.err(job, 'UNAVAILABLE', 'The service is unavailable.', false));
+        const t = Date.now();
+        const c = await guarded(pipe.collect(job.ownerId, job.request, job.ctl.signal));
+        job.mx.marks.collectMs = Date.now() - t;
+        if (!isActive(job)) return;
+        if (!c.ok) return this.set(job, 'failed', job.stage, this.safeErr(job, c));
+        job.input = c.input;
+        job.ctx = c.ctx;
+        Object.assign(job.mx.info, c.info);
+      } else if (!job.input) {
+        return this.set(job, 'failed', job.stage, this.err(job, 'UNAVAILABLE', 'The service is unavailable.', false));
+      }
+      this.set(job, 'running', 'generating');
+      const tg = Date.now();
+      const r = await guarded(this.o.runner.run(job.input!, job.ctl.signal));
+      job.mx.marks.generateMs = Date.now() - tg;
+      job.mx.model = r.meta?.model ?? null;
+      job.mx.numTurns = r.meta?.numTurns ?? null;
       if (!isActive(job)) return;
       if (r.error || r.exitCode !== 0) {
         const e = r.error ?? this.err(job, 'CLI_EXIT', '', true);
         return this.set(job, 'failed', job.stage, this.safeErr(job, e));
       }
       this.set(job, 'running', 'validating');
-      const p = parseBlueprint(r.envelope, this.o.allowedPlaceIds ?? []);
+      const p = parseBlueprint(r.envelope, pipe ? job.input!.allowedPlaceIds : (this.o.allowedPlaceIds ?? []));
       if (!p.ok) return this.set(job, 'failed', job.stage, this.safeErr(job, p.error));
+      if (pipe) {
+        const tb = Date.now();
+        const built = await guarded(pipe.build(job.ownerId, p.blueprint, job.ctx, job.operationKey, job.ctl.signal));
+        job.mx.marks.buildMs = Date.now() - tb;
+        if (!isActive(job)) return;
+        if (!built.ok) return this.set(job, 'failed', job.stage, this.safeErr(job, built));
+        Object.assign(job.mx.info, built.info);
+        if (!this.beforeSave(job)) return;
+        return await this.doSave(job, s => pipe.save(job.ownerId, built.batch, s));
+      }
       if (!this.o.save) {
-        // Valid output, but candidates cannot be saved yet (needs S04): never report `succeeded` without batchId.
+        // Valid output, but candidates cannot be saved yet: never report `succeeded` without batchId.
         return this.set(job, 'failed', 'validating', this.err(job, 'UNAVAILABLE', 'Candidate saving is not yet available.', false));
       }
       if (!this.beforeSave(job)) return;
-      return await this.doSave(job, r.envelope);
+      const envelope = r.envelope;
+      const legacySave = this.o.save;
+      return await this.doSave(job, s => legacySave({ jobId: job.jobId, ownerId: job.ownerId, operationKey: job.operationKey, signal: s, envelope }));
     } catch {
       // Raw error text is never exposed.
       if (!isActive(job)) return;
@@ -451,7 +561,7 @@ export class JobManager {
   }
 
   /** Runs the saver with its own timeout (deadline/cancel no longer apply). Unknown outcomes consult findSavedBatch. */
-  private async doSave(job: Job, envelope: unknown): Promise<void> {
+  private async doSave(job: Job, save: (signal: AbortSignal) => Promise<{ batchId: string }>): Promise<void> {
     const saveCtl = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<'timeout'>(res => {
@@ -459,7 +569,9 @@ export class JobManager {
       timer.unref();
     });
     try {
-      const p = this.o.save!({ jobId: job.jobId, ownerId: job.ownerId, operationKey: job.operationKey, signal: saveCtl.signal, envelope });
+      const ts = Date.now();
+      const p = save(saveCtl.signal);
+      p.finally(() => (job.mx.marks.saveMs = Date.now() - ts)).catch(() => {});
       p.catch(() => {});
       const out = await Promise.race([p, timeout]);
       if (out === 'timeout') {
