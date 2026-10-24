@@ -52,3 +52,13 @@ M1は4人のGitHubのIssue担当・契約変更・mergeを調整する。各PC�
 
 ## 7. 人間への短い報告
 実行したことと予定を区別し、`タスク / 担当 / branch / PR / 実行テストと結果 / 画面URL / blocker / 次の操作`を短く報告。未確認の外部権限・API課金・招待は本人の操作を待つ。
+
+## 8. 締切前の運用（2026-10-25 15:00 JST 締切）
+- **手を止めない**：自分のタスクが依存待ちになったら、`DEVELOPMENT_GUIDE.html`の「タスクグラフと担当」で着手可能（READY）なタスクを探し、他の人の担当でも、Issueに開始ログ（taskId、branch、writePaths）を1件書いて着手する。M1の承認を待たない。担当の組み直しは#121。
+- **衝突を避ける**：`apps/web`は画面ごとのディレクトリ（`screens/conditions/`、`screens/itinerary/`、`screens/social/`など）に分け、他の人が開始ログを書いたディレクトリは編集しない。共通部品を変えたら、PR本文に明記する。
+- **トークンを節約する（利用枠が厳しい）**：
+  - Agentのモデルは定義どおりにする。実装（implementer）、UI（ui-builder）、テスト（test-author）は**sonnet**、差分照合（doc-checker）は**haiku**。**opus（inherit）は、architectと、共有の契約・DB・認証を変えるときのreviewerだけ**にする。
+  - Agent toolを呼ぶときは、`model`を明示する（省略するとメインと同じ高いモデルになる）。
+  - reviewerは1つのPRにつき1回。指摘を直した後の再レビューは、直した箇所だけを見せる。
+  - マスタープロンプトやdocs全体を読み直さない。タスクID、依存先、writePaths、契約の該当節だけを読む。
+  - テストは、まず変更した範囲だけを実行する（例：`npx vitest run apps/web`）。全体（`npm run test:all`）はPRの直前に1回だけ。
