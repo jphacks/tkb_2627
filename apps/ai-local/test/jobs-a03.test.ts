@@ -542,9 +542,11 @@ describe('file journal hardening', () => {
     expect(names).toContain('bogus.json.corrupt');
     expect(names).toContain('junk.json.corrupt');
     expect(names.some(n => n.endsWith('.tmp'))).toBe(false);
-    expect(statSync(jd).mode & 0o777).toBe(0o700);
-    expect(statSync(join(jd, `${a}.json`)).mode & 0o777).toBe(0o600);
-    expect(statSync(join(dir, 'secret')).mode & 0o777).toBe(0o600);
+    if (process.platform !== 'win32') { // POSIX mode bits are not meaningful on Windows
+      expect(statSync(jd).mode & 0o777).toBe(0o700);
+      expect(statSync(join(jd, `${a}.json`)).mode & 0o777).toBe(0o600);
+      expect(statSync(join(dir, 'secret')).mode & 0o777).toBe(0o600);
+    }
     // fingerprint is an HMAC, not the plain input
     const rec = JSON.parse(readFileSync(join(jd, `${a}.json`), 'utf8')) as { fingerprint: string };
     expect(rec.fingerprint).toMatch(/^[0-9a-f]{64}$/);
