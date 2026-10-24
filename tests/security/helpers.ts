@@ -1,7 +1,7 @@
 // T05 shared helpers (not a test file).
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createUser, migrate, openDatabase } from '@tkb/db';
 import { buildApp as buildShared } from '../../apps/server/src/platform/app.ts';
@@ -12,6 +12,9 @@ export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 export const PW = 'correct horse battery';
 export type Shared = ReturnType<typeof buildShared>;
 
+/** Repo-relative path with '/' separators on every OS. */
+export const rel = (p: string) => relative(ROOT, p).split(sep).join('/');
+
 /** All files under the given repo-relative dirs, skipping node_modules/dist/test files when asked. */
 export function sourceFiles(dirs: string[], opts: { exts?: RegExp; skipTests?: boolean } = {}): string[] {
   const exts = opts.exts ?? /\.(ts|tsx|mjs|js)$/;
@@ -21,14 +24,13 @@ export function sourceFiles(dirs: string[], opts: { exts?: RegExp; skipTests?: b
       if (n === 'node_modules' || n === 'dist' || n === '.local') continue;
       const p = join(d, n);
       if (statSync(p).isDirectory()) walk(p);
-      else if (exts.test(n) && !(opts.skipTests && (/\.test\./.test(n) || /(^|\/)test\//.test(relative(ROOT, p))))) out.push(p);
+      else if (exts.test(n) && !(opts.skipTests && (/\.test\./.test(n) || /(^|\/)test\//.test(rel(p))))) out.push(p);
     }
   };
   for (const d of dirs) walk(join(ROOT, d));
   return out;
 }
 export const read = (p: string) => readFileSync(p, 'utf8');
-export const rel = (p: string) => relative(ROOT, p);
 
 /** Static dist fixture so the SPA fallback is active (the widest surface of the shared entry). */
 export function fixtureDist(): string {

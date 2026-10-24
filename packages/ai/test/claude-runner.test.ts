@@ -163,7 +163,8 @@ describe.skipIf(process.platform === 'win32')('ClaudeCodeRunner', () => {
     }
   });
 
-  it('refuses an unsafe tmpRoot and fails with a path-free error when mkdtemp fails', async () => {
+  it('refuses an unsafe tmpRoot and fails with a path-free error when mkdtemp fails', async (ctx) => {
+    if (process.platform === 'win32') ctx.skip('world-writable tmpRoot check relies on POSIX mode bits');
     const open = join(dir, 'open');
     mkdirSync(open);
     chmodSync(open, 0o777);
@@ -186,7 +187,7 @@ describe.skipIf(process.platform === 'win32')('ClaudeCodeRunner', () => {
       const r = await run('success', { tmpRoot: undefined });
       expect(r.error).toBeUndefined();
       const root = join(home, '.cache', 'tkb-claude');
-      expect(statSync(root).mode & 0o777).toBe(0o700);
+      if (process.platform !== 'win32') expect(statSync(root).mode & 0o777).toBe(0o700); // no POSIX modes on Windows
       expect(readdirSync(root)).toEqual([]);
     } finally {
       process.env.HOME = old;
