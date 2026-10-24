@@ -14,7 +14,7 @@ import {
   type TripDay,
   type ValidationState,
 } from '@tkb/contracts';
-import { sequenceDay, validateSchedule, type SequenceStop } from '@tkb/planner';
+import { groupNearby, sequenceDay, validateSchedule, type SequenceStop } from '@tkb/planner';
 import type { StageFail } from '../jobs/index.ts';
 import { VISITABLE_KINDS, tripDays, MAX_TRIP_DAYS } from './collect.ts';
 import { INSUFFICIENT_PLACE_WARNING, LEG_REFETCH_WARNING, PLACE_REFETCH_WARNING, projectDays, projectPlace } from './project.ts';
@@ -30,6 +30,7 @@ const MAX_LIST = 10;
 const MAX_TEXT = 200;
 const MAX_ISSUES = 20;
 export const UNTIMED_WARNING = '移動時間不明のため時刻未定';
+export const MEAL_AFTER_MEAL_WARNING = '食事の直後に食べ物の予定が続いています。順序を確認してください。';
 export const STAY_ASSUMPTION_WARNING = '滞在時間は仮定値です（観光90分、食事・散策60分）。実際の所要時間は未確認です。';
 
 export type LegPair = { from: string; to: string };
@@ -199,7 +200,9 @@ export async function assembleBatch(
       const place = placeById.get(pid)!;
       return { activity: activityFor(c.candidateId, place), stayMinutes: place.kind === 'spot' ? STAY_MINUTES.visit : STAY_MINUTES.other };
     });
-    const plan = planCandidateDays(stops, dates, constraints, startPlaceId, ctx.places, travel);
+    const planned = planCandidateDays(stops, dates, constraints, startPlaceId, ctx.places, travel);
+    // #32 R4: nearby / same-area stops become one parent with children, whatever Claude's order looked like.
+    const plan = { ...planned, days: planned.days.map(d => groupNearby(d, ctx.places).day) };
     const check = (days: TripDay[], places: readonly PlaceInfo[]) =>
       validateSchedule({
         days,
@@ -212,7 +215,9 @@ export async function assembleBatch(
     const proj = projectDays(plan.days, placeById);
     const stored = proj.legsProjected || proj.placesProjected ? check(proj.days, ctx.places.map(projectPlace)) : v;
     const unseen = order.some(id => placeById.get(id)!.provenance.maySendToModel === false); // the model never saw these places' details
-    const forced: ValidationState = proj.legsProjected || proj.placesProjected || unseen ? 'needs_review' : 'valid';
+    // Food right after a meal is not reordered here (D06 offers no reorder): it is reported and never counts as valid.
+    const mealAfterMeal = stored.issues.some(i => i.code === 'meal_after_meal');
+    const forced: ValidationState = proj.legsProjected || proj.placesProjected || unseen || mealAfterMeal ? 'needs_review' : 'valid';
     const state: ValidationState = RANK[forced] > RANK[v.validationState] ? forced : v.validationState;
 
     const inDays = new Set<string>();
@@ -231,6 +236,7 @@ export async function assembleBatch(
       STAY_ASSUMPTION_WARNING,
       ...(fetchLegs ? [LIVE_DEPARTURE_WARNING] : []),
       ...(plan.untimed ? [UNTIMED_WARNING] : []),
+      ...(mealAfterMeal ? [MEAL_AFTER_MEAL_WARNING] : []),
       ...(proj.legsProjected ? [LEG_REFETCH_WARNING] : []),
       ...(proj.placesProjected ? [PLACE_REFETCH_WARNING] : []),
       ...(unseen ? [INSUFFICIENT_PLACE_WARNING] : []),

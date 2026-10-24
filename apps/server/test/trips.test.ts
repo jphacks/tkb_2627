@@ -97,6 +97,23 @@ describe('trips API', () => {
     expect((await call(app, a, 'GET', '/api/v1/trips')).headers['cache-control']).toBe('no-store');
   });
 
+  it('K07: keeps parentActivityId, rejects broken nesting (#32 R4)', async () => {
+    const { app } = make();
+    const a = await login(app, 'user-a');
+    const withParent = (parent: string | null, childId = 'a2') => {
+      const c = candidate('c1');
+      c.days[0]!.items = [activity('a1', 1), { ...activity(childId, 1), parentActivityId: parent } as any];
+      return c;
+    };
+    const created = await createBatch(app, a, { candidates: [withParent('a1')] });
+    const got = PlanBatch.parse((await call(app, a, 'GET', `/api/v1/plan-batches/${created.batchId}`)).json());
+    expect((got.candidates[0]!.days[0]!.items[1] as { parentActivityId?: string }).parentActivityId).toBe('a1');
+    for (const bad of ['a2', 'missing']) {
+      const res = await call(app, a, 'POST', '/api/v1/plan-batches', batchBody({ candidates: [withParent(bad)] }));
+      expect(res.statusCode).toBe(422);
+    }
+  });
+
   it('K07: stores batch, owner only, strict body, duplicates and bad json rejected', async () => {
     const { app, db } = make();
     const a = await login(app, 'user-a');
