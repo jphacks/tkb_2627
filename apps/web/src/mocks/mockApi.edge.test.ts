@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ApiError, ERROR_HTTP_STATUS, JobStatus, PlanBatch, Trip } from '@tkb/contracts';
 import type { Activity, ApiError as ApiErrorType, ItineraryItem, ZonedTime } from '@tkb/contracts';
 import { createBudgetUnknownPlanBatch, createBudgetUnknownTrip, domesticTrip, fixtureTrips, overseasTrip, sampleFeed } from '@tkb/fixtures';
-import { createMockApi } from './index.ts';
+import { MOCK_REPLAN_BATCH_ID, createMockApi } from './index.ts';
 import type { MockApi, MockResult, MockScenario } from './index.ts';
 
 const GENERATE = {
@@ -252,37 +252,113 @@ describe('mock api edge: revision conflicts', () => {
   it('applyCandidate update: a stale revision is 409 and leaves the trip untouched; the right revision succeeds once', async () => {
     const api = createMockApi();
     const before = data(await api.getTrip(KANAZAWA));
-    const stale = await api.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_3', tripId: KANAZAWA, expectedRevision: 5 });
+    const stale = await api.applyCandidate({ batchId: MOCK_REPLAN_BATCH_ID, candidateId: 'candidate_3', tripId: KANAZAWA, expectedRevision: 5 });
     expect(errorOf(stale).code).toBe('REVISION_CONFLICT');
     expect(stale.status).toBe(409);
     expect(errorOf(stale).details).toEqual({ expectedRevision: 5, currentRevision: 1 });
     expect(data(await api.getTrip(KANAZAWA))).toEqual(before);
 
-    const good = data(await api.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_3', tripId: KANAZAWA, expectedRevision: 1 }));
+    const good = data(await api.applyCandidate({ batchId: MOCK_REPLAN_BATCH_ID, candidateId: 'candidate_3', tripId: KANAZAWA, expectedRevision: 1 }));
     expect(good.revision).toBe(2);
     expect(good.trip.tripId).toBe(KANAZAWA);
     // The same request again is now stale (no silent double apply).
-    const again = await api.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_3', tripId: KANAZAWA, expectedRevision: 1 });
+    const again = await api.applyCandidate({ batchId: MOCK_REPLAN_BATCH_ID, candidateId: 'candidate_3', tripId: KANAZAWA, expectedRevision: 1 });
     expect(errorOf(again).code).toBe('REVISION_CONFLICT');
     expect(data(await api.getTrip(KANAZAWA)).revision).toBe(2);
   });
 
-  it('applyCandidate update keeps id, owner, constraints and createdAt; only itinerary fields change', async () => {
+  it('applyCandidate update keeps id, owner, constraints and createdAt; the title and itinerary come from the candidate', async () => {
     const api = createMockApi();
     const before = data(await api.getTrip(KANAZAWA));
-    const res = data(await api.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_2', tripId: KANAZAWA, expectedRevision: 1 }));
+    const batch = data(await api.getPlanBatch(MOCK_REPLAN_BATCH_ID));
+    const candidate = batch.candidates.find(c => c.candidateId === 'candidate_2');
+    const res = data(await api.applyCandidate({ batchId: MOCK_REPLAN_BATCH_ID, candidateId: 'candidate_2', tripId: KANAZAWA, expectedRevision: 1 }));
     expect(res.trip.ownerId).toBe(before.ownerId);
     expect(res.trip.constraints).toEqual(before.constraints);
     expect(res.trip.createdAt).toBe(before.createdAt);
-    expect(res.trip.title).toBe(before.title);
+    // Same as main: the candidate title replaces the trip title on update.
+    expect(candidate?.title).not.toBe(before.title);
+    expect(res.trip.title).toBe(candidate?.title);
     expect(res.trip.days).not.toEqual(before.days);
   });
 
   it('applyCandidate with a missing expectedRevision on an update is VALIDATION_FAILED and changes nothing', async () => {
     const api = createMockApi();
-    const res = await api.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_1', tripId: KANAZAWA, expectedRevision: null });
+    const res = await api.applyCandidate({ batchId: MOCK_REPLAN_BATCH_ID, candidateId: 'candidate_1', tripId: KANAZAWA, expectedRevision: null });
     expect(errorOf(res).code).toBe('VALIDATION_FAILED');
     expect(data(await api.getTrip(KANAZAWA)).revision).toBe(1);
+  });
+
+  it('applying a batch that was not generated for the trip (fx_batch_1 has no base trip) is 422 VALIDATION_FAILED and changes nothing', async () => {
+    const api = createMockApi();
+    const before = data(await api.getTrip(KANAZAWA));
+    const res = await api.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_3', tripId: KANAZAWA, expectedRevision: 1 });
+    expect(errorOf(res).code).toBe('VALIDATION_FAILED');
+    expect(res.status).toBe(422);
+    expect(data(await api.getTrip(KANAZAWA))).toEqual(before);
+    // Another existing trip is not the batch's base trip either.
+    const other = await api.applyCandidate({ batchId: MOCK_REPLAN_BATCH_ID, candidateId: 'candidate_3', tripId: PARIS, expectedRevision: 1 });
+    expect(errorOf(other).code).toBe('VALIDATION_FAILED');
+    expect(data(await api.getTrip(PARIS)).revision).toBe(1);
+  });
+
+  it('replan batch applied after the trip moved past its baseRevision is 409 with the batch base revision, and changes nothing', async () => {
+    const api = createMockApi();
+    data(await api.patchTrip(KANAZAWA, { expectedRevision: 1, operations: [{ op: 'set_title', title: 'rev2' }] }));
+    const before = data(await api.getTrip(KANAZAWA));
+    // The client even sends the current revision: the batch was generated from revision 1, so it is still a conflict.
+    const res = await api.applyCandidate({ batchId: MOCK_REPLAN_BATCH_ID, candidateId: 'candidate_3', tripId: KANAZAWA, expectedRevision: 2 });
+    expect(errorOf(res).code).toBe('REVISION_CONFLICT');
+    expect(res.status).toBe(409);
+    expect(errorOf(res).details).toEqual({ expectedRevision: 1, currentRevision: 2 });
+    expect(data(await api.getTrip(KANAZAWA))).toEqual(before);
+  });
+
+  it('applyCandidate with tripId null and a non-null expectedRevision is VALIDATION_FAILED and creates nothing', async () => {
+    const api = createMockApi();
+    const res = await api.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_1', tripId: null, expectedRevision: 1 });
+    expect(errorOf(res).code).toBe('VALIDATION_FAILED');
+    expect(res.status).toBe(422);
+    expect(data(await api.listTrips()).items).toHaveLength(3);
+  });
+
+  it('applying the same candidate twice with tripId null returns the same trip (201, then 200) and adds one trip only', async () => {
+    const api = createMockApi();
+    const req = { batchId: 'fx_batch_1', candidateId: 'candidate_1', tripId: null, expectedRevision: null };
+    const first = await api.applyCandidate(req);
+    const second = await api.applyCandidate(req);
+    expect([first.status, second.status]).toEqual([201, 200]);
+    expect(data(second).tripId).toBe(data(first).tripId);
+    expect(data(await api.listTrips()).items).toHaveLength(4);
+    // A different candidate of the same batch is a different trip.
+    const other = data(await api.applyCandidate({ ...req, candidateId: 'candidate_2' }));
+    expect(other.tripId).not.toBe(data(first).tripId);
+    expect(data(await api.listTrips()).items).toHaveLength(5);
+  });
+
+  it('a re-applied candidate returns the trip as it is now (after an edit), not the first snapshot', async () => {
+    const api = createMockApi();
+    const req = { batchId: 'fx_batch_1', candidateId: 'candidate_1', tripId: null, expectedRevision: null };
+    const created = data(await api.applyCandidate(req));
+    data(await api.patchTrip(created.tripId, { expectedRevision: 1, operations: [{ op: 'set_title', title: '編集後' }] }));
+    const again = data(await api.applyCandidate(req));
+    expect(again.tripId).toBe(created.tripId);
+    expect(again.revision).toBe(2);
+    expect(again.trip.title).toBe('編集後');
+  });
+
+  it('a new trip from a replan batch takes the base trip constraints; from fx_batch_1 the batch constraints', async () => {
+    const api = createMockApi();
+    // The replan request carries other constraints; the new trip must still take the base trip's.
+    const other = { ...GENERATE.constraints, area: '別エリア' };
+    const { jobId } = data(await api.generate({ constraints: other, mode: 'replan', baseTripId: KANAZAWA, expectedRevision: 1 }));
+    const batchId = (await pollToEnd(api, jobId)).at(-1)?.batchId ?? '';
+    const fromReplan = data(await api.applyCandidate({ batchId, candidateId: 'candidate_1', tripId: null, expectedRevision: null }));
+    expect(fromReplan.tripId).not.toBe(KANAZAWA);
+    expect(fromReplan.trip.constraints).toEqual(domesticTrip.constraints);
+    expect(fromReplan.trip.constraints.area).not.toBe('別エリア');
+    const fromPlain = data(await api.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_1', tripId: null, expectedRevision: null }));
+    expect(fromPlain.trip.constraints).toEqual(domesticTrip.constraints);
   });
 
   it('replan generation with a stale revision is 409 and starts no job', async () => {
@@ -439,14 +515,14 @@ describe('mock api edge: double jobs, cancel and timeouts', () => {
     expect(data(await api.getJob(jobId)).state).toBe('cancelled');
   });
 
-  it('cancel after success is ALREADY_COMMITTED (409) with the batch id, and the job stays succeeded', async () => {
+  it('cancel after success is 200 with state succeeded and the batch id, and the job stays succeeded', async () => {
     const api = createMockApi();
     const { jobId } = data(await api.generate(GENERATE));
     const done = (await pollToEnd(api, jobId)).at(-1);
     const late = await api.cancelJob(jobId);
-    expect(errorOf(late).code).toBe('ALREADY_COMMITTED');
-    expect(late.status).toBe(409);
-    expect(errorOf(late).details).toEqual({ batchId: done?.batchId });
+    expect(late.status).toBe(200);
+    expect(data(late)).toEqual({ jobId, state: 'succeeded', batchId: done?.batchId });
+    expect(data(await api.cancelJob(jobId))).toEqual(data(late));
     const status = data(await api.getJob(jobId));
     expect(status.state).toBe('succeeded');
     expect(status.batchId).toBe(done?.batchId);
@@ -839,13 +915,15 @@ describe('mock api edge: isolation and source label', () => {
     expect(data(await a.getTrip(written.tripId)).days.length).toBeGreaterThan(0);
   });
 
-  it('two applications of the same candidate create two distinct trips with distinct ids', async () => {
+  it('two applications of the same candidate return the same trip; different candidates create distinct trips, and edits stay on their own trip', async () => {
     const a = createMockApi();
     const x = data(await a.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_1', tripId: null, expectedRevision: null }));
     const y = data(await a.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_1', tripId: null, expectedRevision: null }));
-    expect(x.tripId).not.toBe(y.tripId);
+    expect(x.tripId).toBe(y.tripId);
+    const z = data(await a.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_2', tripId: null, expectedRevision: null }));
+    expect(z.tripId).not.toBe(x.tripId);
     data(await a.patchTrip(x.tripId, { expectedRevision: 1, operations: [{ op: 'set_title', title: 'x だけ' }] }));
-    expect(data(await a.getTrip(y.tripId)).title).toBe(y.trip.title);
+    expect(data(await a.getTrip(z.tripId)).title).toBe(z.trip.title);
     expect(data(await a.listTrips()).items).toHaveLength(5);
   });
 
@@ -916,9 +994,7 @@ describe('mock api edge: error responses follow the contract', () => {
       await normal.applyCandidate({ batchId: 'fx_batch_1', candidateId: 'candidate_1', tripId: KANAZAWA, expectedRevision: null }), // VALIDATION_FAILED
       await createMockApi({ scenario: 'error' }).listTrips(), // UNAVAILABLE
     ];
-    const done = await normal.generate(GENERATE);
-    await pollToEnd(normal, data(done).jobId);
-    errors.push(await normal.cancelJob(data(done).jobId)); // ALREADY_COMMITTED
+    // Cancelling a succeeded job is a 200 (not an error), so it is not part of this list.
 
     const codes = new Set<string>();
     for (const res of errors) {
@@ -932,7 +1008,7 @@ describe('mock api edge: error responses follow the contract', () => {
     // requestId is unique within one mock instance (the counter is per instance); index 9 is the error-scenario instance.
     const sameInstance = errors.filter((_, i) => i !== 9).map(r => errorOf(r).requestId);
     expect(new Set(sameInstance).size).toBe(sameInstance.length);
-    expect([...codes].sort()).toEqual(['ALREADY_COMMITTED', 'CONSTRAINT_UNSATISFIED', 'NOT_FOUND', 'REVISION_CONFLICT', 'UNAVAILABLE', 'VALIDATION_FAILED']);
+    expect([...codes].sort()).toEqual(['CONSTRAINT_UNSATISFIED', 'NOT_FOUND', 'REVISION_CONFLICT', 'UNAVAILABLE', 'VALIDATION_FAILED']);
   });
 
   it('NOT_FOUND never echoes the requested id (does not reveal whether another user\'s resource exists)', async () => {
