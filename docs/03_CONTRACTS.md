@@ -2,6 +2,8 @@
 
 自作アプリの実装先契約。まだ稼働しているAPIではない。数値とIDは説明用。正本はmodel/contracts.json。
 
+**実装（B02）**：Zod v4のschema v1を`packages/contracts`に置いた。表現の決まり、資料間の食い違いの解決、破壊的変更の手順は`packages/contracts/README.md`を参照。2026-10-24時点で稼働しているのは`/api/v1/health`、`/api/v1/capabilities`（:4310）、`/local/v1/health`、`/local/v1/capabilities`（:4311）だけ。
+
 ## K01 本人の旅程生成受付
 
 通信：POST /local/v1/generations

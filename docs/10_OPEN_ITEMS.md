@@ -13,3 +13,11 @@ R18/R19：Maps URLとICSは初期設計。Googleの保存済みリスト/カレ�
 
 ## 人間が実物を見て判断
 UIの画面別承認、代表ケースでの旅程品質、発表の操作順。初期から試作を提示し、未回答を承認にしない。
+
+## B01 実施記録（2026-10-24、M1）
+- Gitルート`tkb_2627`、origin `jphacks/tkb_2627`（public）、default branch `main`、M1の権限ADMIN。branch保護なし（PR運用は規則として守る）。
+- 共同編集者：KatTanaka（M1）、murataka-csl（M2）、ryoumatimati（M3）、poyyk（M4）。対応はM1が本人確認。招待はすべて承認済み（admin）。
+- M1端末：macOS arm64、16GiB、Node 24.19.0、npm 11.17、Python 3.9.6、gh認証済み、Claude Code 2.1.258、Graphviz 16.1（図生成用にHomebrewで導入）。cloudflared未導入（O01で必要）。
+- M2〜M4端末のOS・ツール版は未確認。各自`npm run doctor`の結果を担当Issueへ記録する。
+- このセッションでは`.claude/agents`の6定義はカスタムAgent型として未登録だった（起動後に配置したため）。Claude Codeを再起動すると`/agents`で読み込まれる。初回は汎用Agentに定義を渡して実行した。
+- 外部認証・課金の阻害要因：Google等の旅行APIキー未提供（D01はblocked候補）、本人Claude CLIの非対話利用条件は未確認（A01、M4）。

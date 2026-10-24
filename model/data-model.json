@@ -32,10 +32,16 @@
       "fields": [
         "id PK",
         "owner_id FK",
+        "schema_version",
+        "title",
         "revision",
         "constraints_json",
         "days_json",
+        "places_json",
+        "warnings_json",
         "validation_state",
+        "created_at",
+        "updated_at",
         "deleted_at"
       ],
       "note": "ownerIdはセッションから設定。全予定の正本。"
@@ -60,8 +66,12 @@
         "owner_id FK",
         "base_trip_id? FK",
         "base_revision?",
+        "generation_id",
+        "schema_version",
         "candidates_json",
-        "created_at"
+        "places_json",
+        "created_at",
+        "UNIQUE(owner_id,generation_id)"
       ],
       "note": "選択前の候補も共通DBに保存。実行待ちキューではない。"
     },

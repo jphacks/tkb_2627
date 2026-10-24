@@ -163,7 +163,7 @@
         "low": 30,
         "high": 60
       },
-      "acceptance": "国内／海外のサンプルがSchemaに適合し、モック表示であることを明示する。",
+      "acceptance": "国内／海外のサンプルがSchemaに適合し、モック表示であることを明示する。初期サンプル（金沢・パリ）はM1がB02でpackages/fixturesに作成済み。M2は画面用APIモック（apps/web/src/mocks）と不足ケース（空・失敗・待機・予算不明等）を追加する。",
       "verification": "実APIキーなしで入力、表示、編集の画面試験が実行できる。",
       "initialStatus": "todo",
       "humanAction": false,

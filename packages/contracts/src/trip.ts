@@ -57,6 +57,8 @@ export const Activity = z.object({
   fixed: z.boolean(),
   status: ActivityStatus,
   cost: NonNegativeMoney.nullable(),
+  /** Where `cost` came from; `unknown` when cost is null. */
+  costStatus: DataStatus,
   /** Never copied into SNS snapshots. */
   privateNotes: z.string().nullable(),
 });
@@ -99,6 +101,7 @@ export const PublicActivity = Activity.pick({
   fixed: true,
   status: true,
   cost: true,
+  costStatus: true,
 });
 export type PublicActivity = z.infer<typeof PublicActivity>;
 
@@ -126,21 +129,36 @@ export const Endpoint = z.object({
 });
 
 /** R01: trip conditions. Only area, dates, time zone and mode are required; nothing is silently defaulted. */
-export const TripConstraints = z
-  .object({
-    area: z.string().min(1).max(200),
-    startDate: LocalDate,
-    endDate: LocalDate,
-    timeZone: TimeZone,
-    transportMode: TransportMode,
-    budget: Money.nullable().optional(),
-    mustVisit: z.array(Id).max(30).optional(),
-    departure: Endpoint.optional(),
-    return: Endpoint.optional(),
-    preferences: z.array(z.string().max(200)).max(20).optional(),
-  })
-  .refine(c => c.endDate >= c.startDate, { message: 'endDate must not be before startDate', path: ['endDate'] });
+const TripConstraintsBase = z.object({
+  area: z.string().min(1).max(200),
+  startDate: LocalDate,
+  endDate: LocalDate,
+  timeZone: TimeZone,
+  transportMode: TransportMode,
+  budget: Money.nullable().optional(),
+  mustVisit: z.array(Id).max(30).optional(),
+  departure: Endpoint.optional(),
+  return: Endpoint.optional(),
+  preferences: z.array(z.string().max(200)).max(20).optional(),
+});
+export const TripConstraints = TripConstraintsBase.refine(c => c.endDate >= c.startDate, {
+  message: 'endDate must not be before startDate',
+  path: ['endDate'],
+});
 export type TripConstraints = z.infer<typeof TripConstraints>;
+
+/**
+ * Conditions safe to publish. departure/return may contain a home address and budget is private,
+ * so SNS snapshots use this allow-list instead of TripConstraints.
+ */
+export const PublicTripConstraints = TripConstraintsBase.pick({
+  area: true,
+  startDate: true,
+  endDate: true,
+  timeZone: true,
+  transportMode: true,
+});
+export type PublicTripConstraints = z.infer<typeof PublicTripConstraints>;
 
 export const ValidationState = z.enum(['valid', 'needs_review', 'needs_revalidation', 'invalid']);
 export type ValidationState = z.infer<typeof ValidationState>;

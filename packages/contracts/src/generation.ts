@@ -7,17 +7,22 @@ import { Activity, PlaceInfo, TravelLeg, TripConstraints } from './trip.ts';
  * K01 POST /local/v1/generations (personal entry only, 127.0.0.1:4311).
  * Strict: ownerId and any unknown field are rejected. Idempotency-Key travels in the header.
  */
-export const GenerateRequest = z.strictObject({
-  mode: z.enum(['generate', 'replan']).default('generate'),
-  constraints: TripConstraints,
-  baseTripId: Id.nullable().optional(),
-  expectedRevision: z.number().int().positive().nullable().optional(),
-  /** Replan only (F04/R12). */
-  now: UtcInstant.optional(),
-  currentLocation: LatLng.nullable().optional(),
-  completedActivityIds: z.array(Id).optional(),
-  fixedActivityIds: z.array(Id).optional(),
-});
+export const GenerateRequest = z
+  .strictObject({
+    mode: z.enum(['generate', 'replan']).default('generate'),
+    constraints: TripConstraints,
+    baseTripId: Id.nullable().optional(),
+    expectedRevision: z.number().int().positive().nullable().optional(),
+    /** Replan only (F04/R12). */
+    now: UtcInstant.optional(),
+    currentLocation: LatLng.nullable().optional(),
+    completedActivityIds: z.array(Id).optional(),
+    fixedActivityIds: z.array(Id).optional(),
+  })
+  .refine(r => r.mode !== 'replan' || (Boolean(r.baseTripId) && typeof r.expectedRevision === 'number'), {
+    message: 'replan requires baseTripId and expectedRevision',
+    path: ['baseTripId'],
+  });
 export type GenerateRequest = z.infer<typeof GenerateRequest>;
 
 export const JobState = z.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']);
@@ -85,7 +90,10 @@ export const CandidateBlueprint = z.object({
   candidateId: Id,
   title: z.string().optional(),
   /** Must only contain IDs from GenerationInput.allowedPlaceIds; checked by BlueprintParser. */
-  activityOrder: z.array(Id).min(1),
+  activityOrder: z
+    .array(Id)
+    .min(1)
+    .refine(ids => new Set(ids).size === ids.length, 'activityOrder must not contain duplicates'),
   excludedPlaceIds: z.array(Id).optional(),
   reasons: z.array(z.string()),
   warnings: z.array(z.string()),

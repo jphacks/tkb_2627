@@ -10,3 +10,19 @@ jobs:
           node-version: '22'
       - run: npm run check
       - run: npm test
+  app:
+    # Travel app: typecheck, unit tests (fixture only, no paid or live APIs) and web build.
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ['22.13.x', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run build

@@ -1,15 +1,19 @@
 import { z } from 'zod';
 import { Id, LocalDate, SchemaVersion, TimeZone, UtcInstant, Visibility } from './common.ts';
-import { PlaceInfo, PublicTripDay, TripConstraints, ValidationState } from './trip.ts';
+import { PlaceInfo, PublicTripConstraints, PublicTripDay, ValidationState } from './trip.ts';
 
 /** Fields removed from every public snapshot (docs/01_SPEC.md SNS). */
 export const REDACTED_FIELDS = ['homeAddress', 'preciseCurrentLocation', 'privateNotes'] as const;
 
-/** Immutable public copy of a trip. Built by the server only; never accepted from the browser. */
+/**
+ * Immutable public copy of a trip. Built by the server only; never accepted from the browser.
+ * Every part is an allow-list. `places` must contain only places referenced by `days`, and only
+ * provider data whose provenance allows export.
+ */
 export const PostSnapshot = z.object({
   schemaVersion: SchemaVersion,
   title: z.string(),
-  constraints: TripConstraints,
+  constraints: PublicTripConstraints,
   days: z.array(PublicTripDay),
   places: z.array(PlaceInfo),
   redactionVersion: z.number().int().positive(),
@@ -78,12 +82,21 @@ export const Feed = z.object({
 export type Feed = z.infer<typeof Feed>;
 
 /** K15 PATCH /api/v1/posts/{id} */
-export const PostPatchRequest = z.strictObject({
-  expectedPostRevision: z.number().int().positive(),
-  visibility: Visibility.optional(),
-  groupId: Id.nullable().optional(),
-  story: z.string().max(5000).optional(),
-});
+export const PostPatchRequest = z
+  .strictObject({
+    expectedPostRevision: z.number().int().positive(),
+    visibility: Visibility.optional(),
+    groupId: Id.nullable().optional(),
+    story: z.string().max(5000).optional(),
+  })
+  .refine(r => r.visibility === undefined || (r.visibility === 'group') === Boolean(r.groupId), {
+    message: 'groupId is required for group visibility and forbidden otherwise',
+    path: ['groupId'],
+  })
+  .refine(r => r.visibility !== undefined || r.groupId === undefined, {
+    message: 'groupId can only change together with visibility',
+    path: ['groupId'],
+  });
 export type PostPatchRequest = z.infer<typeof PostPatchRequest>;
 
 /** K16 POST /api/v1/posts/{id}/copy */

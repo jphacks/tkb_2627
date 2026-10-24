@@ -66,3 +66,15 @@ Node.js 22以降。`npm run check`, `npm test`, `npm run doctor`, `npm run guide
 
 ### Claudeと利用条件
 旅程生成はClaudeを希望。本人用App Serverから公式Claude Codeに接続する実機・利用条件を最初に検証し、第三者によるPro枠の利用を公開しない。Ollamaや従量課金APIへ無断で切り替えない。本人用入口は外部公開せず、共有サーバーはDB/SNS閲覧・編集の権限管理を担う。
+
+### 旅行アプリの起動（M1のB03で実装済み）
+Node.js 22.13以降（推奨24）。`npm run`で利用できるscriptを確認できます。
+
+```bash
+npm ci              # 依存の導入（lockfileどおり）
+npm run setup       # data/ を作り、SQLiteのmigrationを適用
+npm run dev         # 共有API :4310、本人用 :4311（127.0.0.1のみ）、Web http://127.0.0.1:5173
+npm run test:all    # キット検査 + キットのテスト + 型チェック + アプリの単体テスト
+```
+
+現時点の画面はfixtureの旅程ビューアと接続状態の表示だけです。Claudeによる生成、旅行APIへの実接続、ログイン、SNSは未実装です（`ops/tasks.json`とGitHub Issueで追跡）。

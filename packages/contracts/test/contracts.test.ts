@@ -7,6 +7,7 @@ import {
   Money,
   NonNegativeMoney,
   PlanBlueprint,
+  PostPatchRequest,
   PostPreviewRequest,
   PostSnapshot,
   TimeZone,
@@ -83,5 +84,43 @@ describe('request boundaries', () => {
   });
   it('every error code maps to an HTTP status', () => {
     for (const code of ErrorCode.options) expect(ERROR_HTTP_STATUS[code]).toBeGreaterThanOrEqual(400);
+  });
+});
+
+describe('reviewer findings (bootstrap PR)', () => {
+  const trip = fixtureTrips[0]!;
+  it('PostSnapshot drops departure/return and budget (possible home address, private budget)', () => {
+    const snap = PostSnapshot.parse({
+      schemaVersion: 1,
+      title: trip.title,
+      constraints: {
+        ...trip.constraints,
+        departure: { placeId: null, label: '自宅 東京都文京区…', time: null },
+        budget: { amountMinor: 50000, currency: 'JPY' },
+      },
+      days: trip.days,
+      places: trip.places,
+      redactionVersion: 1,
+    });
+    const json = JSON.stringify(snap);
+    expect(json).not.toContain('自宅');
+    expect(snap.constraints).not.toHaveProperty('budget');
+    expect(snap.constraints).not.toHaveProperty('departure');
+  });
+  it('replan requires baseTripId and expectedRevision', () => {
+    expect(GenerateRequest.safeParse({ mode: 'replan', constraints }).success).toBe(false);
+    expect(GenerateRequest.safeParse({ mode: 'replan', constraints, baseTripId: 't1', expectedRevision: 3 }).success).toBe(true);
+  });
+  it('blueprint rejects duplicate place ids', () => {
+    const c = { ...samplePlanBlueprint.candidates[0]!, activityOrder: ['a', 'a'] };
+    expect(PlanBlueprint.safeParse({ schemaVersion: 1, candidates: [c] }).success).toBe(false);
+  });
+  it('post patch keeps visibility and groupId consistent', () => {
+    expect(PostPatchRequest.safeParse({ expectedPostRevision: 1, visibility: 'group' }).success).toBe(false);
+    expect(PostPatchRequest.safeParse({ expectedPostRevision: 1, groupId: 'g1' }).success).toBe(false);
+    expect(PostPatchRequest.safeParse({ expectedPostRevision: 1, visibility: 'private' }).success).toBe(true);
+  });
+  it('null cost is marked unknown in fixtures', () => {
+    for (const d of trip.days) for (const i of d.items) if (i.type === 'activity' && i.cost === null) expect(i.costStatus).toBe('unknown');
   });
 });

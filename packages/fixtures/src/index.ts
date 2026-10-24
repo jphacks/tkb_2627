@@ -58,6 +58,7 @@ function activity(activityId: string, title: string, kind: Activity['kind'], tim
     cost: null,
     privateNotes: null,
     ...extra,
+    costStatus: extra.costStatus ?? (extra.cost ? 'fixture' : 'unknown'),
   };
 }
 

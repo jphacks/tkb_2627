@@ -34,7 +34,7 @@ ops/tasks.jsonが定義の正本。hard dependencyは先行作業のPR統合と�
 前提：B02, B03
 要件：R29。契約：K01, K02, K08, K14
 変更path：packages/fixtures/, apps/web/src/mocks/
-完了：国内／海外のサンプルがSchemaに適合し、モック表示であることを明示する。
+完了：国内／海外のサンプルがSchemaに適合し、モック表示であることを明示する。初期サンプル（金沢・パリ）はM1がB02でpackages/fixturesに作成済み。M2は画面用APIモック（apps/web/src/mocks）と不足ケース（空・失敗・待機・予算不明等）を追加する。
 検証：実APIキーなしで入力、表示、編集の画面試験が実行できる。
 引継ぎ：Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。
 
