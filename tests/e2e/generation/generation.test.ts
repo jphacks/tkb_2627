@@ -174,28 +174,14 @@ describe('I02 generation end to end (fixture data, fake model)', () => {
     const runner = fakeModel(blueprint);
     const s = await setup(runner);
     const g = await s.generate(nowhere, 'key-i02-0003');
-    if (g.statusCode !== 202) {
-      // Refused up front: the honest outcome. Nothing ran, nothing saved.
-      expect(g.statusCode).toBeGreaterThanOrEqual(400);
-      expect(ApiError.parse(g.json()).code).toBeTruthy();
-      expect(runner.calls).toBe(0);
-      expect(batchCount(s.db)).toBe(0);
-      return;
-    }
+    // Pinned to the observed honest outcome: accepted, then failed with CONSTRAINT_UNSATISFIED before any model run.
+    expect(g.statusCode).toBe(202);
     const job = await s.settle(g.json().jobId);
-    // Honest behaviour: either a failed job with a code (and nothing saved), or a success whose places are all real fixture data.
-    if (job.state === 'failed') {
-      // Observed: no place facts for the area -> CONSTRAINT_UNSATISFIED before any model run.
-      expect(job.error?.code).toBe('CONSTRAINT_UNSATISFIED');
-      expect(runner.calls).toBe(0);
-      expect(job.batchId).toBeNull();
-      expect(batchCount(s.db)).toBe(0);
-    } else {
-      expect(job.state).toBe('succeeded');
-      const batch = PlanBatch.parse((await s.app_shared_get(job.batchId!)).json());
-      expect(batch.places.every(p => KNOWN.has(p.placeId) && p.dataStatus !== 'verified')).toBe(true);
-      expect(batch.candidates.every(c => c.warnings.length > 0)).toBe(true);
-    }
+    expect(job.state).toBe('failed');
+    expect(job.error?.code).toBe('CONSTRAINT_UNSATISFIED');
+    expect(runner.calls).toBe(0);
+    expect(job.batchId).toBeNull();
+    expect(batchCount(s.db)).toBe(0);
     // The model is never asked to plan an area for which no place facts exist.
     for (const input of runner.inputs) expect(input.allowedPlaceIds.length).toBeGreaterThan(0);
   });
