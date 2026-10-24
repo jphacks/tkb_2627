@@ -1,5 +1,11 @@
 name: design-kit-check
 on: [push, pull_request]
+permissions:
+  contents: read
+env:
+  # CI never calls paid or live APIs and references no repository secrets.
+  PROVIDER_MODE: fixture
+  ALLOW_CLAUDE_EXECUTION: 'false'
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -9,9 +15,10 @@ jobs:
         with:
           node-version: '22'
       - run: npm run check
+      - run: npm run check:secrets
       - run: npm test
   app:
-    # Travel app: typecheck, unit tests (fixture only, no paid or live APIs) and web build.
+    # Travel app: lint (tsc strict + unused checks, node --check), typecheck, unit tests (fixture only) and web build.
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -23,6 +30,7 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+      - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:unit
       - run: npm run build

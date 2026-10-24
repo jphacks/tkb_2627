@@ -17,3 +17,10 @@
 
 ## 証拠
 各タスクに実行環境、commit、コマンド、終了コード、件数、fixture/live、期待結果と実結果、担当、独立review、UI人間承認を添付。全機能は対象に残し未達を明示。2日で全機能完成する保証や、全世界の正確な時刻表を取得できる保証はしない。
+
+## 自動検証（B05）
+- CI（.github/workflows/plan-check.yml）：validate（check、check:secrets、npm test）とapp（typecheck、test:unit、build。Node 22.13.xと24）。env は PROVIDER_MODE=fixture、ALLOW_CLAUDE_EXECUTION=false、permissions は contents: read。secrets は参照せず、課金APIを呼ばない。
+- lint：`npm run lint`（`tsc --noEmit --noUnusedLocals --noUnusedParameters` と scripts/lint-mjs.mjs による scripts/・tests/ の `node --check`）。ESLint等の依存は追加していない。導入の判断はM1。
+- 秘密情報検出：`npm run check:secrets`（scripts/check.mjs、`--staged`、`--root <dir>`）。追跡ファイルのAPIキー形式、PRIVATE KEY、AWSキー、.env系、DB/data/backups、credentials系、.env内の非空SECRET/KEY/TOKEN/PASSWORDを検出し、ファイル名・行・規則名のみ出力する。
+- 意図した失敗の検知は tests/contracts/secret-scan.test.mjs が一時gitリポジトリで担保する。
+- data/ や backups/ に例外が必要になった場合は、.gitignore と scripts/check.mjs の両方を変更する。
