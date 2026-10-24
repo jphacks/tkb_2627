@@ -216,12 +216,15 @@ export function createCapabilitiesClient(opts: { baseUrl: string; fetch?: FetchL
   let cached: { mode: DataMode; at: number } | null = null;
   let failedAt: number | null = null;
   const MAX_BODY = 64 * 1024;
+  const fail = (): null => {
+    failedAt = now();
+    return null;
+  };
   return {
     async getDataMode() {
       if (cached && now() - cached.at < ttl) return cached.mode;
       // A failure is remembered briefly so an unreachable server is not asked on every capabilities call.
       if (failedAt !== null && now() - failedAt < failureTtl) return null;
-      failedAt = now();
       try {
         const res = await doFetch(`${base}${UPSTREAM_CAPABILITIES_PATHS.capabilities}`, {
           method: 'GET',
@@ -229,17 +232,35 @@ export function createCapabilitiesClient(opts: { baseUrl: string; fetch?: FetchL
           redirect: 'manual',
           signal: AbortSignal.timeout(opts.timeoutMs ?? 3_000),
         });
-        if (res.status !== 200) return null;
-        if (Number(res.headers.get('content-length') ?? 0) > MAX_BODY) return null;
-        const text = await res.text();
-        if (text.length > MAX_BODY) return null;
+        if (res.status !== 200 || Number(res.headers.get('content-length') ?? 0) > MAX_BODY) return fail();
+        const text = await readCapped(res, MAX_BODY);
+        if (text === null) return fail();
         const mode = Capabilities.parse(JSON.parse(text)).dataMode;
         cached = { mode, at: now() };
         failedAt = null;
         return mode;
       } catch {
-        return null;
+        return fail();
       }
     },
   };
+}
+
+/** Reads at most `max` bytes of the body (cancels the stream beyond that); null when it is larger. */
+async function readCapped(res: Response, max: number): Promise<string | null> {
+  if (!res.body) return null;
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
 }

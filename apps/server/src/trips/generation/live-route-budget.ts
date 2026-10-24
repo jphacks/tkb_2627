@@ -1,4 +1,4 @@
-import type { RouteProvider } from '@tkb/travel-data';
+import { PolicyError, type CallBudget, type RouteProvider } from '@tkb/travel-data';
 
 /**
  * Per-user daily budget of live Routes provider calls, shared by K05 and the A05 alternatives preview.
@@ -58,18 +58,26 @@ export function sharedUserRouteBudget(env: Readonly<Record<string, string | unde
 }
 
 /**
- * A RouteProvider that spends the user's daily budget before every call. When it is used up the pair comes back
- * unknown (`rate_limited`), never as an error, and `exhausted()` tells the caller to say so.
+ * A RouteProvider whose live calls are charged to the user's daily budget. The unit is taken inside the call that the
+ * global CallBudget has already admitted (quota and gate), so a request that never goes out costs the user nothing;
+ * a retry that goes out again is charged again. When the budget is used up the pair comes back unknown
+ * (`rate_limited`), never as an error, and `exhausted()` tells the caller to say so.
  */
 export function limitRoutesPerUser(routes: RouteProvider, userId: string, budget: UserRouteBudget): RouteProvider & { exhausted(): boolean } {
   let hit = false;
   return {
-    async route(request, callBudget) {
-      if (!budget.take(userId)) {
-        hit = true;
-        return { leg: null, reason: 'rate_limited' };
-      }
-      return routes.route(request, callBudget);
+    route(request, callBudget) {
+      const charged = {
+        run: <T>(sku: string, key: string, call: (signal: AbortSignal) => Promise<T>) =>
+          callBudget.run(sku, key, async signal => {
+            if (!budget.take(userId)) {
+              hit = true;
+              throw new PolicyError('PROVIDER_RATE_LIMIT', 'daily live route budget used up', false);
+            }
+            return call(signal);
+          }),
+      } as unknown as CallBudget;
+      return routes.route(request, charged);
     },
     exhausted: () => hit,
   };

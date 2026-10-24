@@ -255,8 +255,10 @@ function segmentsOf(ctx: PlanContext, days: TripDay[], dayIdx: number[]): Affect
   // Compared as edited (before re-timing): an activity that only shifted in time is not itself a changed endpoint.
   const editedById = new Map(ctx.edited.days.flatMap(d => acts(d)).map(a => [a.activityId, json(a)]));
   for (const di of dayIdx) {
-    const order = acts(days[di]!);
-    const beforePairs = new Set(acts(ctx.base.days[di]!).slice(1).map((a, i) => `${acts(ctx.base.days[di]!)[i]!.activityId}>${a.activityId}`));
+    const live = (d: TripDay) => acts(d).filter(a => a.status !== 'skipped');
+    const order = live(days[di]!);
+    const beforeOrder = live(ctx.base.days[di]!);
+    const beforePairs = new Set(beforeOrder.slice(1).map((a, i) => `${beforeOrder[i]!.activityId}>${a.activityId}`));
     const items = days[di]!.items;
     for (let i = 1; i < order.length; i++) {
       const a = order[i - 1]!;
@@ -309,17 +311,27 @@ interface DayBuild2 {
 
 const dayModeOf = (ctx: PlanContext, di: number): TravelLeg['mode'] => ctx.base.constraints.transportModeByDate?.[ctx.base.days[di]!.date] ?? ctx.base.constraints.transportMode;
 
-/** Legs to fetch for a shift-only day: every consecutive activity pair with two different places. */
+/**
+ * Legs to fetch for a shift-only day: between consecutive non-skipped activities, and from the last timed activity
+ * to the next one when untimed ones sit between (reachability is checked from the last timed stop).
+ */
 async function prefetchShift(ctx: PlanContext, di: number, order: Activity[]): Promise<void> {
   const day = ctx.base.days[di]!;
   const mode = dayModeOf(ctx, di);
   const fallback = fromLocal(day.date, '09:00', day.timeZone);
   const dep0 = fallback.kind === 'exact' ? fallback.utc : `${day.date}T00:00:00Z`;
-  for (let i = 1; i < order.length; i++) {
-    const a = order[i - 1]!;
-    const b = order[i]!;
-    if (!a.placeId || !b.placeId || a.placeId === b.placeId) continue;
+  const pair = async (a: Activity, b: Activity) => {
+    if (!a.placeId || !b.placeId || a.placeId === b.placeId) return;
     await ctx.book.ensure(a.placeId, b.placeId, legModeFor(ctx.places.get(a.placeId), ctx.places.get(b.placeId), mode), a.end?.utc ?? b.start?.utc ?? dep0);
+  };
+  let prev: Activity | null = null;
+  let lastTimed: Activity | null = null;
+  for (const a of order) {
+    if (a.status === 'skipped') continue;
+    if (prev) await pair(prev, a);
+    if (lastTimed && lastTimed !== prev) await pair(lastTimed, a);
+    prev = a;
+    if (a.end) lastTimed = a;
   }
 }
 
@@ -340,7 +352,9 @@ function shiftDay(ctx: PlanContext, di: number, order: Activity[]): DayBuild2 {
   let excluded = 0;
   let travelSeconds = 0;
   let broken = false;
-  let prev: Activity | null = null;
+  let prev: Activity | null = null; // previous non-skipped activity (legs attach to it)
+  let lastTimed: Activity | null = null; // last non-skipped activity that has times (reachability is measured from it)
+  let pendingSkipped: Activity[] = [];
   const untime = (a: Activity, why: ExclusionReason | 'cascade'): Activity => {
     const w = warnFor(a, why);
     if (w) {
@@ -350,7 +364,12 @@ function shiftDay(ctx: PlanContext, di: number, order: Activity[]): DayBuild2 {
     excluded += 1;
     return { ...a, start: null, end: null };
   };
-  for (const a of order) {
+  const anchored = (a: Activity) => a.status !== 'skipped' && (a.fixed || a.status === 'completed') && a.start !== null && a.end !== null;
+  for (const [idx, a] of order.entries()) {
+    if (a.status === 'skipped') {
+      pendingSkipped.push(a); // kept verbatim, no legs to or from it
+      continue;
+    }
     let final: Activity = a;
     let leg: ItineraryItem | null = null;
     const needTravel = prev !== null && prev.placeId !== null && a.placeId !== null && prev.placeId !== a.placeId;
@@ -359,14 +378,18 @@ function shiftDay(ctx: PlanContext, di: number, order: Activity[]): DayBuild2 {
       travel = ctx.book.get(prev.placeId!, a.placeId!, legModeFor(ctx.places.get(prev.placeId!), ctx.places.get(a.placeId!), mode));
     }
     const movable = a.status === 'planned' && !a.fixed && a.start !== null && a.end !== null;
-    if (prev && movable) {
-      const prevEnd = prev.end ? Date.parse(prev.end.utc) : null;
+    if (anchored(a)) {
+      broken = false; // an anchor keeps its time: resume from its end
+    } else if (movable && lastTimed) {
+      const ref = lastTimed;
+      const refNeeds = ref.placeId !== null && a.placeId !== null && ref.placeId !== a.placeId;
+      const refTravel = ref === prev ? travel : refNeeds ? ctx.book.get(ref.placeId!, a.placeId!, legModeFor(ctx.places.get(ref.placeId!), ctx.places.get(a.placeId!), mode)) : null;
       if (broken) final = untime(a, 'cascade');
-      else if (needTravel && travel === null) {
+      else if (refNeeds && refTravel === null) {
         final = untime(a, 'travel_unknown');
         broken = true;
-      } else if (prevEnd !== null) {
-        const earliest = prevEnd + (travel ? (travel.durationSeconds ?? 0) * 1000 : 0);
+      } else {
+        const earliest = Date.parse(ref.end!.utc) + (refTravel ? (refTravel.durationSeconds ?? 0) * 1000 : 0);
         const s = Date.parse(a.start!.utc);
         if (s < earliest) {
           const e = earliest + (Date.parse(a.end!.utc) - s);
@@ -374,7 +397,8 @@ function shiftDay(ctx: PlanContext, di: number, order: Activity[]): DayBuild2 {
           const ranges = place ? parseOpeningHours(place.openingHours) : null;
           const ls = toLocal(msToZ(earliest, place?.timeZone ?? day.timeZone));
           const startMin = Number(ls.time.slice(0, 2)) * 60 + Number(ls.time.slice(3, 5));
-          if (toLocal(msToZ(e, day.timeZone)).date !== day.date) {
+          const nextAnchor = order.slice(idx + 1).find(anchored);
+          if (toLocal(msToZ(e, day.timeZone)).date !== day.date || (nextAnchor && e > Date.parse(nextAnchor.start!.utc))) {
             final = untime(a, 'does_not_fit');
             broken = true;
           } else if (ranges && !fitsOpeningHours(ranges, startMin, startMin + Math.round((e - earliest) / 60000))) {
@@ -398,9 +422,12 @@ function shiftDay(ctx: PlanContext, di: number, order: Activity[]): DayBuild2 {
       if (leg?.type === 'leg') travelSeconds += leg.durationSeconds ?? 0;
     }
     if (leg) items.push(leg);
-    items.push(final);
+    items.push(...pendingSkipped, final);
+    pendingSkipped = [];
     prev = final;
+    if (final.end) lastTimed = final;
   }
+  items.push(...pendingSkipped);
   return { items, warnings, unknown, excluded, travelSeconds };
 }
 

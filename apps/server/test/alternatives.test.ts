@@ -550,3 +550,64 @@ describe('per-user daily live route budget, shared by K05 and A05 (B2)', () => {
     expect(urls).toHaveLength(3);
   });
 });
+
+describe('A05 shift-only edge cases (B5, anchors, untimed stops)', () => {
+  it('a skipped activity is kept verbatim, gets no legs, and does not hide the real previous stop', async () => {
+    const items = [act('a1', 1, 0, 50), act('s', 5, 60, 110, { status: 'skipped' }), act('a3', 2, 120, 170)];
+    const { preview } = mini(mkTrip(items));
+    const c = (await preview([{ op: 'update', itemId: 'a1', item: act('a1', 1, 0, 40) }])).candidates[0]!;
+    const day = c.trip.days[0]!.items as any[];
+    expect(day.find(i => i.activityId === 's')).toEqual(items[1]);
+    const legs = day.filter(i => i.type === 'leg');
+    expect(legs.map(l => [l.fromPlaceId, l.toPlaceId])).toEqual([['P1', 'P2']]);
+    expect(acts(c.trip).find(a => a.activityId === 'a3').start).toEqual(at(120));
+    expect(c.affectedSegments.every(s => s.fromItemId !== 's' && s.toItemId !== 's')).toBe(true);
+    // reachability is measured from a1, not from the skipped stop: pushing a1 later pushes a3
+    const late = (await preview([{ op: 'update', itemId: 'a1', item: act('a1', 1, 0, 115) }])).candidates[0]!;
+    expect(startMin(acts(late.trip).find(a => a.activityId === 'a3'))).toBe(125);
+  });
+
+  it('a pushed stop that would run into the next fixed activity becomes untimed (does not fit)', async () => {
+    const items = [act('a1', 1, 0, 50), act('a2', 2, 60, 110), act('f', 3, 120, 170, { fixed: true })];
+    const { preview } = mini(mkTrip(items));
+    const c = (await preview([{ op: 'update', itemId: 'a2', item: act('a2', 5, 60, 110) }])).candidates[0]!;
+    expect(acts(c.trip).find(a => a.activityId === 'a2')).toMatchObject({ start: null, end: null });
+    expect(acts(c.trip).find(a => a.activityId === 'f').start).toEqual(at(120));
+    expect(c.warnings.some(w => w.includes('a2') && w.includes('収まらない'))).toBe(true);
+  });
+
+  it('after an untimed stop, reachability is checked from the last timed stop', async () => {
+    const items = [act('a1', 1, 0, 50), act('u', 3, null, null), act('a3', 2, 55, 100)];
+    const { preview } = mini(mkTrip(items));
+    const c = (await preview([{ op: 'update', itemId: 'a1', item: act('a1', 1, 0, 60) }])).candidates[0]!;
+    expect(startMin(acts(c.trip).find(a => a.activityId === 'a3'))).toBe(70); // 60 + 10 min ride P1 -> P2
+    expect(acts(c.trip).find(a => a.activityId === 'u')).toMatchObject({ start: null, end: null });
+  });
+
+  it('a fixed activity ends the untimed chain: later stops resume from its end', async () => {
+    const items = [act('a1', 1, 0, 50), act('a2', 7, 60, 110), act('f', 3, 150, 200, { fixed: true }), act('a4', 2, 210, 260)];
+    const { preview } = mini(mkTrip(items));
+    const c = (await preview([{ op: 'update', itemId: 'a1', item: act('a1', 1, 0, 55) }])).candidates[0]!;
+    expect(acts(c.trip).find(a => a.activityId === 'a2')).toMatchObject({ start: null, end: null });
+    expect(acts(c.trip).find(a => a.activityId === 'a4').start).toEqual(at(210));
+    expect(c.warnings.some(w => w.includes('a4'))).toBe(false);
+  });
+});
+
+describe('per-user budget is charged only when the call goes out (O-c)', () => {
+  it('a call the global CallBudget refuses costs the user nothing; one that goes out costs one unit', async () => {
+    const { CallBudget, DailyQuota, Gate } = await import('@tkb/travel-data');
+    const { limitRoutesPerUser } = await import('../src/trips/generation/live-route-budget.ts');
+    const budget = createUserRouteBudget({ perDay: 5 });
+    const inner: RouteProvider = { route: async (_r, b) => ({ leg: (await b.run('sku', 'k', async () => legOf(1, 2, 600))) as TravelLeg, reason: null }) };
+    const wrapped = limitRoutesPerUser(inner, 'u1', budget);
+    const req = { from: place(1), to: place(2), departureUtc: '2026-11-01T00:00:00Z', mode: 'car' } as never;
+    const none = new CallBudget({ maxCalls: 0, quota: new DailyQuota({ sku: 10 }), gate: new Gate(1) });
+    await expect(wrapped.route(req, none)).rejects.toMatchObject({ code: 'PROVIDER_RATE_LIMIT' });
+    expect(budget.remaining('u1')).toBe(5);
+    const one = new CallBudget({ maxCalls: 1, quota: new DailyQuota({ sku: 10 }), gate: new Gate(1) });
+    expect((await wrapped.route(req, one)).leg).not.toBeNull();
+    expect(budget.remaining('u1')).toBe(4);
+    expect(wrapped.exhausted()).toBe(false);
+  });
+});

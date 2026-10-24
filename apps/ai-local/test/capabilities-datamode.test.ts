@@ -55,6 +55,21 @@ describe('/local/v1/capabilities dataMode comes from the shared server', () => {
     expect(await mode()).toBe('live');
   });
 
+  it('stops reading a streamed body beyond 64 KB, and a failure is remembered only after it happened', async () => {
+    let reads = 0;
+    const stream = new ReadableStream<Uint8Array>({ pull(c) { reads += 1; c.enqueue(new Uint8Array(20_000)); } });
+    const client = createCapabilitiesClient({ baseUrl: 'http://shared.test', fetch: async () => new Response(stream, { status: 200 }) });
+    expect(await client.getDataMode()).toBeNull();
+    expect(reads).toBeLessThan(10);
+    let calls = 0;
+    let t = 0;
+    const ok = createCapabilitiesClient({ baseUrl: 'http://shared.test', fetch: async () => (calls++, upstream('live')), now: () => t, ttlMs: 1 });
+    expect(await ok.getDataMode()).toBe('live');
+    t += 5;
+    expect(await ok.getDataMode()).toBe('live');
+    expect(calls).toBe(2); // no negative cache after a success
+  });
+
   it('refuses an oversized answer (64 KB cap)', async () => {
     const big = new Response(JSON.stringify({ pad: 'x'.repeat(70_000) }), { status: 200 });
     const client = createCapabilitiesClient({ baseUrl: 'http://shared.test', fetch: async () => big });
