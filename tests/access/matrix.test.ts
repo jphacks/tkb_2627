@@ -10,12 +10,27 @@ import {
 afterAll(closeAll);
 const cells = ACTORS.flatMap((who) => VIS.map((v) => [who, v] as [Actor, Vis]));
 const denyStatus = (who: Actor) => (who === 'anon' ? 401 : 404);
+/** Posts each actor may see per feed scope (owner A published private, group and public posts). */
+const expectIds = (who: Actor, scope: 'public' | 'groups' | 'mine'): Vis[] => {
+  if (scope === 'public') return ['public'];
+  if (who === 'anon') return [];
+  if (scope === 'mine') return who === 'owner' ? ['public', 'group', 'private'] : [];
+  return who === 'owner' || who === 'member' ? ['group'] : [];
+};
+const srcTrip = (w: World) => JSON.stringify([
+  w.db.prepare('SELECT * FROM trips WHERE id = ?').all('trip_acc_a'),
+  w.db.prepare('SELECT * FROM trip_versions WHERE trip_id = ?').all('trip_acc_a'),
+]);
 const dump = (w: World) => JSON.stringify([
   w.db.prepare('SELECT * FROM posts ORDER BY id').all(),
   w.db.prepare('SELECT * FROM post_snapshots ORDER BY 1').all(),
   w.db.prepare('SELECT * FROM trips ORDER BY id').all(),
   w.db.prepare('SELECT * FROM trip_versions ORDER BY 1,2').all(),
   w.db.prepare('SELECT * FROM group_members ORDER BY 1,2').all(),
+  w.db.prepare('SELECT * FROM groups ORDER BY 1').all(),
+  w.db.prepare('SELECT * FROM group_invites ORDER BY 1').all(),
+  w.db.prepare('SELECT * FROM post_previews ORDER BY 1').all(),
+  w.db.prepare('SELECT * FROM plan_batches ORDER BY 1').all(),
 ]);
 
 describe('read-only matrix on one shared world', () => {
@@ -34,6 +49,7 @@ describe('read-only matrix on one shared world', () => {
       } else {
         // Not visible == not found, also for anonymous (K14); body carries nothing of the post.
         expect(res.statusCode).toBe(404);
+        expect(res.headers['cache-control']).toBe('no-store');
         for (const bad of ['STORY-', 'TITLE-A', ...LEAKS('A')]) expect(res.body).not.toContain(bad);
         const ghost = await call(w.app, w.actors[who], 'GET', '/api/v1/posts/post_does_not_exist');
         expect(stripReq(res)).toEqual(stripReq(ghost));
@@ -42,12 +58,6 @@ describe('read-only matrix on one shared world', () => {
   });
 
   describe('feed: actor x scope never lists posts the actor cannot read', () => {
-    const expectIds = (who: Actor, scope: 'public' | 'groups' | 'mine'): Vis[] => {
-      if (scope === 'public') return ['public'];
-      if (who === 'anon') return [];
-      if (scope === 'mine') return who === 'owner' ? ['public', 'group', 'private'] : [];
-      return who === 'owner' || who === 'member' ? ['group'] : [];
-    };
     it.each(ACTORS.flatMap((who) => (['public', 'groups', 'mine'] as const).map((s) => [who, s] as const)))(
       '%s scope=%s',
       async (who, scope) => {
@@ -57,6 +67,7 @@ describe('read-only matrix on one shared world', () => {
           return;
         }
         expect(res.statusCode).toBe(200);
+        expect(res.headers['cache-control']).toBe('no-store');
         const got = (res.json().items as { postId: string }[]).map((i) => i.postId).sort();
         expect(got).toEqual(expectIds(who, scope).map((v) => w.posts[v].postId).sort());
         for (const v of VIS) {
@@ -80,9 +91,7 @@ describe('read-only matrix on one shared world', () => {
           // A cursor must not be a side channel: it never embeds an unreadable post's story.
           expect(Buffer.from(cursor, 'base64url').toString('utf8')).not.toContain('STORY-');
         }
-        for (const v of VIS) {
-          if (seen.includes(w.posts[v].postId)) expect(scope === 'mine' ? who === 'owner' : canRead(v, who)).toBe(true);
-        }
+        expect(seen.sort(), `${who} ${scope}`).toEqual(expectIds(who, scope as 'public' | 'groups' | 'mine').map((v) => w.posts[v].postId).sort());
       }
     });
   });
@@ -204,12 +213,17 @@ describe('mutating matrix, fresh world per cell (state must be unchanged on ever
     it.each(cells)('%s copies %s post', async (who, v) => {
       const w = await makeWorld();
       const before = dump(w);
+      const srcBefore = srcTrip(w);
       const res = await call(w.app, w.actors[who], 'POST', `/api/v1/posts/${w.posts[v].postId}/copy`, REQ);
       if (who === 'anon') {
         expect(res.statusCode).toBe(401);
       } else if (canRead(v, who)) {
         expect(res.statusCode).toBe(201);
         expect(res.json().ownerId).toBe(`user_${{ owner: 'a', member: 'b', other: 'c', removed: 'd' }[who]}`);
+        expect(res.json().revision).toBe(1);
+        expect(res.json().validationState).toBe('needs_revalidation');
+        // The source trip (rows and versions) is byte-identical after the copy.
+        expect(srcTrip(w)).toBe(srcBefore);
         // The copy is visible to its new owner and to nobody else.
         const copied = await call(w.app, w.actors[who], 'GET', `/api/v1/trips/${res.json().tripId}`);
         expect(copied.statusCode).toBe(200);
@@ -245,12 +259,11 @@ describe('mutating matrix, fresh world per cell (state must be unchanged on ever
       for (const who of ['member', 'other', 'removed'] as const) {
         const made = await call(w.app, w.actors[who], 'POST', '/api/v1/plan-batches', batchBody);
         const before = dump(w);
-        if (made.statusCode === 201) {
-          const r = await call(w.app, w.actors[who], 'POST', '/api/v1/trips/apply-candidate', { batchId: made.json().batchId, candidateId: 'c1', tripId: w.tripA.tripId, expectedRevision: 1 });
-          expect(r.statusCode, who).toBe(404);
-        } else {
-          expect([404, 422], who).toContain(made.statusCode);
-        }
+        // Pointing a batch at somebody else's trip is refused up front (404, indistinguishable from a missing trip),
+        // so a foreign trip can never be reached through apply-candidate.
+        expect(made.statusCode, who).toBe(404);
+        const ghost = await call(w.app, w.actors[who], 'POST', '/api/v1/plan-batches', { ...batchBody, baseTripId: 'trip_nope', generationId: 'gen_acc_y' });
+        expect(stripReq(made)).toEqual(stripReq(ghost));
         expect(dump(w), who).toBe(before);
         expect(JSON.stringify((await call(w.app, w.actors.owner, 'GET', `/api/v1/trips/${w.tripA.tripId}`)).json())).not.toContain('EVIL');
       }
@@ -292,10 +305,12 @@ describe('mutating matrix, fresh world per cell (state must be unchanged on ever
       const res = await call(w.app, w.actors[who], 'POST', `/api/v1/groups/${w.gid}/invites`, { inviteeId: 'user_c' });
       const want = who === 'owner' ? 201 : who === 'member' ? 403 : who === 'anon' ? 401 : 404;
       expect(res.statusCode).toBe(want);
-      if (want !== 201) expect(res.body).not.toContain('invite#');
-      expect(dump(w)).toBe(before);
+      if (want !== 201) {
+        expect(res.body).not.toContain('invite#');
+        expect(dump(w)).toBe(before);
+      }
     });
-    it('invite addressed to C cannot be accepted by anybody else; anonymous gets 401; expired state unchanged', async () => {
+    it('invite addressed to C cannot be accepted by anybody else; anonymous gets 401; state unchanged until C accepts', async () => {
       const w = await makeWorld();
       const inv = await call(w.app, w.actors.owner, 'POST', `/api/v1/groups/${w.gid}/invites`, { inviteeId: 'user_c' });
       const token = (inv.json().inviteUrl as string).split('#')[1];
@@ -315,7 +330,8 @@ describe('mutating matrix, fresh world per cell (state must be unchanged on ever
       const token = (inv.json().inviteUrl as string).split('#')[1];
       expect((await call(w.app, w.actors.owner, 'DELETE', `/api/v1/groups/${w.gid}/members/user_b`)).statusCode).toBe(204);
       const res = await call(w.app, w.actors.member, 'POST', '/api/v1/group-invites/accept', { token });
-      expect(res.statusCode).toBeGreaterThanOrEqual(400);
+      // The invite was voided at removal time (consumed): ALREADY_COMMITTED (409); the user stays out.
+      expect(res.statusCode).toBe(409);
       expect((await call(w.app, w.actors.member, 'GET', `/api/v1/posts/${w.posts.group.postId}`)).statusCode).toBe(404);
     });
     it.each(ACTORS.map((x) => [x]))('%s removes member B', async (who) => {
@@ -362,6 +378,34 @@ describe('mutating matrix, fresh world per cell (state must be unchanged on ever
       expect(r.statusCode).toBe(200);
       expect((await call(w.app, w.actors.member, 'GET', url)).statusCode).toBe(404);
       expect((await call(w.app, w.actors.member, 'GET', '/api/v1/posts?scope=groups')).json().items).toEqual([]);
+      const back = await call(w.app, w.actors.owner, 'PATCH', url, { expectedPostRevision: 2, visibility: 'group', groupId: w.gid });
+      expect(back.statusCode).toBe(200);
+      expect((await call(w.app, w.actors.member, 'GET', url)).statusCode).toBe(200);
+      expect((await call(w.app, w.actors.removed, 'GET', url)).statusCode).toBe(404);
+    });
+  });
+
+  describe('group listing and logout', () => {
+    it('GET /groups shows the group only to current members', async () => {
+      const w = await makeWorld();
+      for (const who of ['owner', 'member'] as const) {
+        const res = await call(w.app, w.actors[who], 'GET', '/api/v1/groups');
+        expect((res.json() as { groupId: string }[]).map((g) => g.groupId)).toContain(w.gid);
+      }
+      for (const who of ['other', 'removed'] as const) {
+        const res = await call(w.app, w.actors[who], 'GET', '/api/v1/groups');
+        expect(res.statusCode).toBe(200);
+        expect(res.body).not.toContain(w.gid);
+      }
+    });
+    it('after logout the old session is 401 everywhere and group posts are no longer readable with it', async () => {
+      const w = await makeWorld();
+      const b = w.actors.member!;
+      expect((await call(w.app, b, 'POST', '/api/v1/auth/logout')).statusCode).toBe(204);
+      expect((await call(w.app, b, 'GET', '/api/v1/trips')).statusCode).toBe(401);
+      expect((await call(w.app, b, 'GET', '/api/v1/posts?scope=groups')).statusCode).toBe(401);
+      expect((await call(w.app, b, 'GET', `/api/v1/posts/${w.posts.group.postId}`)).statusCode).toBe(404);
+      expect((await call(w.app, b, 'POST', `/api/v1/posts/${w.posts.public.postId}/copy`, { newStartDate: '2027-03-10', timeZone: 'Asia/Tokyo' })).statusCode).toBe(401);
     });
   });
 
@@ -445,5 +489,27 @@ describe('two sessions of one user conflict on the same trip (acceptance scenari
     expect(now.title).toBe('FROM-SESSION-1');
     expect(now.revision).toBe(2);
     expect(r2.body).not.toContain('FROM-SESSION-2');
+  });
+
+  it('applying a candidate generated for revision 1 after the other session saved is 409 and leaves the trip as is', async () => {
+    const w = await makeWorld();
+    const { app, tripA } = w;
+    const s1 = w.actors.owner!;
+    const s2 = await login(app, 'user-a');
+    const url = `/api/v1/trips/${tripA.tripId}`;
+    const mk = await call(app, s2, 'POST', '/api/v1/plan-batches', {
+      schemaVersion: 1, baseTripId: tripA.tripId, baseRevision: 1, generationId: 'gen_acc_conflict',
+      candidates: [{ candidateId: 'c1', title: 'FROM-CANDIDATE', days: [{ date: '2026-11-01', timeZone: 'Asia/Tokyo', items: [] }], reasons: [], warnings: [], excludedPlaceIds: [], totalKnownCost: [], hasUnknownCost: false, validationState: 'needs_review' }],
+      places: [], constraints: { area: 'Kyoto', startDate: '2026-11-01', endDate: '2026-11-01', timeZone: 'Asia/Tokyo', transportMode: 'transit' },
+    });
+    expect(mk.statusCode).toBe(201);
+    expect((await call(app, s1, 'PATCH', url, { expectedRevision: 1, operations: [{ op: 'set_title', title: 'FROM-SESSION-1' }] })).statusCode).toBe(200);
+    const mid = JSON.stringify((await call(app, s1, 'GET', url)).json());
+    const rows = dump(w);
+    const res = await call(app, s2, 'POST', '/api/v1/trips/apply-candidate', { batchId: mk.json().batchId, candidateId: 'c1', tripId: tripA.tripId, expectedRevision: 1 });
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toMatchObject({ code: 'REVISION_CONFLICT' });
+    expect(JSON.stringify((await call(app, s2, 'GET', url)).json())).toBe(mid);
+    expect(dump(w)).toBe(rows);
   });
 });
