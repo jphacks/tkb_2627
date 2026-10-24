@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Id, JobStatus, type ErrorCode, type JobStage, type JobState } from '@tkb/contracts';
 
@@ -68,16 +68,20 @@ export class FileJobStore implements JobStore {
   readonly secret: Buffer;
   constructor(baseDir: string) {
     this.dir = join(baseDir, 'jobs');
-    mkdirSync(baseDir, { recursive: true, mode: 0o700 });
+    // Only our own subdirectory and secret file are chmod'ed; the user-provided base dir is left alone.
     mkdirSync(this.dir, { recursive: true, mode: 0o700 });
-    chmodSync(baseDir, 0o700);
     chmodSync(this.dir, 0o700);
     const sf = join(baseDir, 'secret');
     if (!existsSync(sf)) {
+      // Write to a private tmp file, then link: the secret appears atomically and complete (EEXIST = lost the race).
+      const tmp = `${sf}.${process.pid}.tmp`;
+      writeFileSync(tmp, randomBytes(32).toString('hex'), { mode: 0o600 });
       try {
-        writeFileSync(sf, randomBytes(32).toString('hex'), { mode: 0o600, flag: 'wx' });
+        linkSync(tmp, sf);
       } catch {
         /* created concurrently */
+      } finally {
+        rmSync(tmp, { force: true });
       }
     }
     chmodSync(sf, 0o600);

@@ -71,6 +71,8 @@ export interface JobManagerOptions {
   save?: (ctx: SaveContext) => Promise<{ batchId: string }>;
   /** Upper bound for one save call (default 60s). On expiry findSavedBatch is consulted before failing. */
   saveTimeoutMs?: number;
+  /** Upper bound for one findSavedBatch call (default 10s); expiry counts as a failed lookup. */
+  lookupTimeoutMs?: number;
 }
 
 export interface SaveContext {
@@ -173,12 +175,21 @@ export class JobManager {
   }
 
   private async lookup(job: Job): Promise<{ batch: string | null; lookupFailed: boolean }> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const b = (await this.o.findSavedBatch?.(job.ownerId, job.operationKey)) ?? null;
+      const call = Promise.resolve(this.o.findSavedBatch?.(job.ownerId, job.operationKey) ?? null);
+      call.catch(() => {});
+      const timeout = new Promise<never>((_, rej) => {
+        timer = setTimeout(() => rej(new Error('lookup timeout')), this.o.lookupTimeoutMs ?? 10_000);
+        timer.unref();
+      });
+      const b = await Promise.race([call, timeout]);
       if (b === null) return { batch: null, lookupFailed: false };
       return Id.safeParse(b).success ? { batch: b, lookupFailed: false } : { batch: null, lookupFailed: true };
     } catch {
       return { batch: null, lookupFailed: true };
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -326,10 +337,12 @@ export class JobManager {
         job.batchId = batch;
         return this.set(job, 'succeeded', 'done');
       }
+      if (job.ctl.signal.aborted) return this.set(job, 'failed', job.stage, this.err(job, 'CLI_TIMEOUT', 'The generator timed out.', true));
     }
     this.set(job, 'running', 'generating');
     // Race against abort so a runner that ignores the signal cannot block the queue.
     const aborted = new Promise<never>((_, reject) => {
+      if (job.ctl.signal.aborted) return reject(new DOMException('aborted', 'AbortError'));
       job.ctl.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
     });
     aborted.catch(() => {});

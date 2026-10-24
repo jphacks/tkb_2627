@@ -71,7 +71,7 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
     store: opts.jobStore ?? (config.jobDir ? new FileJobStore(config.jobDir) : undefined),
     findSavedBatch: opts.findSavedBatch,
     save: opts.save,
-    saveTimeoutMs: config.cliTimeoutMs,
+    saveTimeoutMs: config.saveTimeoutMs,
   });
   const sessionOf = (req: FastifyRequest): LocalSession | null =>
     sessions.get(parseCookies(req.headers.cookie)[SESSION_COOKIE]);

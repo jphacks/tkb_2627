@@ -407,7 +407,32 @@ describe('HTTP mapping', () => {
   });
 });
 
+describe('R1/R2 lookups', () => {
+  it('R1: deadline during the pre-generate lookup fails CLI_TIMEOUT and the queue drains', async () => {
+    const store = new MemoryJobStore();
+    accept(mk({ store }).submit('u1', 'key-00000001', 'f1', input));
+    const m = mk({ store, runner: never, timeoutMs: 40, findSavedBatch: async () => (await new Promise(r => setTimeout(r, 150)), null) });
+    await m.ready;
+    const b = accept(m.submit('u1', 'key-00000001', 'f1', input));
+    const c = accept(m.submit('u1', 'key-00000002', 'f2', input));
+    await until(() => m.status('u1', b)?.state === 'failed');
+    expect(m.status('u1', b)?.error).toMatchObject({ code: 'CLI_TIMEOUT', retryable: true });
+    await until(() => m.status('u1', c)?.state === 'failed');
+  });
+  it('R2: a hanging findSavedBatch cannot block recovery', async () => {
+    const store = new MemoryJobStore();
+    const a = accept(mk({ store }).submit('u1', 'key-00000001', 'f1', input));
+    const m = mk({ store, lookupTimeoutMs: 30, findSavedBatch: () => new Promise(() => {}) });
+    await m.ready;
+    expect(m.status('u1', a)?.error?.code).toBe('WORKER_RESTARTED');
+  });
+});
+
 describe('config', () => {
+  it('saveTimeoutMs from AI_SAVE_TIMEOUT_SECONDS (default 60s)', () => {
+    expect(loadConfig({ PERSONAL_OWNER_USER_ID: 'u1' }).saveTimeoutMs).toBe(60_000);
+    expect(loadConfig({ PERSONAL_OWNER_USER_ID: 'u1', AI_SAVE_TIMEOUT_SECONDS: '5' }).saveTimeoutMs).toBe(5000);
+  });
   it('AI_JOB_DIR is optional', () => {
     expect(loadConfig({ PERSONAL_OWNER_USER_ID: 'u1' }).jobDir).toBeNull();
     expect(loadConfig({ PERSONAL_OWNER_USER_ID: 'u1', AI_JOB_DIR: '/x/y' }).jobDir).toBe('/x/y');
@@ -430,7 +455,6 @@ describe('file journal hardening', () => {
     expect(names).toContain('bogus.json.corrupt');
     expect(names).toContain('junk.json.corrupt');
     expect(names.some(n => n.endsWith('.tmp'))).toBe(false);
-    expect(statSync(dir).mode & 0o777).toBe(0o700);
     expect(statSync(jd).mode & 0o777).toBe(0o700);
     expect(statSync(join(jd, `${a}.json`)).mode & 0o777).toBe(0o600);
     expect(statSync(join(dir, 'secret')).mode & 0o777).toBe(0o600);
