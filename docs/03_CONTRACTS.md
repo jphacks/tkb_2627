@@ -70,7 +70,7 @@
 ```json
 {
   "state": "succeeded",
-  "stage": "saved",
+  "stage": "done",
   "batchId": "batch_example",
   "error": null
 }
@@ -800,6 +800,7 @@ job: queued→running→succeeded/failed/cancelled。succeededは候補の共通
 - **K21**（A02、A03）：
   - キュー待ちと実行中のjobの取消は202 `cancelled`を返します。
   - 終了済みのjobには200で現在の状態を返し、保存済みならbatchIdも返します。
+  - 成功済み（succeeded）の取消は200でstateとbatchIdを返します。
   - 保存中の取消と、再起動後に前回の結果を確認している途中の取消は409です。結果が確定していないため、batchIdは返しません。
   - 保存が確定したか分からない失敗（`WORKER_RESTARTED`、保存中以降の失敗、前回結果の確認が終わっていないもの）は、同じIdempotency-Keyで再送します。サーバーは、保存済みの結果がないかを確認してから再試行します。operation keyが同じなので、重複して保存されません。
   - それ以外の失敗は、同じキーで再送すると同じjobの結果が返ります。生成をやり直すときは新しいキーを使います。
