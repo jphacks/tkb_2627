@@ -21,12 +21,16 @@ describe('validateSchedule on B04 fixtures', () => {
     const r = check(domesticTrip);
     expect(r).toMatchObject({ feasible: true, validationState: 'needs_review', dataMode: 'fixture' });
     expect(r.issues.map(i => [i.code, i.refs[0]])).toEqual([
+      ['travel_time_unknown', 'fx_leg_k1'],
+      ['opening_hours_unknown', 'fx_act_castle'],
       ['opening_hours_unknown', 'fx_act_museum'],
-      ['travel_time_unknown', 'fx_leg_3'],
-      ['opening_hours_unknown', 'fx_act_lunch'],
-      ['leg_missing', 'fx_act_lunch'],
-      // A walk leg without a fare is an unknown cost too (D05 summarizeTripCosts), never 0.
-      ['budget_unverified', 'fx_leg_2'],
+      ['opening_hours_unknown', 'fx_act_dinner'],
+      ['time_unknown', 'fx_act_hotel'],
+      ['opening_hours_unknown', 'fx_act_oyama'],
+      ['opening_hours_unknown', 'fx_act_nagamachi'],
+      ['time_unknown', 'fx_act_station_end'],
+      // Walk legs without a fare and activities without a cost are unknown costs too (D05 summarizeTripCosts), never 0.
+      ['budget_unverified', 'fx_act_station'],
     ]);
   });
 
@@ -42,7 +46,7 @@ describe('validateSchedule on B04 fixtures', () => {
     // 17:30-19:00 JST, garden is open 7:00-18:00 in the fixture.
     kenrokuen.start = { utc: '2026-11-01T08:30:00Z', timeZone: 'Asia/Tokyo' };
     kenrokuen.end = { utc: '2026-11-01T10:00:00Z', timeZone: 'Asia/Tokyo' };
-    trip.days[0]!.items = trip.days[0]!.items.slice(0, 2);
+    trip.days[0]!.items = trip.days[0]!.items.filter(i => i.type === 'activity' && i.activityId === 'fx_act_kenrokuen');
     const r = check(trip);
     expect(r.feasible).toBe(false);
     expect(r.issues.filter(i => i.severity === 'violation').map(i => i.code)).toEqual(['outside_opening_hours']);
@@ -51,10 +55,10 @@ describe('validateSchedule on B04 fixtures', () => {
   it('detects a mock travel time that does not fit', () => {
     const trip = structuredClone(domesticTrip);
     // The walk to the museum now takes 30 minutes but the visit still starts 15 minutes after leaving.
-    Object.assign(find<TravelLeg>(trip, 'fx_leg_2'), { arrival: null, durationSeconds: 1800 });
+    Object.assign(find<TravelLeg>(trip, 'fx_leg_k4'), { arrival: null, durationSeconds: 1800 });
     const r = check(trip);
     expect(r.issues.filter(i => i.severity === 'violation')).toMatchObject([
-      { code: 'travel_time_insufficient', refs: ['fx_leg_2', 'fx_act_museum'], dayIndex: 0 },
+      { code: 'travel_time_insufficient', refs: ['fx_leg_k4', 'fx_act_museum'], dayIndex: 0 },
     ]);
   });
 
@@ -63,8 +67,18 @@ describe('validateSchedule on B04 fixtures', () => {
     const fixed = structuredClone(find<Activity>(domesticTrip, 'fx_act_lunch'));
     trip.days[0]!.items = trip.days[0]!.items.filter(i => i.type === 'activity' && i.activityId !== 'fx_act_kenrokuen');
     const lunch = find<Activity>(trip, 'fx_act_lunch');
-    lunch.start = { utc: '2026-11-01T05:00:00Z', timeZone: 'Asia/Tokyo' };
+    lunch.start = { utc: '2026-11-01T02:45:00Z', timeZone: 'Asia/Tokyo' };
     const r = validateSchedule({ days: trip.days, places: trip.places, constraints: trip.constraints, fixedActivities: [fixed] });
     expect(r.issues.filter(i => i.severity === 'violation').map(i => i.code)).toEqual(['must_visit_missing', 'fixed_activity_changed']);
+  });
+});
+
+describe('validateSchedule: child activities (parentActivityId)', () => {
+  it('a child inside its parent window adds no overlap; one outside it is a violation', () => {
+    expect(check(domesticTrip).issues.some(i => i.code === 'overlap' || i.code === 'child_outside_parent')).toBe(false);
+    const trip = structuredClone(domesticTrip);
+    find<Activity>(trip, 'fx_act_lunch').end = { utc: '2026-11-01T04:00:00Z', timeZone: 'Asia/Tokyo' }; // 13:00, parent ends 12:30
+    const r = check(trip);
+    expect(r.issues.filter(i => i.severity === 'violation').map(i => i.code)).toEqual(['child_outside_parent']);
   });
 });

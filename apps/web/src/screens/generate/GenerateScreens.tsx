@@ -260,11 +260,13 @@ export function CompareView(p: CompareViewProps) {
   );
 }
 
-export function CompareScreen({ api, batchId, mapHrefFor, onBack }: {
+export function CompareScreen({ api, batchId, mapHrefFor, onBack, onBatchLoaded }: {
   api: GenerateFlowApi;
   batchId: string;
   mapHrefFor: (tripId: string) => string;
   onBack: () => void;
+  /** Called with the loaded batch (U04 preview under the form). */
+  onBatchLoaded?: (batch: PlanBatch) => void;
 }) {
   const [load, setLoad] = useState<BatchLoad>({ status: 'loading' });
   const [reloadKey, setReloadKey] = useState(0);
@@ -275,8 +277,13 @@ export function CompareScreen({ api, batchId, mapHrefFor, onBack }: {
   useEffect(() => {
     const ac = new AbortController();
     setLoad({ status: 'loading' });
-    void api.getBatch(batchId, ac.signal).then(result => { if (!ac.signal.aborted) setLoad({ status: 'done', result }); });
+    void api.getBatch(batchId, ac.signal).then(result => {
+      if (ac.signal.aborted) return;
+      setLoad({ status: 'done', result });
+      if (result.ok) onBatchLoaded?.(result.data);
+    });
     return () => ac.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the callback only reports the loaded batch
   }, [api, batchId, reloadKey]);
 
   const adopt = async (candidateId: string) => {

@@ -1,11 +1,11 @@
 // A04 step 4: blueprint -> K07 body. Deterministic planner + fixture facts; no network, no model.
 import { describe, expect, it } from 'vitest';
 import { PlanBatchCreate, PlanningContext, type Activity, type PlaceInfo, type PlanBlueprint, type TravelLeg, type TripConstraints } from '@tkb/contracts';
-import { domesticTrip, kanazawaPlaces } from '@tkb/fixtures';
+import { kanazawaPlaces, kanazawaRouteSamples } from '@tkb/fixtures';
 import { assembleBatch, consecutivePairs, STAY_ASSUMPTION_WARNING, UNTIMED_WARNING } from '../src/generation/assemble.ts';
 
 const nulled = (l: TravelLeg): TravelLeg => ({ ...l, departure: null, arrival: null });
-const fixtureLegs = domesticTrip.days.flatMap(d => d.items).filter((i): i is TravelLeg => i.type === 'leg').map(nulled);
+const fixtureLegs = kanazawaRouteSamples.map(nulled);
 const ctx = (): PlanningContext => ({ places: structuredClone(kanazawaPlaces), legs: structuredClone(fixtureLegs), unknown: [], dataMode: 'fixture' });
 const cons = (over: Partial<TripConstraints> = {}): TripConstraints => ({ area: '金沢', startDate: '2026-11-01', endDate: '2026-11-01', timeZone: 'Asia/Tokyo', transportMode: 'transit', ...over });
 const bp = (...cands: { id: string; order: string[]; extra?: object }[]): PlanBlueprint => ({

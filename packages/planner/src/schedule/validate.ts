@@ -29,6 +29,7 @@ export type ScheduleIssueCode =
   | 'outside_trip_dates'
   | 'meal_without_place'
   | 'free_walk_without_area'
+  | 'child_outside_parent'
   | 'must_visit_missing'
   | 'fixed_activity_missing'
   | 'fixed_activity_changed'
@@ -90,6 +91,7 @@ const VIOLATIONS: ReadonlySet<ScheduleIssueCode> = new Set([
   'outside_trip_dates',
   'meal_without_place',
   'free_walk_without_area',
+  'child_outside_parent',
   'must_visit_missing',
   'fixed_activity_missing',
   'fixed_activity_changed',
@@ -145,7 +147,24 @@ export function validateSchedule(input: ScheduleInput): ScheduleValidation {
       startPlaceId === null ? null : { ref: startPlaceId, placeId: startPlaceId, title: places.get(startPlaceId)?.name ?? startPlaceId };
     let legsSince: TravelLeg[] = [];
 
+    const dayActivities = new Map(day.items.flatMap(i => (i.type === 'activity' ? [[i.activityId, i] as const] : [])));
     for (const item of day.items) {
+      // A child activity (parentActivityId) happens inside its parent's window: it is not part of the top-level chronology.
+      const parent = item.type === 'activity' && item.parentActivityId ? dayActivities.get(item.parentActivityId) : undefined;
+      if (item.type === 'activity' && parent && item.status !== 'skipped') {
+        const cs = msOf(item.start);
+        const ce = msOf(item.end);
+        if (cs === null || ce === null) add('time_unknown', [item.activityId], dayIndex, `「${item.title}」の開始・終了時刻が未定のため検証できません。`);
+        if (cs !== null && ce !== null && ce < cs) add('end_before_start', [item.activityId], dayIndex, `${item.activityId} の終了が開始より前です。`);
+        const ps = msOf(parent.start);
+        const pe = msOf(parent.end);
+        if ((cs !== null && ps !== null && cs < ps) || (ce !== null && pe !== null && ce > pe)) {
+          add('child_outside_parent', [item.activityId, parent.activityId], dayIndex, `「${item.title}」が親の予定「${parent.title}」の時間帯に収まっていません。`);
+        }
+        if (item.kind === 'meal' && item.placeId === null) add('meal_without_place', [item.activityId], dayIndex, `食事「${item.title}」に店舗が指定されていません。`);
+        if (item.placeId !== null) usePlace(item.placeId, item.activityId, dayIndex);
+        continue;
+      }
       if (item.type === 'activity' && item.status === 'skipped') {
         // R12: dropping a fixed activity (a reservation) is allowed but must be visible.
         if (item.fixed) add('fixed_activity_skipped', [item.activityId], dayIndex, `固定予定「${item.title}」が取りやめになっています。`);

@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Post, PostSummary } from '@tkb/contracts';
 import { createUser, migrate, openDatabase } from '@tkb/db';
-import { domesticTrip, kanazawaPlaces } from '@tkb/fixtures';
+import { domesticTrip, kanazawaTripPlaces } from '@tkb/fixtures';
 import { backupDatabase, restoreDatabase } from '../../../packages/db/src/backup.ts';
 import { hashPassword } from '../../../apps/server/src/platform/auth/password.ts';
 import { createHttpSocialApi, type SocialApi, type SocialResult } from '../../../apps/web/src/screens/social/api.ts';
@@ -148,7 +148,7 @@ async function saveTrip(loginId: string): Promise<string> {
         hasUnknownCost: true,
         validationState: domesticTrip.validationState,
       }],
-      places: kanazawaPlaces,
+      places: kanazawaTripPlaces,
       constraints: domesticTrip.constraints,
     }),
   });

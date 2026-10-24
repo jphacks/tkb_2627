@@ -1,13 +1,13 @@
 // A04 step 4: collect (K05) and the model input. Pure functions with a fake ContextClient; no network.
 import { describe, expect, it } from 'vitest';
 import { GenerationInput, PlanningContext, type PlaceInfo, type PermittedFact, type TripConstraints } from '@tkb/contracts';
-import { domesticTrip, kanazawaPlaces } from '@tkb/fixtures';
+import { kanazawaPlaces, kanazawaRouteSamples } from '@tkb/fixtures';
 import { factsForModel } from '@tkb/travel-data';
 import { collectContext } from '../src/generation/collect.ts';
 import { toGenerationInput } from '../src/generation/input.ts';
 import type { ContextClient, ContextOutcome } from '../src/shared-client/index.ts';
 
-const legsOf = () => domesticTrip.days.flatMap(d => d.items).filter(i => i.type === 'leg');
+const legsOf = () => kanazawaRouteSamples;
 const fixtureCtx = (): PlanningContext => PlanningContext.parse({ places: structuredClone(kanazawaPlaces), legs: structuredClone(legsOf()), unknown: ['fare'], dataMode: 'fixture' });
 const constraints = (over: Partial<TripConstraints> = {}): TripConstraints => ({ area: '金沢', startDate: '2026-11-01', endDate: '2026-11-02', timeZone: 'Asia/Tokyo', transportMode: 'transit', ...over });
 const client = (out: ContextOutcome, seen: unknown[] = []): ContextClient => ({ getPlanningContext: async (_s, body) => (seen.push(body), out) });
