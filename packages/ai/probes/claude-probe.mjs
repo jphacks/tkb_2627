@@ -27,19 +27,32 @@ const SCHEMA = {
   additionalProperties: false,
 };
 
-/** shell:false, argument array, fixed timeout, bounded output. */
-function run(args, { stdin = '', cwd, timeoutMs = 30_000, env = process.env } = {}) {
+const isBillingEnv = k => BILLING_ENV.includes(k) || k.startsWith('ANTHROPIC_') || k.startsWith('CLAUDE_CODE_USE_');
+/** Child env without any API-billing / alternate-provider variable. */
+const childEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !isBillingEnv(k)));
+
+/** shell:false, argument array, fixed timeout (SIGTERM then SIGKILL), bounded output. */
+function run(args, { stdin = '', cwd, timeoutMs = 30_000 } = {}) {
   return new Promise(resolve => {
     const started = Date.now();
-    const child = spawn(BIN, args, { shell: false, cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(BIN, args, { shell: false, cwd, env: childEnv, stdio: ['pipe', 'pipe', 'pipe'] });
     let out = '';
-    let errLen = 0;
+    let errText = '';
+    let timedOut = false;
     const cap = 1_000_000;
-    child.stdout.on('data', d => { if (out.length < cap) out += d; });
-    child.stderr.on('data', d => { errLen += d.length; });
-    const timer = setTimeout(() => child.kill('SIGTERM'), timeoutMs);
-    child.on('error', e => { clearTimeout(timer); resolve({ code: null, spawnError: e.code, out: '', errLen, ms: Date.now() - started }); });
-    child.on('close', (code, signal) => { clearTimeout(timer); resolve({ code, signal, out, errLen, ms: Date.now() - started }); });
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', d => { if (out.length < cap) out = (out + d).slice(0, cap); });
+    child.stderr.on('data', d => { if (errText.length < cap) errText = (errText + d).slice(0, cap); });
+    let killTimer;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGTERM');
+      killTimer = setTimeout(() => child.kill('SIGKILL'), 5_000);
+    }, timeoutMs);
+    const finish = r => { clearTimeout(timer); clearTimeout(killTimer); resolve({ ...r, timedOut, errLen: errText.length, errText, ms: Date.now() - started }); };
+    child.on('error', e => finish({ code: null, spawnError: e.code, out: '' }));
+    child.on('close', (code, signal) => finish({ code, signal, out }));
     child.stdin.end(stdin);
   });
 }
@@ -65,10 +78,20 @@ try {
 } catch {
   report.auth = { parsed: false, exitCode: auth.code };
 }
-report.billingEnv = Object.fromEntries(BILLING_ENV.map(k => [k, process.env[k] ? 'SET' : 'unset']));
+report.billingEnv = Object.fromEntries(BILLING_ENV.map(k => [k, k in process.env ? 'SET' : 'unset']));
+report.otherAnthropicEnv = Object.keys(process.env).filter(k => isBillingEnv(k) && !BILLING_ENV.includes(k));
+
+// Rejected by the CLI before any model call: costs nothing. Only a fixed stderr prefix is recorded.
+const bad = await run(['-p', '--output-format', 'json', '--json-schema', '{"type":"nope"}', '--tools', '', '--no-session-persistence'], { stdin: 'x' });
+report.invalidSchema = {
+  exitCode: bad.code,
+  stdoutBytes: bad.out.length,
+  stderrStartsWithSchemaError: bad.errText.startsWith('Error: --json-schema is not a valid JSON Schema'),
+};
 
 if (LIVE) {
-  const unsafe = Object.values(report.billingEnv).includes('SET') || report.auth.authMethod !== 'claude.ai';
+  const unsafe =
+    Object.values(report.billingEnv).includes('SET') || report.otherAnthropicEnv.length > 0 || report.auth.authMethod !== 'claude.ai';
   if (unsafe) {
     report.live = { skipped: true, reason: 'API billing env or non-subscription auth detected; refusing to run' };
   } else {
@@ -79,11 +102,13 @@ if (LIVE) {
         '--tools', '', '--strict-mcp-config', '--no-session-persistence', '--model', process.env.CLAUDE_MODEL || 'sonnet',
       ];
       const r = await run(args, { cwd, timeoutMs: 120_000, stdin: 'Return ok=true and echo="tkb_2627 probe". Do nothing else.' });
+      // Never copy result, session_id or uuid values into the report.
       let env = null;
       try { env = JSON.parse(r.out); } catch { /* recorded below */ }
       report.live = {
         exitCode: r.code,
         signal: r.signal ?? null,
+        timedOut: r.timedOut,
         wallMs: r.ms,
         stderrBytes: r.errLen,
         envelopeParsed: env !== null,
