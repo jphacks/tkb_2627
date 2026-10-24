@@ -152,3 +152,17 @@ describe('K05 PlanningContextRequest additive fields (C-1, schemaVersion stays 1
     expect(PlanningContextRequest.safeParse({ ...base, legs: [{ ...q, departureUtc: 'tomorrow' }] }).success).toBe(false);
   });
 });
+
+describe('compatible additions (R6 per-day mode, R05 transit stops)', () => {
+  it('transportModeByDate is optional, keyed by local date, values transit|car, and public', () => {
+    expect(TripConstraints.safeParse({ ...constraints, transportModeByDate: { '2026-11-02': 'car' } }).success).toBe(true);
+    expect(TripConstraints.safeParse({ ...constraints, transportModeByDate: { '2026-11-02': 'walk' } }).success).toBe(false);
+    expect(TripConstraints.safeParse({ ...constraints, transportModeByDate: { 'day-2': 'car' } }).success).toBe(false);
+    expect(TripConstraints.safeParse(constraints).success).toBe(true);
+  });
+  it('TravelLeg.transit is optional and keeps unknown stops as null', () => {
+    const leg = fixtureTrips[0]!.days[0]!.items.find((i) => i.type === 'leg')!;
+    expect(Trip.shape.days.element.shape.items.element.safeParse({ ...leg, transit: { boardingStop: null, alightingStop: '兼六園下', transferStops: [] } }).success).toBe(true);
+    expect(Trip.shape.days.element.shape.items.element.safeParse({ ...leg, transit: { boardingStop: 1 } }).success).toBe(false);
+  });
+});

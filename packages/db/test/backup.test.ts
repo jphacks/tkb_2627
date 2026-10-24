@@ -113,8 +113,11 @@ describe('backup and restore', () => {
     expect(summary.integrity).toBe('ok');
     expect(summary.counts.posts).toBe(3);
     expect(summary.counts.trip_versions).toBeGreaterThanOrEqual(2);
-    expect(statSync(bak).mode & 0o777).toBe(0o600);
-    expect(statSync(join(dir, 'out')).mode & 0o777).toBe(0o700);
+    // POSIX mode bits are not meaningful on Windows (NTFS reports 0666/0777).
+    if (process.platform !== 'win32') {
+      expect(statSync(bak).mode & 0o777).toBe(0o600);
+      expect(statSync(join(dir, 'out')).mode & 0o777).toBe(0o700);
+    }
 
     const to = join(dir, 'restored', 'new.sqlite');
     const r = restoreDatabase(bak, to);
@@ -155,18 +158,24 @@ describe('backup and restore', () => {
     expect(() => backupDatabase(join(dir, 'missing.sqlite'), join(dir, 'x.sqlite'))).toThrow(BackupError);
   });
 
-  it('refuses a dangling symlink as output, warns on a loose existing directory, and cleans up on failure', () => {
+  it('refuses a dangling symlink as output, warns on a loose existing directory, and cleans up on failure', (ctx) => {
     const dir = tmp();
     const live = join(dir, 'live.sqlite');
     seedLive(live);
     const link = join(dir, 'link.sqlite');
-    symlinkSync(join(dir, 'nowhere'), link);
+    try {
+      symlinkSync(join(dir, 'nowhere'), link);
+    } catch (e) {
+      if (['EPERM', 'EACCES'].includes((e as NodeJS.ErrnoException).code ?? '')) ctx.skip('symlink not permitted on this OS');
+      throw e;
+    }
     expect(() => backupDatabase(live, link)).toThrow(/already exists/);
     expect(existsSync(join(dir, 'nowhere'))).toBe(false);
     // dir is created by mkdtemp as 0700 normally; loosen it to check the warning
     chmodSync(dir, 0o755);
     const r = backupDatabase(live, join(dir, 'ok.sqlite'));
-    expect(r.warnings).toHaveLength(1);
+    // the loose-mode warning relies on POSIX mode bits (absent on Windows)
+    if (process.platform !== 'win32') expect(r.warnings).toHaveLength(1);
     // failure (source is not a database) leaves no partial output
     const notDb = join(dir, 'notdb.sqlite');
     writeFileSync(notDb, 'x'.repeat(200));

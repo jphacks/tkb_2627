@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
@@ -158,6 +158,17 @@ function insertVersionlessTripRow(db: Db): void {
   db.exec("INSERT INTO trip_versions VALUES ('t',1,'{}','t')");
 }
 
+/** WSL1 reports 'Microsoft' (no 'microsoft-standard-WSL2'); its file locking differs from Linux. */
+function isWsl1(): boolean {
+  if (process.platform !== 'linux') return false;
+  try {
+    const v = readFileSync('/proc/version', 'utf8');
+    return /microsoft/i.test(v) && !/WSL2/i.test(v);
+  } catch {
+    return false;
+  }
+}
+
 describe('concurrent writers', () => {
   it('reports SQLITE_BUSY when busy_timeout is short', () => {
     const path = tmpPath();
@@ -173,14 +184,15 @@ describe('concurrent writers', () => {
     b.exec('ROLLBACK');
   });
 
-  it('waits within busy_timeout for another process holding the write lock', async () => {
+  it('waits within busy_timeout for another process holding the write lock', async (ctx) => {
+    if (isWsl1()) ctx.skip('WSL1 file locking does not honour cross-process SQLite locks reliably');
     const path = tmpPath();
     const db = open(path);
     seedUsers(db);
     const script = `
       import { DatabaseSync } from 'node:sqlite';
       const d = new DatabaseSync(process.argv[1]);
-      d.exec('PRAGMA busy_timeout = 5000');
+      d.exec('PRAGMA busy_timeout = 20000');
       d.exec('BEGIN IMMEDIATE');
       process.stdout.write('locked\\n');
       setTimeout(() => { d.exec('COMMIT'); d.close(); }, 1500);
