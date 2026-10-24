@@ -7,6 +7,8 @@ import { DailyQuota, Gate, type Clock } from './budget.ts';
 export const SKU = {
   placesTextSearchPro: 'places.text_search.pro',
   placesTextSearchEnterprise: 'places.text_search.enterprise',
+  placesNearbyPro: 'places.nearby_search.pro',
+  placesNearbyEnterprise: 'places.nearby_search.enterprise',
   routesDrive: 'routes.compute_routes.drive',
   routesTransit: 'routes.compute_routes.transit',
 } as const;
@@ -22,13 +24,15 @@ export interface UsageLimits {
 }
 
 /**
- * Safe defaults, kept in code (M1 on #12): well under the GCP quota of 100 per API per day. The environment can only
+ * Safe defaults, kept in code (M1 on #12): under the GCP quota of 100 per API per day (Places: 4 SKUs x 20 = 80; Routes: 2 x 20 = 40). The environment can only
  * lower them; a larger value is refused so a typo cannot raise spending.
  */
 export const SAFE_DEFAULT_LIMITS: UsageLimits = {
   dailyPerSku: {
     [SKU.placesTextSearchPro]: 20,
     [SKU.placesTextSearchEnterprise]: 20,
+    [SKU.placesNearbyPro]: 20,
+    [SKU.placesNearbyEnterprise]: 20,
     [SKU.routesDrive]: 20,
     [SKU.routesTransit]: 20,
   },
