@@ -11,10 +11,10 @@ describe('usageLimitsFromEnv', () => {
 
   it('lets the environment lower every limit', () => {
     const l = usageLimitsFromEnv({ [LIMIT_ENV.daily]: '5', [LIMIT_ENV.perInput]: '3', [LIMIT_ENV.concurrent]: '1' });
-    expect(Object.values(l.dailyPerSku)).toEqual([5, 5, 5, 5]);
+    expect(Object.values(l.dailyPerSku)).toEqual([5, 5, 5, 5, 5, 5]);
     expect(l).toMatchObject({ maxCallsPerInput: 3, maxConcurrent: 1 });
     // 0 switches provider calls off entirely.
-    expect(Object.values(usageLimitsFromEnv({ [LIMIT_ENV.daily]: '0' }).dailyPerSku)).toEqual([0, 0, 0, 0]);
+    expect(Object.values(usageLimitsFromEnv({ [LIMIT_ENV.daily]: '0' }).dailyPerSku)).toEqual([0, 0, 0, 0, 0, 0]);
   });
 
   it('refuses to raise a limit above its safe default, so the server does not start', () => {

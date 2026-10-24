@@ -17,7 +17,7 @@ provider（Google Places / Routes）を呼ぶ前に必ず通す制限と、取�
 
 安全な既定値をコードに置いています（`SAFE_DEFAULT_LIMITS`）。
 
-- 各 SKU 1日20件
+- 各 SKU 1日20件（Places は4つの SKU で計80件、Routes は2つの SKU で計40件。どちらも GCP の quota 100件より下）
 - 入力1件あたり8回まで
 - 同時に2件まで
 
