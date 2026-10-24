@@ -205,7 +205,7 @@ AIが候補順を生成し、プログラムが制約を検証。運賃やホー
 責任：認可済み旅程をPDF・ICS・地図リンクへ変換
 入力：tripRef + expectedRevision
 出力：exportId / authorized file / URL
-担当：M2 + M1。予定path：packages/exports/
+担当：M2（E01）+ M3（E03）+ M1（E02）。予定path：packages/exports/
 
 
 ### repository / 永続化Repository
