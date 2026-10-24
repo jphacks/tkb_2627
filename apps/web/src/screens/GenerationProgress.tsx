@@ -77,10 +77,10 @@ export function ProgressView(p: ProgressViewProps) {
       )}
       {!terminal && (
         <>
-          <button type="button" className="btn" onClick={p.onCancel} disabled={p.cancelling}>
+          <p id="u1-bg-note" className="meta">他の画面へ移っても生成は止まりません。「新規作成」タブに戻ると続きを確認できます。止めるときは「取消」を押してください。</p>
+          <button type="button" className="btn" onClick={p.onCancel} disabled={p.cancelling} aria-describedby="u1-bg-note">
             {p.cancelling ? '取消中…' : '取消'}
           </button>
-          <p className="meta">他の画面へ移っても生成は止まりません。「新規作成」タブに戻ると続きを確認できます。止めるときは「取消」を押してください。</p>
         </>
       )}
     </>
@@ -168,8 +168,13 @@ export function GenerationProgress({ api, jobId, pollAfterMs, onSucceeded, onBac
   };
 
   const state: JobState = cancelOutcome?.state === 'cancelled' || cancelOutcome?.state === 'succeeded' ? cancelOutcome.state : (status?.state ?? 'queued');
+  // Report a dead job once (not on every render, and not twice under StrictMode's simulated remount of the effect).
+  const settled = useRef(false);
   useEffect(() => {
-    if (state === 'failed' || state === 'cancelled') onSettled?.();
+    if ((state === 'failed' || state === 'cancelled') && !settled.current) {
+      settled.current = true;
+      onSettled?.();
+    }
   }, [state, onSettled]);
 
   return (

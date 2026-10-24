@@ -12,7 +12,8 @@ import type { JobStatus, Trip } from '@tkb/contracts';
 import { createMockApi, type MockApi, type MockResult, type MockScenario } from '../mocks/index.ts';
 import { CompareView } from './CandidateCompare.tsx';
 import { emptyForm, sampleForm, validateCondition, type ConditionForm } from './condition.ts';
-import { flowReducer, initialFlow, type FlowAction, type FlowState } from './flow.ts';
+import { flowReducer, initialFlow, knownJobs, type FlowAction, type FlowState } from './flow.ts';
+import { createSubmissionKeys } from './idempotency.ts';
 import { ProgressView } from './GenerationProgress.tsx';
 import { GuideView } from './Guide.tsx';
 import { ShareView } from './Share.tsx';
@@ -34,6 +35,13 @@ function createController(scenario: MockScenario = 'normal', extra: { pollsPerSt
   const api: MockApi = createMockApi({ scenario, pollAfterMs: 700, sleep: async () => {}, ...extra });
   let flow: FlowState = initialFlow;
   const dispatch = (action: FlowAction): FlowState => (flow = flowReducer(flow, action));
+  const keys = createSubmissionKeys();
+  const generateCalls: { key: string | undefined }[] = [];
+  const realGenerate = api.generate.bind(api);
+  api.generate = (request, options) => {
+    generateCalls.push({ key: options?.idempotencyKey });
+    return realGenerate(request, options);
+  };
 
   return {
     api,
@@ -41,12 +49,22 @@ function createController(scenario: MockScenario = 'normal', extra: { pollsPerSt
       return flow;
     },
     dispatch,
-    /** ConditionInput.submit */
+    keys,
+    generateCalls,
+    /** ConditionInput.submit: the in-flight state lives in the flow; one Idempotency-Key per submission. */
     async submit(form: ConditionForm) {
       const { request } = validateCondition(form);
       if (!request) return { sent: false as const };
-      const result = await api.generate(request);
-      if (result.ok) dispatch({ type: 'generationStarted', jobId: result.data.jobId, pollAfterMs: result.data.pollAfterMs });
+      const before = flow;
+      dispatch({ type: 'submitStarted' });
+      if (flow === before) return { sent: false as const, blocked: true as const }; // refused: in flight or a job is unfinished
+      const result = await api.generate(request, { idempotencyKey: keys.keyFor(request) });
+      if (result.ok) {
+        keys.release();
+        dispatch({ type: 'generationStarted', jobId: result.data.jobId, pollAfterMs: result.data.pollAfterMs });
+      } else {
+        dispatch({ type: 'submitFailed', error: result.error });
+      }
       return { sent: true as const, result };
     },
     /** GenerationProgress effect: poll until a terminal state (no timers; the mock advances per call). */
@@ -242,6 +260,7 @@ describe('journey: cancel, failure and retry', () => {
     expect(html).toContain('何も保存されていません');
     expect(html).not.toContain('>取消<');
     expect(must(await c.api.getJob(jobId)).state).toBe('cancelled');
+    c.dispatch({ type: 'generationEnded', jobId }); // GenerationProgress.onSettled reports the cancelled job
     const tripsBefore = must(await c.api.listTrips()).items.length;
 
     // 戻る goes to the conditions; a stale generationSucceeded must not move the user
@@ -269,7 +288,7 @@ describe('journey: cancel, failure and retry', () => {
 
     // the user leaves: nothing calls cancelJob, and the flow still knows the job
     c.dispatch({ type: 'selectTab', tab: 'feed' });
-    expect(c.flow.activeJob).toEqual({ jobId, pollAfterMs: sent.result.data.pollAfterMs });
+    expect(c.flow.activeJob).toEqual({ jobId, pollAfterMs: sent.result.data.pollAfterMs, succeeded: false });
     expect(must(await c.api.getJob(jobId)).state).toBe('running');
     c.dispatch({ type: 'selectTab', tab: 'trips' });
     expect(c.flow.activeJob?.jobId).toBe(jobId);
@@ -336,7 +355,7 @@ describe('journey: cancel, failure and retry', () => {
     // ConditionInput always hands the accepted job to the flow, even after unmount
     c.dispatch({ type: 'generationStarted', jobId: accepted.jobId, pollAfterMs: accepted.pollAfterMs });
     expect(c.flow.screen).toEqual({ name: 'feed' }); // the user is not moved
-    expect(c.flow.activeJob).toEqual({ jobId: accepted.jobId, pollAfterMs: accepted.pollAfterMs });
+    expect(c.flow.activeJob).toEqual({ jobId: accepted.jobId, pollAfterMs: accepted.pollAfterMs, succeeded: false });
     expect(must(await c.api.getJob(accepted.jobId)).state).not.toBe('cancelled');
     // and it is found again from the tab
     c.dispatch({ type: 'selectTab', tab: 'new' });
@@ -351,6 +370,7 @@ describe('journey: cancel, failure and retry', () => {
     const statuses = await c.pollToEnd(sent.result.data.jobId);
     const last = statuses[statuses.length - 1] as JobStatus;
     expect(last.state).toBe('failed');
+    c.dispatch({ type: 'generationEnded', jobId: sent.result.data.jobId }); // GenerationProgress.onSettled reports the failed job
     expect(last.batchId).toBeNull();
     expect(last.error?.code).toBe('INVALID_OUTPUT');
     expect(last.error?.retryable).toBe(true);
@@ -433,17 +453,90 @@ describe('journey: empty scenario', () => {
 });
 
 describe('journey: concurrency of the user and the network', () => {
-  it('double submit: the screen follows the first job; the second job is created but nothing in the flow refers to it (characterization)', async () => {
+  it('double submit: the second submission is refused while the first is in flight, so only one job exists', async () => {
     const c = createController('normal');
     c.dispatch({ type: 'selectTab', tab: 'new' });
     const [a, b] = await Promise.all([c.submit(sampleForm), c.submit(sampleForm)]);
-    if (!a.sent || !a.result.ok || !b.sent || !b.result.ok) throw new Error('both submits should be accepted by the mock');
-    expect(a.result.data.jobId).not.toBe(b.result.data.jobId);
+    if (!a.sent || !a.result.ok) throw new Error('the first submit should be accepted');
+    expect(b.sent).toBe(false);
+    expect(c.generateCalls).toHaveLength(1);
     expect(c.flow.screen).toMatchObject({ name: 'progress', jobId: a.result.data.jobId });
-    expect(c.flow.history).toHaveLength(1);
-    // The second job is still alive and unreferenced: with a real runner this would be a wasted job. The UI
-    // prevents it by disabling the submit button while the request is in flight (busy), which is not testable here.
-    expect(must(await c.api.getJob(b.result.data.jobId)).state).not.toBe('cancelled');
+    expect(knownJobs(c.flow).map(j => j.jobId)).toEqual([a.result.data.jobId]);
+  });
+
+  it('leave while generate is in flight, come back and submit again: no second generate call, one job, reachable', async () => {
+    const c = createController('normal');
+    c.dispatch({ type: 'selectTab', tab: 'new' });
+    const first = c.submit(sampleForm); // request in flight
+    c.dispatch({ type: 'selectTab', tab: 'feed' }); // the user leaves ...
+    c.dispatch({ type: 'selectTab', tab: 'new' }); // ... comes back to the conditions ...
+    expect(c.flow.submitting).toBe(true); // the in-flight state survived the tab switch
+    const second = await c.submit(sampleForm); // ... and presses the button again
+    expect(second.sent).toBe(false);
+    const done = await first;
+    if (!done.sent || !done.result.ok) throw new Error('first submit');
+    expect(c.generateCalls).toHaveLength(1);
+    expect(knownJobs(c.flow).map(j => j.jobId)).toEqual([done.result.data.jobId]);
+    expect(c.flow.submitting).toBe(false);
+    // with the job running, a further submission is refused until it is finished or explicitly cancelled
+    c.dispatch({ type: 'selectTab', tab: 'new' });
+    c.dispatch({ type: 'back' });
+    expect((await c.submit(sampleForm)).sent).toBe(false);
+    expect(c.generateCalls).toHaveLength(1);
+    const cancelled = must(await c.api.cancelJob(done.result.data.jobId));
+    expect(cancelled.state).toBe('cancelled');
+    c.dispatch({ type: 'generationEnded', jobId: done.result.data.jobId }); // 取り消して新しく作る
+    const third = await c.submit(sampleForm);
+    expect(third.sent).toBe(true);
+    expect(c.generateCalls).toHaveLength(2);
+  });
+
+  it('a retry of the same submission reuses the Idempotency-Key and gets the same job; a new submission gets a new key', async () => {
+    const c = createController('normal');
+    const { request } = validateCondition(sampleForm);
+    if (!request) throw new Error('form');
+    const k1 = c.keys.keyFor(request);
+    expect(k1).toMatch(/^[A-Za-z0-9_-]{8,128}$/);
+    expect(c.keys.keyFor(request)).toBe(k1); // same body: same key
+    const a = must(await c.api.generate(request, { idempotencyKey: k1 }));
+    const retry = must(await c.api.generate(request, { idempotencyKey: c.keys.keyFor(request) }));
+    expect(retry.jobId).toBe(a.jobId); // the server returns the same job
+    c.keys.release(); // accepted
+    expect(c.keys.keyFor(request)).not.toBe(k1); // the next submission has a new key
+    const changed = { ...request, constraints: { ...request.constraints, area: '別の地域' } };
+    expect(c.keys.keyFor(changed)).not.toBe(k1);
+  });
+
+  it('a failed submission keeps its key for the retry and shows the error in the flow even after the user left', async () => {
+    const c = createController('normal');
+    c.dispatch({ type: 'selectTab', tab: 'new' });
+    const { request } = validateCondition(sampleForm);
+    if (!request) throw new Error('form');
+    const keyBefore = c.keys.keyFor(request);
+    c.dispatch({ type: 'submitStarted' });
+    c.dispatch({ type: 'selectTab', tab: 'feed' });
+    c.dispatch({ type: 'submitFailed', error: { message: '一時的に利用できません', code: 'UNAVAILABLE', retryable: true } });
+    expect(c.flow.submitError?.code).toBe('UNAVAILABLE');
+    c.dispatch({ type: 'selectTab', tab: 'new' });
+    expect(c.flow.screen).toEqual({ name: 'condition' });
+    expect(c.flow.submitError?.message).toBe('一時的に利用できません');
+    expect(c.keys.keyFor(request)).toBe(keyBefore); // retry reuses the key
+  });
+
+  it('a late different job is not lost: it is recorded next to the running one and both stay reachable', async () => {
+    const c = createController('normal');
+    c.dispatch({ type: 'selectTab', tab: 'new' });
+    const first = await c.submit(sampleForm);
+    if (!first.sent || !first.result.ok) throw new Error('first');
+    c.dispatch({ type: 'selectTab', tab: 'feed' });
+    const { request } = validateCondition(sampleForm);
+    if (!request) throw new Error('form');
+    const other = must(await c.api.generate(request)); // a request that was sent without the guard (e.g. another tab)
+    c.dispatch({ type: 'generationStarted', jobId: other.jobId, pollAfterMs: other.pollAfterMs });
+    const ids = knownJobs(c.flow).map(j => j.jobId);
+    expect(ids).toContain(first.result.data.jobId);
+    expect(ids).toContain(other.jobId);
+    expect(c.flow.screen).toEqual({ name: 'feed' });
   });
 
   it('an adopt result that arrives after the user switched tab is ignored by the flow, and the trip is not lost', async () => {

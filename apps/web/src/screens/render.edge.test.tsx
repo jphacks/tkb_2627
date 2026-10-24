@@ -20,7 +20,7 @@ import {
 } from '@tkb/fixtures';
 import { TripViewer } from '../shell/TripViewer.tsx';
 import { CandidateCard, CompareView } from './CandidateCompare.tsx';
-import { ConditionFormView } from './ConditionInput.tsx';
+import { ConditionFormView, RunningJobNotice } from './ConditionInput.tsx';
 import { emptyForm, sampleForm, type ConditionForm } from './condition.ts';
 import { ProgressView, type ProgressViewProps } from './GenerationProgress.tsx';
 import { GuideView } from './Guide.tsx';
@@ -611,5 +611,71 @@ describe('U01App: the first render in every scenario', () => {
     expect(html).toContain('旅程を読み込み中');
     expect(html).toContain('aria-current="page"');
     expect(html).not.toContain('undefined');
+  });
+});
+
+describe('condition screen while a generation is known (D1)', () => {
+  const running = { jobId: 'j1', pollAfterMs: 700, succeeded: false };
+  const notice = (jobs: { jobId: string; pollAfterMs: number; succeeded: boolean }[], extra: { cancelling?: boolean; cancelledNote?: boolean } = {}) =>
+    renderToString(
+      <RunningJobNotice jobs={jobs} cancelling={extra.cancelling ?? false} cancelError={null} cancelledNote={extra.cancelledNote ?? false}
+        onContinue={noop} onCancelAndNew={noop} />,
+    );
+
+  it('an unfinished job is announced with 続きを確認 and an explicit 取り消して新しく作る', () => {
+    const html = notice([running]);
+    const t = textOf(html);
+    expect(t).toContain('前の生成がまだ進行中です');
+    expect(t).toContain('続きを確認');
+    expect(t).toContain('取り消して新しく作る');
+    expect(html).toContain('role="status"');
+  });
+
+  it('several unfinished jobs are counted', () => {
+    expect(textOf(notice([running, { ...running, jobId: 'j2' }]))).toContain('進行中: 2件');
+  });
+
+  it('while cancelling the button is disabled and says so', () => {
+    const html = notice([running], { cancelling: true });
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>取消中…<\/button>/);
+  });
+
+  it('a finished job only offers 続きを確認 (it no longer blocks a new generation)', () => {
+    const t = textOf(notice([{ ...running, succeeded: true }]));
+    expect(t).toContain('前回の生成は完了しています');
+    expect(t).toContain('続きを確認');
+    expect(t).not.toContain('取り消して新しく作る');
+  });
+
+  it('nothing is shown without a job, except a note right after cancelling', () => {
+    expect(notice([])).toBe('');
+    expect(textOf(notice([], { cancelledNote: true }))).toContain('生成を取り消しました');
+  });
+
+  it('the submit button is disabled while blocked, and shows 送信中… only while a request is in flight', () => {
+    const view = (busy: boolean, blocked: boolean) =>
+      renderToString(<ConditionFormView form={sampleForm} onChange={noop} onSubmit={noop} submitted={false} busy={busy} blocked={blocked} submitError={null} />);
+    expect(view(false, true)).toMatch(/<button type="submit"[^>]*disabled[^>]*>候補を生成する<\/button>/);
+    expect(view(true, true)).toMatch(/<button type="submit"[^>]*disabled[^>]*>送信中…<\/button>/);
+    expect(view(false, false)).not.toMatch(/<button type="submit"[^>]*disabled/);
+  });
+
+  it('a failed request kept in the flow is shown with its code', () => {
+    const html = renderToString(
+      <ConditionFormView form={sampleForm} onChange={noop} onSubmit={noop} submitted={false} busy={false}
+        submitError={{ message: '一時的に利用できません', code: 'UNAVAILABLE', requestId: 'req_9' }} />,
+    );
+    expect(html).toContain('生成を開始できませんでした');
+    expect(html).toContain('UNAVAILABLE');
+    expect(html).toContain('req_9');
+  });
+
+  it('the background-generation notice comes before the 取消 button and is linked to it', () => {
+    const html = renderToString(
+      <ProgressView state="running" stage="generating" batchId={null} jobError={null} pollError={null} note={null} cancelError={null} cancelling={false}
+        polls={1} onCancel={noop} onResume={noop} onOpenCandidates={noop} onBackToConditions={noop} />,
+    );
+    expect(html).toContain('aria-describedby="u1-bg-note"');
+    expect(html.indexOf('id="u1-bg-note"')).toBeLessThan(html.indexOf('>取消<'));
   });
 });

@@ -6,8 +6,9 @@ import { createMockApi, type MockScenario } from '../mocks/index.ts';
 import { CandidateCompare } from './CandidateCompare.tsx';
 import { ConditionInput } from './ConditionInput.tsx';
 import { emptyForm } from './condition.ts';
-import { flowReducer, initialFlow, type FlowState } from './flow.ts';
+import { flowReducer, initialFlow, knownJobs, type FlowState } from './flow.ts';
 import { GenerationProgress } from './GenerationProgress.tsx';
+import { createSubmissionKeys, type SubmissionKeys } from './idempotency.ts';
 import { Guide } from './Guide.tsx';
 import { Feed, Share } from './Share.tsx';
 import { TripDetailEdit } from './TripDetailEdit.tsx';
@@ -37,6 +38,8 @@ function Shell({ scenario }: { scenario: MockScenario }) {
   const api = useMemo(() => createMockApi({ scenario, pollAfterMs: MOCK_POLL_AFTER_MS }), [scenario]);
   const [flow, dispatch] = useReducer(flowReducer, initialFlow);
   const [form, setForm] = useState(emptyForm);
+  // One Idempotency-Key per submission, kept across tab switches (the Shell outlives the condition screen).
+  const [keys] = useState<SubmissionKeys>(() => createSubmissionKeys());
   const main = useRef<HTMLElement>(null);
   const first = useRef(true);
 
@@ -53,19 +56,20 @@ function Shell({ scenario }: { scenario: MockScenario }) {
   return (
     <>
       <main className="u1-main" ref={main} tabIndex={-1} aria-label="画面">
-        <Screen api={api} flow={flow} dispatch={dispatch} form={form} setForm={setForm} />
+        <Screen api={api} flow={flow} dispatch={dispatch} form={form} setForm={setForm} keys={keys} />
       </main>
       <TabBar active={flow.tab} onSelect={tab => dispatch({ type: 'selectTab', tab })} />
     </>
   );
 }
 
-function Screen({ api, flow, dispatch, form, setForm }: {
+function Screen({ api, flow, dispatch, form, setForm, keys }: {
   api: ReturnType<typeof createMockApi>;
   flow: FlowState;
   dispatch: (action: Parameters<typeof flowReducer>[1]) => void;
   form: typeof emptyForm;
   setForm: (f: typeof emptyForm) => void;
+  keys: SubmissionKeys;
 }) {
   const s = flow.screen;
   const back = () => dispatch({ type: 'back' });
@@ -74,8 +78,13 @@ function Screen({ api, flow, dispatch, form, setForm }: {
       return <TripList api={api} onOpen={tripId => dispatch({ type: 'openTrip', tripId })} onCreate={() => dispatch({ type: 'selectTab', tab: 'new' })} />;
     case 'condition':
       return (
-        <ConditionInput api={api} form={form} onFormChange={setForm}
-          onStarted={a => dispatch({ type: 'generationStarted', jobId: a.jobId, pollAfterMs: a.pollAfterMs })} />
+        <ConditionInput api={api} form={form} onFormChange={setForm} keys={keys}
+          jobs={knownJobs(flow)} submitting={flow.submitting} submitError={flow.submitError}
+          onSubmitStart={() => dispatch({ type: 'submitStarted' })}
+          onStarted={a => dispatch({ type: 'generationStarted', jobId: a.jobId, pollAfterMs: a.pollAfterMs })}
+          onSubmitFailed={error => dispatch({ type: 'submitFailed', error })}
+          onViewJob={jobId => dispatch({ type: 'viewJob', jobId })}
+          onJobEnded={jobId => dispatch({ type: 'generationEnded', jobId })} />
       );
     case 'progress':
       return (

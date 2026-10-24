@@ -10,7 +10,9 @@ import {
   flowReducer,
   initialFlow,
   isRoot,
+  knownJobs,
   tabOf,
+  unfinishedJobs,
   type FlowAction,
   type FlowState,
   type Screen,
@@ -28,6 +30,11 @@ const ACTIONS: FlowAction[] = [
   { type: 'generationStarted', jobId: 'j2', pollAfterMs: 700 },
   { type: 'generationSucceeded', batchId: 'b1' },
   { type: 'generationEnded', jobId: 'j1' },
+  { type: 'generationEnded', jobId: 'j2' },
+  { type: 'viewJob', jobId: 'j1' },
+  { type: 'viewJob', jobId: 'j2' },
+  { type: 'submitStarted' },
+  { type: 'submitFailed', error: { message: 'x', code: 'UNAVAILABLE' } },
   { type: 'candidateApplied', tripId: 't1' },
   { type: 'openTrip', tripId: 't1' },
   { type: 'openTrip', tripId: 't2' },
@@ -144,9 +151,9 @@ describe('flow reducer: exhaustive invariants', () => {
         if (tab === 'new' && state.activeJob) {
           // The one exception: 新規作成 resumes the active job (戻る from there goes to the conditions).
           const { jobId, pollAfterMs } = state.activeJob;
-          expect(next, describePath(path)).toEqual({ tab, screen: { name: 'progress', jobId, pollAfterMs }, history: [TAB_ROOT.new], activeJob: state.activeJob });
+          expect(next, describePath(path)).toEqual({ tab, screen: { name: 'progress', jobId, pollAfterMs }, history: [TAB_ROOT.new], activeJob: state.activeJob, otherJobs: state.otherJobs, submitting: state.submitting, submitError: state.submitError });
         } else {
-          expect(next, describePath(path)).toEqual({ tab, screen: TAB_ROOT[tab], history: [], activeJob: state.activeJob });
+          expect(next, describePath(path)).toEqual({ tab, screen: TAB_ROOT[tab], history: [], activeJob: state.activeJob, otherJobs: state.otherJobs, submitting: state.submitting, submitError: state.submitError });
           expect(isRoot(next)).toBe(true);
         }
       }
@@ -155,7 +162,7 @@ describe('flow reducer: exhaustive invariants', () => {
 
   it('restart always lands on a fresh condition screen', () => {
     for (const { state, path } of STATES) {
-      expect(flowReducer(state, { type: 'restart' }), describePath(path)).toEqual({ tab: 'new', screen: { name: 'condition' }, history: [], activeJob: null });
+      expect(flowReducer(state, { type: 'restart' }), describePath(path)).toEqual({ tab: 'new', screen: { name: 'condition' }, history: [], activeJob: null, otherJobs: [], submitting: false, submitError: null });
     }
   });
 
@@ -198,19 +205,52 @@ describe('flow reducer: exhaustive invariants', () => {
 });
 
 describe('flow reducer: active job invariants', () => {
-  it('the active job is only ever changed by generationStarted, generationEnded, candidateApplied and restart', () => {
-    const changing = new Set<FlowAction['type']>(['generationStarted', 'generationEnded', 'candidateApplied', 'restart']);
+  const unfinishedIds = (state: FlowState) => unfinishedJobs(state).map(j => j.jobId);
+  const knownIds = (state: FlowState) => knownJobs(state).map(j => j.jobId);
+
+  it('no unfinished job ever becomes unreachable, except by generationEnded for that job or an explicit restart', () => {
     for (const { state, path } of STATES) {
       for (const action of ACTIONS) {
-        if (changing.has(action.type)) continue;
-        expect(flowReducer(state, action).activeJob, `${describePath(path)} + ${action.type}`).toEqual(state.activeJob);
+        if (action.type === 'restart') continue;
+        const after = knownIds(flowReducer(state, action));
+        for (const id of unfinishedIds(state)) {
+          if (action.type === 'generationEnded' && action.jobId === id) continue;
+          expect(after, `${describePath(path)} + ${action.type}`).toContain(id);
+        }
       }
     }
   });
 
-  it('the active job id is never invented: it is always one that was started', () => {
+  it('a job id is known at most once (active and displaced lists never overlap)', () => {
     for (const { state, path } of STATES) {
-      if (state.activeJob) expect(['j1', 'j2'], describePath(path)).toContain(state.activeJob.jobId);
+      const ids = knownIds(state);
+      expect(new Set(ids).size, describePath(path)).toBe(ids.length);
+    }
+  });
+
+  it('a new submission is refused (same object) while a request is in flight or a job is unfinished', () => {
+    for (const { state, path } of STATES) {
+      const next = flowReducer(state, { type: 'submitStarted' });
+      if (state.submitting || unfinishedJobs(state).length > 0) expect(next, describePath(path)).toBe(state);
+      else expect(next.submitting, describePath(path)).toBe(true);
+    }
+  });
+
+  it('only job-related actions change the known jobs', () => {
+    const changing = new Set<FlowAction['type']>(['generationStarted', 'generationEnded', 'generationSucceeded', 'viewJob', 'candidateApplied', 'restart']);
+    for (const { state, path } of STATES) {
+      for (const action of ACTIONS) {
+        if (changing.has(action.type)) continue;
+        const after = flowReducer(state, action);
+        expect(after.activeJob, `${describePath(path)} + ${action.type}`).toEqual(state.activeJob);
+        expect(after.otherJobs, `${describePath(path)} + ${action.type}`).toEqual(state.otherJobs);
+      }
+    }
+  });
+
+  it('the job ids are never invented: they are always ones that were started', () => {
+    for (const { state, path } of STATES) {
+      for (const id of knownIds(state)) expect(['j1', 'j2'], describePath(path)).toContain(id);
     }
   });
 });
@@ -228,11 +268,12 @@ describe('flow reducer: stale and late actions', () => {
     }
   });
 
-  it('a second generationStarted while one is shown (double submit) does not replace or stack progress screens', () => {
+  it('a second job accepted while one is shown (e.g. a double submit) replaces the screen but keeps the first job reachable', () => {
     const first = toProgress('j1');
     const second = flowReducer(first, { type: 'generationStarted', jobId: 'j2', pollAfterMs: 700 });
-    expect(second).toBe(first);
-    expect(second.screen).toMatchObject({ name: 'progress', jobId: 'j1' });
+    expect(second.screen).toMatchObject({ name: 'progress', jobId: 'j2' });
+    expect(second.otherJobs.map(j => j.jobId)).toEqual(['j1']);
+    expect(second.history).toHaveLength(1);
   });
 
   it('a second candidateApplied (double tap on 採用) opens the trip once', () => {
@@ -273,7 +314,7 @@ describe('flow reducer: stale and late actions', () => {
     for (const action of [{ type: 'selectTab', tab: 'feed' }, { type: 'selectTab', tab: 'trips' }, { type: 'back' }] as const) {
       const left = flowReducer(toProgress('job_running'), action);
       expect(left.screen.name, action.type).not.toBe('progress');
-      expect(left.activeJob, action.type).toEqual({ jobId: 'job_running', pollAfterMs: 700 });
+      expect(left.activeJob, action.type).toEqual({ jobId: 'job_running', pollAfterMs: 700, succeeded: false });
       expect(flowReducer(left, { type: 'selectTab', tab: 'new' }).screen, action.type).toEqual({ name: 'progress', jobId: 'job_running', pollAfterMs: 700 });
     }
   });
