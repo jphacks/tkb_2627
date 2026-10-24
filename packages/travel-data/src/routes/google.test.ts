@@ -207,6 +207,9 @@ describe('GoogleRoutesProvider', () => {
     expect(inJapan(36.578, 136.648)).toBe(true); // Kanazawa
     expect(inJapan(43.06, 141.35)).toBe(true); // Sapporo
     expect(inJapan(26.21, 127.68)).toBe(true); // Naha
+    expect(inJapan(34.2, 129.29)).toBe(true); // Tsushima (Izuhara)
+    expect(inJapan(32.7, 128.84)).toBe(true); // Goto (Fukue)
+    expect(inJapan(27.09, 142.19)).toBe(true); // Ogasawara (Chichijima)
     expect(inJapan(37.57, 126.98)).toBe(false); // Seoul
     expect(inJapan(35.18, 129.08)).toBe(false); // Busan
     expect(inJapan(43.12, 131.89)).toBe(false); // Vladivostok

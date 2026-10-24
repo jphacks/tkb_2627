@@ -21,14 +21,18 @@ const TRANSIT_FIELDS = [
 const TRAVEL_MODE = { transit: 'TRANSIT', car: 'DRIVE', walk: 'WALK' } as const;
 
 /**
- * Rough boxes around Japan (Honshu-Shikoku-Kyushu, Hokkaido, Okinawa and the southern islands). The provider
- * returned no transit there in D01 (Kanazawa 2 km and Kanazawa-Tokyo, #84/#89). "Coordinates are enough" (M1, #92):
- * a few islands of neighbouring countries in the Sea of Japan also fall inside, which only matters for transit.
+ * Rough boxes around Japan (Honshu-Shikoku-Kyushu, Hokkaido, Okinawa and the Nansei islands, Tsushima, Goto and
+ * Ogasawara). The provider returned no transit there in D01 (Kanazawa 2 km and Kanazawa-Tokyo, #84/#89).
+ * "Coordinates are enough" (M1, #92): a few coastal points of neighbouring countries also fall inside (e.g. Ulleungdo,
+ * Homigot, the Kunashir area), which only matters for transit between two such points.
  */
 const JAPAN_BOXES = [
   { south: 30.0, north: 41.6, west: 129.5, east: 142.2 },
   { south: 41.3, north: 45.6, west: 139.3, east: 146.0 },
   { south: 24.0, north: 30.0, west: 122.9, east: 131.5 },
+  { south: 34.05, north: 34.75, west: 129.1, east: 129.5 }, // Tsushima
+  { south: 32.5, north: 33.5, west: 128.5, east: 129.5 }, // Goto, Ikitsuki
+  { south: 24.0, north: 27.8, west: 140.8, east: 142.4 }, // Ogasawara
 ];
 /** Whether a coordinate is in Japan by the boxes above. */
 export function inJapan(lat: number, lng: number): boolean {
@@ -95,11 +99,12 @@ export function toMoney(fare: GMoney | undefined): Money | null {
   return Number.isSafeInteger(amountMinor) ? { amountMinor, currency: fare.currencyCode } : null;
 }
 
-const stopName = (stop: GStop | undefined): string | null => stop?.name?.trim() || null;
+const stopName = (stop: GStop | undefined): string | null => (typeof stop?.name === 'string' ? stop.name.trim() || null : null);
 
 /**
  * K06 TravelLeg.transit (R05): boarding stop of the first transit step, alighting stop of the last, and the stations
- * where one step ends and the next begins. Unknown names stay null or are left out of transfers; never guessed.
+ * where one transit step ends (the arrival stop). With a walk between two lines only the station left is listed, and an
+ * unknown name is left out, so transferStops can be shorter than `transfers`. Never guessed.
  */
 function transitStops(transit: GStep[]): NonNullable<TravelLeg['transit']> {
   const transferStops = transit.slice(0, -1).flatMap(s => {
@@ -143,10 +148,10 @@ export class GoogleRoutesProvider implements RouteProvider {
   async route(request: RouteRequest, budget: CallBudget): Promise<RouteResult> {
     const { from, to, mode } = request;
     if (!from.location || !to.location) return { leg: null, reason: 'missing_location' };
-    const bothInJapan = inJapan(from.location.lat, from.location.lng) && inJapan(to.location.lat, to.location.lng);
-    if (mode === 'transit' && bothInJapan && (this.options.refuseJapanTransit ?? true)) return { leg: null, reason: 'unsupported_region' };
     const departureMs = Date.parse(request.departureUtc);
     if (Number.isNaN(departureMs)) throw new PolicyError('VALIDATION_FAILED', 'departureUtc is not a valid instant', false);
+    const bothInJapan = inJapan(from.location.lat, from.location.lng) && inJapan(to.location.lat, to.location.lng);
+    if (mode === 'transit' && bothInJapan && (this.options.refuseJapanTransit ?? true)) return { leg: null, reason: 'unsupported_region' };
     const now = this.now();
     if (mode === 'transit' && !(departureMs >= now - TRANSIT_PAST_MS && departureMs <= now + TRANSIT_FUTURE_MS)) {
       return { leg: null, reason: 'out_of_date_range' };
