@@ -24,6 +24,8 @@ import { getTripForOwner, insertTrip, transaction, updateTripWithRevision, type 
 import { requireActor } from '../platform/auth/index.ts';
 import type { SharedConfig } from '../platform/config.ts';
 import { applyOperations, computeDiff } from './operations.ts';
+import { registerPlanningContext } from './generation/index.ts';
+import { batchReferencesOnlyKnownPlaces, carriesRestrictedProviderContent } from './generation/verify-batch.ts';
 
 function fail(
   reply: FastifyReply,
@@ -123,8 +125,9 @@ function parseListQuery(q: unknown): { limit: number; cursor?: string } | null {
 // TODO(retention): expired plan_batches are only hidden (410), never deleted; add a cleanup job.
 // TODO(S05): when a trip delete API is added, call hidePostsForTrip in the same transaction as the soft delete.
 /** K07-K10. Owner always comes from the session; other owners' resources are indistinguishable from missing ones. */
-export function registerTrips(app: FastifyInstance, db: Db, _config: SharedConfig): void {
+export function registerTrips(app: FastifyInstance, db: Db, config: SharedConfig): void {
   const pre = { preHandler: app.authenticate };
+  registerPlanningContext(app, config); // K05
 
   app.addHook('onSend', async (req, reply) => {
     if (req.url.startsWith('/api/v1/trips') || req.url.startsWith('/api/v1/plan-batches')) {
@@ -140,6 +143,9 @@ export function registerTrips(app: FastifyInstance, db: Db, _config: SharedConfi
     const input = body.data;
     const ids = input.candidates.map((c) => c.candidateId);
     if (new Set(ids).size !== ids.length) return fail(reply, req.id, 'VALIDATION_FAILED', 'Duplicate candidateId.');
+    // Every place an activity or leg points at must travel with the batch (the model's blueprint is never trusted for ids).
+    if (!batchReferencesOnlyKnownPlaces(input.candidates, input.places)) return fail(reply, req.id, 'VALIDATION_FAILED', 'Unknown place reference.');
+    if (carriesRestrictedProviderContent(input.places, input.candidates)) return fail(reply, req.id, 'RESTRICTED_ASSET', 'Data may not be stored.');
     const now = nowIso();
     const candidates = input.candidates.map((c) => ({ ...c, validationState: reviewCandidate(c) }));
     const state = worst(candidates.map((c) => c.validationState));

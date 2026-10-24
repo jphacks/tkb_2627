@@ -2,6 +2,8 @@ import { randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DataMode } from '@tkb/contracts';
+import { usageLimitsFromEnv } from '@tkb/travel-data';
+import { dailyPerUserFromEnv } from '../trips/generation/user-limit.ts';
 
 export interface SharedConfig {
   bind: string;
@@ -30,12 +32,18 @@ export function loadEnvFile(): void {
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): SharedConfig {
-  const mode = env.PROVIDER_MODE ?? 'fixture';
-  // Live provider adapters do not exist yet (D01-D04). Refuse live/mixed so fixture data is never
-  // reported as live through /api/v1/capabilities.
-  if (mode !== 'fixture') {
-    throw new Error(`unsupported PROVIDER_MODE: ${mode} (only "fixture" is implemented)`);
+  const rawMode = env.PROVIDER_MODE ?? 'fixture';
+  if (rawMode !== 'fixture' && rawMode !== 'mixed' && rawMode !== 'live') {
+    throw new Error(`unsupported PROVIDER_MODE: ${rawMode} (expected fixture, mixed or live)`);
   }
+  const mode: DataMode = rawMode;
+  // mixed/live call Google: refuse to start without a key so fixture data is never served as live, or the reverse.
+  // The key itself is read from the environment by the provider adapters and is never kept in this config.
+  if (mode !== 'fixture' && !(env.GOOGLE_MAPS_SERVER_KEY ?? '').trim()) {
+    throw new Error(`PROVIDER_MODE=${mode} requires GOOGLE_MAPS_SERVER_KEY`);
+  }
+  dailyPerUserFromEnv(env); // refuse an invalid per-user K05 cap at startup
+  usageLimitsFromEnv(env); // throws on an invalid or raised limit: refuse to start rather than spend more than intended
   const port = Number(env.SHARED_PORT ?? 4310);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('invalid SHARED_PORT');
   const publicOrigin = (env.PUBLIC_ORIGIN ?? '').trim().replace(/\/+$/, '');

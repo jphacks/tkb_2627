@@ -388,7 +388,7 @@ describe('HTTP mapping', () => {
     const config = loadConfig({ PERSONAL_OWNER_USER_ID: 'u1' });
     const pairing = new PairingStore({ ttlMs: config.pairingTtlMs });
     const runner: Runner = { run: async () => (calls++, { exitCode: 1, envelope: null, durationMs: 1, error: undefined }) };
-    const app = buildApp({ config, pairing, runner, fetch: upstream });
+    const app = buildApp({ config, pairing, runner, fetch: upstream, pipeline: false });
     const p = await app.inject({ method: 'POST', url: '/local/v1/pair', payload: { code: pairing.issue() }, headers: { host: HOST, origin: ORIGIN } });
     const h = { host: HOST, origin: ORIGIN, cookie: String(p.headers['set-cookie']).split(';')[0]!, 'x-csrf-token': (p.json() as { csrfToken: string }).csrfToken };
     await app.inject({ method: 'POST', url: '/local/v1/auth/login', payload: { loginId: 'a', password: 'b' }, headers: h });

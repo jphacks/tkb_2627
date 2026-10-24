@@ -135,6 +135,24 @@ describe('PlanBatchCreate constraints (K07)', () => {
   });
 });
 
+describe('K05 PlanningContextRequest additive fields (C-1, schemaVersion stays 1)', () => {
+  const base = { area: '金沢', transportMode: 'transit' as const };
+  const q = { fromPlaceId: 'a', toPlaceId: 'b', departureUtc: '2026-11-01T00:00:00Z', mode: 'walk' as const };
+  it('old requests still parse; maxPlaces still defaults to 8', async () => {
+    const { PlanningContextRequest } = await import('../src/index.ts');
+    expect(PlanningContextRequest.parse(base)).toEqual({ ...base, maxPlaces: 8 });
+  });
+  it('accepts timeZone and up to 8 leg queries, and rejects more, bad zones and malformed queries', async () => {
+    const { PlanningContextRequest, SCHEMA_VERSION } = await import('../src/index.ts');
+    expect(SCHEMA_VERSION).toBe(1);
+    expect(PlanningContextRequest.parse({ ...base, timeZone: 'Asia/Tokyo', legs: [q] }).legs).toEqual([q]);
+    expect(PlanningContextRequest.safeParse({ ...base, legs: Array.from({ length: 9 }, () => q) }).success).toBe(false);
+    expect(PlanningContextRequest.safeParse({ ...base, timeZone: '+09:00' }).success).toBe(false);
+    expect(PlanningContextRequest.safeParse({ ...base, legs: [{ ...q, mode: 'boat' }] }).success).toBe(false);
+    expect(PlanningContextRequest.safeParse({ ...base, legs: [{ ...q, departureUtc: 'tomorrow' }] }).success).toBe(false);
+  });
+});
+
 describe('compatible additions (R6 per-day mode, R05 transit stops)', () => {
   it('transportModeByDate is optional, keyed by local date, values transit|car, and public', () => {
     expect(TripConstraints.safeParse({ ...constraints, transportModeByDate: { '2026-11-02': 'car' } }).success).toBe(true);

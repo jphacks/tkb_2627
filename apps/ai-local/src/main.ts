@@ -2,12 +2,15 @@ import { fileURLToPath } from 'node:url';
 import { buildApp } from './app.ts';
 import { PairingStore } from './auth/pairing.ts';
 import { loadConfig, loadEnvFile } from './config.ts';
+import { metricsLine } from './generation/metrics.ts';
 
 loadEnvFile();
 const config = loadConfig();
 config.jobDir ??= fileURLToPath(new URL('../../../.local/ai-local/', import.meta.url));
 const pairing = new PairingStore({ ttlMs: config.pairingTtlMs });
-const app = buildApp({ config, pairing });
+// Content-free job metrics, only when asked for.
+const onMetrics = process.env.AI_LOG_METRICS === 'true' ? (m: Parameters<typeof metricsLine>[0]) => console.log(metricsLine(m)) : undefined;
+const app = buildApp({ config, pairing, onMetrics });
 const stop = () => void app.close().then(() => process.exit(0));
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp as buildLocal } from '../../apps/ai-local/src/app.ts';
 import { loadConfig as loadLocal } from '../../apps/ai-local/src/config.ts';
-import { createPlanBatchClient, createSharedClient, UPSTREAM_PATHS } from '../../apps/ai-local/src/shared-client/index.ts';
+import { createContextClient, createPlanBatchClient, createSharedClient, UPSTREAM_CONTEXT_PATHS, UPSTREAM_PATHS } from '../../apps/ai-local/src/shared-client/index.ts';
 import { ApiError } from '@tkb/contracts';
 import { PW, fixtureDist, makeShared, ROOT, read, rel, sourceFiles, type Shared } from './helpers.ts';
 
@@ -195,6 +195,14 @@ describe('T05-2 SSRF: no path lets a client choose an outbound URL', () => {
     const app = read(join(ROOT, 'apps/ai-local/src/app.ts'));
     // The only uses: restart-recovery lookup with a server-derived operationKey (nothing from the request).
     expect([...app.matchAll(/planClient\.\w+\(([^)]*)\)/g)].map(m => m[0])).toEqual(['planClient.findPlanBatchByGenerationId(s, operationKey)']);
+  });
+
+  it('ContextClient (K05) exposes exactly getPlanningContext, calls one constant path with manual redirects, and no /local route reaches it', () => {
+    expect(Object.keys(createContextClient({ baseUrl: 'http://127.0.0.1:4310' }))).toEqual(['getPlanningContext']);
+    expect(Object.values(UPSTREAM_CONTEXT_PATHS)).toEqual(['/api/v1/planning-context']);
+    const t = read(sourceFiles(['apps/ai-local/src/shared-client'])[0]!);
+    expect(t).toContain('`${base}${UPSTREAM_CONTEXT_PATHS.planningContext}`');
+    expect(read(join(ROOT, 'apps/ai-local/src/app.ts'))).not.toMatch(/contextClient\.\w+\(/);
   });
 
   it('shared client exposes no method other than login (no generic proxy)', () => {

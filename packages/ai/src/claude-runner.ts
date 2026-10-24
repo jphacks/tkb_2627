@@ -4,7 +4,7 @@ import { chmod, mkdir, mkdtemp, rm, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { GenerationInput } from '@tkb/contracts';
-import type { Runner, RunnerResult, SafeError } from './runner.ts';
+import type { Runner, RunnerMeta, RunnerResult, SafeError } from './runner.ts';
 
 /**
  * Hand-written JSON Schema for --json-schema. Mirrors PlanBlueprint / CandidateBlueprint in
@@ -463,6 +463,16 @@ const LIMIT_RE = /usage limit|rate limit|limit reached|quota|too many requests|r
 const AUTH_RE = /not logged in|\/login|authentication_failed|authentication_error|invalid api key|unauthorized|oauth token/i;
 const OVERLOAD_RE = /overloaded|overloaded_error/i;
 
+/** Non-content run metadata for metrics: model name (from modelUsage keys), turn count and API time. */
+function metaOf(e: Record<string, unknown>): RunnerMeta {
+  const usage = typeof e.modelUsage === 'object' && e.modelUsage !== null ? Object.keys(e.modelUsage) : [];
+  return {
+    model: usage.length > 0 ? usage.join(',').slice(0, 200) : null,
+    numTurns: typeof e.num_turns === 'number' ? e.num_turns : null,
+    durationApiMs: typeof e.duration_api_ms === 'number' ? e.duration_api_ms : null,
+  };
+}
+
 function classify(out: Exclude<Exec, { kind: 'aborted' }>): Omit<RunnerResult, 'durationMs'> {
   const fail = (exitCode: number | null, error: SafeError): Omit<RunnerResult, 'durationMs'> => ({
     exitCode: exitCode ?? -1,
@@ -489,7 +499,7 @@ function classify(out: Exclude<Exec, { kind: 'aborted' }>): Omit<RunnerResult, '
   const e = (typeof env === 'object' && env !== null ? env : {}) as Record<string, unknown>;
   const isObj = typeof env === 'object' && env !== null;
   if (code === 0 && isObj && e.type === 'result' && e.is_error === false && e.subtype === 'success' && (e.api_error_status ?? null) === null) {
-    if (e.structured_output !== undefined && e.structured_output !== null) return { exitCode: 0, envelope: env };
+    if (e.structured_output !== undefined && e.structured_output !== null) return { exitCode: 0, envelope: env, meta: metaOf(e) };
     return fail(0, mk('INVALID_OUTPUT', 'The generator output has no structured result.', true));
   }
   const status = typeof e.api_error_status === 'number' ? e.api_error_status : null;
