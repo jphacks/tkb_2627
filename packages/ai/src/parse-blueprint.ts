@@ -8,10 +8,18 @@ function fail(message: string): ParseResult {
   return { ok: false, error: { code: 'INVALID_OUTPUT', message, retryable: true, requestId: randomUUID() } };
 }
 
-/** Verifies structured_output shape and rejects any place ID outside allowedPlaceIds. */
+/**
+ * Accepts only a successful result envelope (docs/claude-connection-check.md): type=result, is_error=false,
+ * subtype=success, no api_error_status. Then verifies structured_output shape and rejects any place ID
+ * outside allowedPlaceIds.
+ */
 export function parseBlueprint(envelope: unknown, allowedPlaceIds: readonly string[]): ParseResult {
   if (typeof envelope !== 'object' || envelope === null || !('structured_output' in envelope)) {
     return fail('Output has no structured_output.');
+  }
+  const e = envelope as { type?: unknown; is_error?: unknown; subtype?: unknown; api_error_status?: unknown };
+  if (e.type !== 'result' || e.is_error !== false || e.subtype !== 'success' || (e.api_error_status ?? null) !== null) {
+    return fail('Output is not a successful result.');
   }
   const parsed = PlanBlueprint.safeParse((envelope as { structured_output: unknown }).structured_output);
   if (!parsed.success) return fail('Output does not match the plan schema.');

@@ -16,9 +16,9 @@ export class FakeRunner implements Runner {
     const done = (r: Omit<RunnerResult, 'durationMs'>): RunnerResult => ({ ...r, durationMs: Date.now() - started });
     switch (this.opts.failure) {
       case 'invalid_json':
-        return done({ exitCode: 0, envelope: { type: 'result', structured_output: '{not json' } });
+        return done({ exitCode: 0, envelope: { type: 'result', subtype: 'success', is_error: false, structured_output: '{not json' } });
       case 'no_structured_output':
-        return done({ exitCode: 0, envelope: { type: 'result', result: 'text only' } });
+        return done({ exitCode: 0, envelope: { type: 'result', subtype: 'success', is_error: false, result: 'text only' } });
       case 'exit_nonzero':
         return done({
           exitCode: 1,
@@ -32,7 +32,7 @@ export class FakeRunner implements Runner {
       default:
         return done({
           exitCode: 0,
-          envelope: { type: 'result', is_error: false, structured_output: samplePlanBlueprint },
+          envelope: { type: 'result', subtype: 'success', is_error: false, structured_output: samplePlanBlueprint },
         });
     }
   }
