@@ -176,6 +176,14 @@ export function ConditionInput({ api, form, onFormChange, onStarted }: {
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState<ErrorInfo | null>(null);
   const [focusToken, setFocusToken] = useState(0);
+  // False once the screen is left (tab switch). StrictMode's simulated remount sets it back to true.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const submit = async () => {
     setSubmitted(true);
@@ -188,12 +196,18 @@ export function ConditionInput({ api, form, onFormChange, onStarted }: {
     setBusy(true);
     try {
       const result = await api.generate(request);
+      if (!mounted.current) {
+        // The user left while generate was in flight: do not leave the new job running unseen.
+        if (result.ok) void api.cancelJob(result.data.jobId).catch(() => undefined);
+        return;
+      }
       if (result.ok) onStarted(result.data);
       else setSubmitError(result.error);
     } catch (e) {
+      if (!mounted.current) return;
       setSubmitError({ message: e instanceof Error ? e.message : '予期しないエラーが発生しました。', code: 'INTERNAL' });
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   };
 

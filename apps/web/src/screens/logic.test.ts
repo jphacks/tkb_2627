@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GenerateRequest } from '@tkb/contracts';
 import { createMockApi } from '../mocks/index.ts';
-import { emptyForm, parseBudget, sampleForm, splitMustVisit, validateCondition } from './condition.ts';
+import { emptyForm, isRealDate, parseBudget, sampleForm, splitMustVisit, validateCondition } from './condition.ts';
 import { flowReducer, initialFlow } from './flow.ts';
 import { localDateIn, pickGuideTarget } from './guide.ts';
 
@@ -40,6 +40,21 @@ describe('condition form (R01)', () => {
     const r = validateCondition({ ...sampleForm, budgetMode: 'amount', budgetAmount: '' });
     expect(r.request).toBeNull();
     expect(r.errors.budget).toBeTruthy();
+  });
+
+  it('puts impossible calendar dates on the date fields, not on 地域', () => {
+    const start = validateCondition({ ...sampleForm, startDate: '2026-02-30', endDate: '2026-03-02' });
+    expect(start.request).toBeNull();
+    expect(start.errors.startDate).toBeTruthy();
+    expect(start.errors.area).toBeUndefined();
+    const end = validateCondition({ ...sampleForm, endDate: '2026-13-01' });
+    expect(end.request).toBeNull();
+    expect(end.errors.endDate).toBeTruthy();
+    expect(end.errors.area).toBeUndefined();
+    expect(isRealDate('2028-02-29')).toBe(true);
+    expect(isRealDate('2026-02-29')).toBe(false);
+    expect(isRealDate('2026-2-3')).toBe(false);
+    expect(isRealDate('')).toBe(false);
   });
 
   it('rejects an end date before the start date and non-IANA zones', () => {

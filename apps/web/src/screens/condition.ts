@@ -105,6 +105,15 @@ function isEmpty(value: string): boolean {
   return value.trim() === '';
 }
 
+/** True for a real calendar date written YYYY-MM-DD (rejects 2026-02-30 and 2026-13-01). */
+export function isRealDate(value: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === mo - 1 && date.getUTCDate() === d;
+}
+
 export function validateCondition(form: ConditionForm): ConditionResult {
   const errors: FieldErrors = {};
   const missing: FieldKey[] = [];
@@ -115,14 +124,20 @@ export function validateCondition(form: ConditionForm): ConditionResult {
     missing.push('area');
   } else if (area.length > 200) errors.area = '地域は200文字以内で入力してください。';
 
+  const startOk = isRealDate(form.startDate);
+  const endOk = isRealDate(form.endDate);
   if (isEmpty(form.startDate)) {
     errors.startDate = '開始日を選んでください。';
     missing.push('startDate');
+  } else if (!startOk) {
+    errors.startDate = '開始日が実在する日付ではありません（YYYY-MM-DD）。';
   }
   if (isEmpty(form.endDate)) {
     errors.endDate = '終了日を選んでください。';
     missing.push('endDate');
-  } else if (!isEmpty(form.startDate) && form.endDate < form.startDate) {
+  } else if (!endOk) {
+    errors.endDate = '終了日が実在する日付ではありません（YYYY-MM-DD）。';
+  } else if (startOk && form.endDate < form.startDate) {
     errors.endDate = '終了日は開始日以降にしてください。';
   }
 
