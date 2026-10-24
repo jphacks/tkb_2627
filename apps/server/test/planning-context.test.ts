@@ -105,6 +105,17 @@ describe('K05 error mapping and limits (fake sources)', () => {
     expect(r.payload).not.toMatch(/secret detail/);
   });
 
+  it('a cancelled request closes the socket instead of leaving an unsent reply', async () => {
+    const app = miniApp({ find: async () => { throw new PolicyError('CANCELLED', 'c', false); } });
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const port = (app.server.address() as { port: number }).port;
+    const outcome = await fetch(`http://127.0.0.1:${port}/api/v1/planning-context`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ area: 'x', transportMode: 'transit' }) }).then(
+      r => `status ${r.status}`,
+      () => 'closed',
+    );
+    expect(outcome).toBe('closed');
+  });
+
   it('a second concurrent request of the same user is refused, and the daily cap holds', async () => {
     let release!: () => void;
     const gate = new Promise<void>(res => (release = res));
@@ -186,6 +197,8 @@ describe('K05 legs queries, mixed/live modes and startup config (fake fetch only
     expect(() => loadConfig({ ...OK_ENV, PROVIDER_MODE: 'live', GOOGLE_MAPS_SERVER_KEY: '  ' })).toThrow(/GOOGLE_MAPS_SERVER_KEY/);
     expect(() => loadConfig({ ...OK_ENV, PROVIDER_MODE: 'LIVE', GOOGLE_MAPS_SERVER_KEY: 'k' })).toThrow(/PROVIDER_MODE/);
     expect(() => loadConfig({ ...OK_ENV, TRAVEL_MAX_CALLS_PER_INPUT: '99' })).toThrow(/safe default/);
+    for (const bad of ['0', '-1', '1001', 'abc', '1.5']) expect(() => loadConfig({ ...OK_ENV, PLANNING_CONTEXT_DAILY_PER_USER: bad }), bad).toThrow(/PLANNING_CONTEXT_DAILY_PER_USER/);
+    expect(() => loadConfig({ ...OK_ENV, PLANNING_CONTEXT_DAILY_PER_USER: '1000' })).not.toThrow();
     expect(loadConfig({ ...OK_ENV }).providerMode).toBe('fixture');
     const cfg = loadConfig({ ...OK_ENV, PROVIDER_MODE: 'mixed', GOOGLE_MAPS_SERVER_KEY: 'test-key' });
     expect(JSON.stringify(cfg)).not.toContain('test-key'); // the key is never kept in the config

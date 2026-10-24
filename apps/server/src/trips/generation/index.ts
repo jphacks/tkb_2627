@@ -5,7 +5,7 @@ import { requireActor } from '../../platform/auth/index.ts';
 import type { SharedConfig } from '../../platform/config.ts';
 import { buildPlanningContext } from './context.ts';
 import { createContextSources, type ContextSources } from './sources.ts';
-import { createUserLimiter, type UserLimiter } from './user-limit.ts';
+import { createUserLimiter, dailyPerUserFromEnv, type UserLimiter } from './user-limit.ts';
 
 export interface PlanningContextDeps {
   sources?: ContextSources;
@@ -23,8 +23,7 @@ const POLICY_CODES: ReadonlySet<ErrorCode> = new Set(['VALIDATION_FAILED', 'PROV
 /** K05 POST /api/v1/planning-context. Read-only: no DB write, no cache, no Claude, and request content is never logged. */
 export function registerPlanningContext(app: FastifyInstance, config: SharedConfig, deps: PlanningContextDeps = {}): void {
   const sources = deps.sources ?? createContextSources(config);
-  const perDay = Number(process.env.PLANNING_CONTEXT_DAILY_PER_USER ?? 100);
-  const limiter = deps.limiter ?? createUserLimiter({ perDay: Number.isInteger(perDay) && perDay > 0 ? perDay : 100 });
+  const limiter = deps.limiter ?? createUserLimiter({ perDay: dailyPerUserFromEnv() });
 
   app.post('/api/v1/planning-context', { preHandler: app.authenticate, onSend: async (_req, reply) => void reply.header('cache-control', 'no-store') }, async (req, reply) => {
     const { userId } = requireActor(req);
@@ -44,7 +43,12 @@ export function registerPlanningContext(app: FastifyInstance, config: SharedConf
       return PlanningContext.parse(ctx);
     } catch (e) {
       if (e instanceof PolicyError) {
-        if (e.code === 'CANCELLED') return reply; // nobody is listening
+        if (e.code === 'CANCELLED') {
+          // Nobody is listening: close the socket instead of leaving an unsent reply pending.
+          reply.hijack();
+          reply.raw.destroy();
+          return reply;
+        }
         const code: ErrorCode = POLICY_CODES.has(e.code) ? e.code : 'PROVIDER_UNAVAILABLE';
         const retryable = code === 'PROVIDER_UNAVAILABLE' && e.retryable;
         return fail(reply, req.id, code, code === 'VALIDATION_FAILED' ? 'Invalid request.' : 'The data source is not available.', retryable);

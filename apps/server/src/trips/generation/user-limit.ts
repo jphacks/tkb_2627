@@ -25,3 +25,15 @@ export function createUserLimiter(opts: { perDay: number; now?: () => number }):
     },
   };
 }
+
+export const MAX_DAILY_PER_USER = 1000;
+
+/** PLANNING_CONTEXT_DAILY_PER_USER: a positive integer up to 1000 (default 100); anything else is refused at startup. */
+export function dailyPerUserFromEnv(env: Readonly<Record<string, string | undefined>> = process.env): number {
+  const raw = env.PLANNING_CONTEXT_DAILY_PER_USER?.trim();
+  if (!raw) return 100;
+  if (!/^\d+$/.test(raw) || Number(raw) < 1 || Number(raw) > MAX_DAILY_PER_USER) {
+    throw new Error(`invalid PLANNING_CONTEXT_DAILY_PER_USER: expected an integer from 1 to ${MAX_DAILY_PER_USER}`);
+  }
+  return Number(raw);
+}

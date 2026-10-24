@@ -91,7 +91,7 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
   });
   const runnerStatus = async (): Promise<RunnerStatus> => (opts.runner || !created ? flagStatus() : created.refresh());
   const legacy = opts.pipeline === false || (opts.pipeline === undefined && (opts.save !== undefined || opts.allowedPlaceIds !== undefined));
-  const pipeline: GenerationPipeline | undefined = legacy ? undefined : (opts.pipeline || createPipeline({ contextClient, planClient, sessions }));
+  const pipeline: GenerationPipeline | undefined = legacy ? undefined : (opts.pipeline || createPipeline({ contextClient, planClient, sessions, maxLiveLegs: config.maxLiveLegs }));
   const jobs = new JobManager({
     pipeline,
     onMetrics: opts.onMetrics,

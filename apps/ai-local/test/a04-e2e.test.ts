@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { Runner } from '@tkb/ai';
-import { ApiError, PlanBatch, JobStatus, type TripConstraints } from '@tkb/contracts';
+import { ApiError, PlanBatch, JobStatus, type GenerationInput, type TripConstraints } from '@tkb/contracts';
 import { createUser, migrate, openDatabase } from '@tkb/db';
 import { kanazawaPlaces } from '@tkb/fixtures';
 import { buildApp as buildShared } from '../../server/src/platform/app.ts';
@@ -48,11 +48,13 @@ const blueprint = {
     { candidateId: 'c2', title: '茶屋街とお寿司', activityOrder: ['fx_kenrokuen', 'fx_higashi', 'fx_sushi'], reasons: ['食事重視'], warnings: [] },
   ],
 };
-function standIn(): Runner & { calls: number } {
+function standIn(): Runner & { calls: number; inputs: GenerationInput[] } {
   const r = {
     calls: 0,
-    run: async () => {
+    inputs: [] as GenerationInput[],
+    run: async (input: GenerationInput) => {
       r.calls++;
+      r.inputs.push(input);
       return { exitCode: 0, envelope: { type: 'result', subtype: 'success', is_error: false, structured_output: blueprint }, durationMs: 1 };
     },
   };
@@ -131,6 +133,19 @@ describe('A04 end to end (fixture mode)', () => {
     expect(job).toMatchObject({ state: 'succeeded', stage: 'done' });
     expect(seen).toEqual(expect.arrayContaining(['POST /api/v1/planning-context', 'POST /api/v1/plan-batches']));
     expect(runner.calls).toBe(1);
+    // O9: what the model was given. Visitable places only as ids to plan with; facts are fixture places (the station as a travel endpoint) and fixture legs.
+    const given = runner.inputs[0]!;
+    expect([...given.allowedPlaceIds].sort()).toEqual(['fx_21c_museum', 'fx_higashi', 'fx_kenrokuen', 'fx_omicho', 'fx_sushi']);
+    expect(given.allowedPlaceIds).not.toContain('fx_kanazawa_station');
+    expect(given.fixedActivities).toEqual([]);
+    expect(given.facts.length).toBeGreaterThan(0);
+    for (const f of given.facts) {
+      const prov = f.kind === 'place' ? f.place.provenance : f.leg.provenance;
+      expect(prov === null || (prov.source === 'fixture' && prov.maySendToModel)).toBe(true);
+      if (f.kind === 'place') expect(KNOWN.has(f.place.placeId)).toBe(true);
+      else expect(f.leg).toMatchObject({ departure: null, arrival: null });
+    }
+    expect(given.facts.some(f => f.kind === 'place' && f.place.placeId === 'fx_kanazawa_station')).toBe(true);
 
     const res = await server.inject({ url: `/api/v1/plan-batches/${job.batchId}`, headers: await sharedLogin(server) });
     expect(res.statusCode).toBe(200);

@@ -5,7 +5,7 @@ import { PlanBatchCreate, PlanningContext, type Activity, type PlanBlueprint, ty
 import { kanazawaPlaces } from '@tkb/fixtures';
 import { storable } from '../../server/src/trips/index.ts';
 import { batchReferencesOnlyKnownPlaces } from '../../server/src/trips/generation/verify-batch.ts';
-import { assembleBatch } from '../src/generation/assemble.ts';
+import { MAX_LIVE_LEG_PAIRS, assembleBatch } from '../src/generation/assemble.ts';
 import { createPipeline } from '../src/generation/pipeline.ts';
 import { INSUFFICIENT_PLACE_WARNING, LEG_REFETCH_WARNING, PLACEHOLDER_NAME, PLACE_REFETCH_WARNING } from '../src/generation/project.ts';
 import type { ContextClient } from '../src/shared-client/index.ts';
@@ -104,12 +104,46 @@ describe('pipeline in mixed mode: the second K05 call', () => {
     );
     if (!b.ok) throw new Error(b.code);
     const asked = seen.slice(1).flatMap(s => s.legs ?? []);
-    expect(asked.length).toBeLessThanOrEqual(8);
+    expect(asked.length).toBeLessThanOrEqual(6); // M1: at most 6 Routes calls per job
+    expect(seen.filter(x => x.legs).length).toBe(1); // one second call for the whole job, not one per candidate
     expect(new Set(asked.map(q => `${q.fromPlaceId}|${q.toPlaceId}`)).size).toBe(asked.length);
     expect(asked[0]).toMatchObject({ fromPlaceId: 'fx_kanazawa_station', toPlaceId: 'fx_kenrokuen', departureUtc: '2026-11-01T00:00:00Z', mode: 'transit' });
     expect(asked.find(q => q.fromPlaceId === 'fx_kenrokuen' && q.toPlaceId === 'fx_21c_museum')!.mode).toBe('walk'); // ~0.5 km
     expect(JSON.stringify(b.batch)).not.toMatch(/LIVE-LINE|LIVE-PLATFORM/);
     expect(b.batch.candidates.every(x => x.warnings.includes(LEG_REFETCH_WARNING) || x.days.every(d => d.items.every(i => i.type !== 'leg')))).toBe(true);
+  });
+
+  it('3 candidates x 5 stops: all candidates share one lookup of at most 6 distinct pairs; pairs beyond the cap stay untimed with the warning', async () => {
+    const { seen, pipeline } = setup();
+    const col = await pipeline.collect('u1', req, new AbortController().signal);
+    if (!col.ok) throw new Error(col.code);
+    const five = ['fx_kenrokuen', 'fx_21c_museum', 'fx_omicho', 'fx_higashi', 'fx_sushi'];
+    const b = await pipeline.build('u1', bp(five, [...five].reverse(), [five[2]!, five[0]!, five[4]!, five[1]!, five[3]!]), col.ctx, KEY, new AbortController().signal);
+    if (!b.ok) throw new Error(b.code);
+    const calls = seen.filter(x => x.legs);
+    expect(calls).toHaveLength(1);
+    const asked = calls[0]!.legs!;
+    expect(asked.length).toBe(MAX_LIVE_LEG_PAIRS);
+    expect(new Set(asked.map(q => `${q.fromPlaceId}|${q.toPlaceId}`)).size).toBe(asked.length);
+    // round-robin: every candidate's first pair is among them
+    expect(asked.some(q => q.toPlaceId === 'fx_sushi' && q.fromPlaceId === 'fx_kanazawa_station')).toBe(true);
+    const legCount = b.batch.candidates.flatMap(x => x.days.flatMap(d => d.items)).filter(i => i.type === 'leg').length;
+    expect(legCount).toBeGreaterThan(0);
+    expect(b.batch.candidates.some(x => x.warnings.some(w => w.includes('移動時間不明')))).toBe(true);
+  });
+
+  it('a configured cap can only lower the limit', async () => {
+    const seen: PlanningContextRequest[] = [];
+    const client: ContextClient = {
+      getPlanningContext: async (_s, body) => (seen.push(body), { ok: true, context: PlanningContext.parse({ places, legs: [], unknown: [], dataMode: 'mixed' }) }),
+    };
+    const mk = (maxLiveLegs: number) => createPipeline({ contextClient: client, planClient: { savePlanBatch: async () => ({ ok: false, code: 'UNAVAILABLE', retryable: true }), findPlanBatchByGenerationId: async () => null }, sessions: { findUpstream: () => ({ id: 's', csrfToken: 'x', expiresAt: 1, ...session }) }, maxLiveLegs });
+    const col = await mk(2).collect('u1', req, new AbortController().signal);
+    if (!col.ok) throw new Error(col.code);
+    const five = ['fx_kenrokuen', 'fx_21c_museum', 'fx_omicho', 'fx_higashi', 'fx_sushi'];
+    await mk(2).build('u1', bp(five), col.ctx, KEY, new AbortController().signal);
+    await mk(99).build('u1', bp(five, [...five].reverse()), col.ctx, KEY, new AbortController().signal);
+    expect(seen.filter(x => x.legs).map(x => x.legs!.length)).toEqual([2, 6]);
   });
 
   it('a failed second call leaves the stops without times instead of inventing travel', async () => {

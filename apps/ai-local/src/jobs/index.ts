@@ -22,6 +22,13 @@ export interface JobRequest {
   baseRevision: null;
 }
 
+/** The shared server definitely refused the save (4xx): nothing was written, so the job fails now and a retry cannot succeed unchanged. */
+export class SaveRejected extends Error {
+  constructor(readonly code: ErrorCode) {
+    super(code);
+  }
+}
+
 export type StageFail = { ok: false; code: ErrorCode; retryable: boolean };
 
 /**
@@ -134,6 +141,7 @@ const FIXED_MESSAGES: Partial<Record<ErrorCode, string>> = {
   INVALID_OUTPUT: 'The generator returned an invalid result.',
   UNAVAILABLE: 'The service is unavailable.',
   UNAUTHENTICATED: 'Login required; please sign in again.',
+  IDEMPOTENCY_CONFLICT: 'This request key was already used for different content.',
   VALIDATION_FAILED: 'The request could not be used.',
   RATE_LIMITED: 'Too many requests; please retry later.',
   PROVIDER_UNAVAILABLE: 'The travel data source is unavailable.',
@@ -583,7 +591,11 @@ export class JobManager {
       job.batchId = id.data;
       this.set(job, 'running', 'saved');
       this.set(job, 'succeeded', 'done');
-    } catch {
+    } catch (e) {
+      if (e instanceof SaveRejected) {
+        if (isActive(job)) this.set(job, 'failed', job.stage, this.safeErr(job, { code: e.code, retryable: false }));
+        return;
+      }
       await this.settleUnknownSave(job);
     } finally {
       clearTimeout(timer);

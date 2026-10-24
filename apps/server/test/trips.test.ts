@@ -145,6 +145,39 @@ describe('trips API', () => {
     expect(errOf(r3).code).toBe('IDEMPOTENCY_CONFLICT');
   });
 
+  it('K07: places and legs labelled google_* must carry ids only (the label is not trusted)', async () => {
+    const { app } = make();
+    const a = await login(app, 'user-a');
+    const google = (over: object = {}) => {
+      const p = place('p1');
+      p.provenance = { ...p.provenance, source: 'google_places', mayStore: true, maySendToModel: false, mayExport: false };
+      p.location = null;
+      return { ...p, ...over };
+    };
+    const ok = await call(app, a, 'POST', '/api/v1/plan-batches', batchBody({ places: [google()] }));
+    expect(ok.statusCode).toBe(201);
+    for (const over of [{ location: { lat: 1, lng: 2 } }, { openingHours: '9-17' }, { description: 'x' }, { photo: { url: 'https://e.test/a.jpg', attribution: 'a', license: null } }]) {
+      const r = await call(app, a, 'POST', '/api/v1/plan-batches', batchBody({ places: [google(over)] }));
+      expect(r.statusCode, JSON.stringify(over)).toBe(422);
+      expect(errOf(r).code).toBe('RESTRICTED_ASSET');
+    }
+    const leg = (over: object = {}) => ({
+      type: 'leg', legId: 'l1', mode: 'transit', fromPlaceId: 'p1', toPlaceId: 'p1', departure: null, arrival: null, durationSeconds: null, lineName: null, platform: null, transfers: null, fare: null,
+      dataStatus: 'unknown', provenance: { source: 'google_routes', fetchedAt: null, attribution: null, maySendToModel: false, mayStore: true, mayExport: false, retainUntil: null }, ...over,
+    });
+    const withLeg = (l: object) => {
+      const c = candidate('c1');
+      c.days[0]!.items.splice(1, 0, l as never);
+      return batchBody({ candidates: [c], places: [place('p1')] });
+    };
+    expect((await call(app, a, 'POST', '/api/v1/plan-batches', withLeg(leg()))).statusCode).toBe(201);
+    for (const over of [{ durationSeconds: 60 }, { fare: { amountMinor: 1, currency: 'JPY' } }, { lineName: 'L' }, { platform: '1' }, { transfers: 0 }]) {
+      const r = await call(app, a, 'POST', '/api/v1/plan-batches', withLeg(leg(over)));
+      expect(r.statusCode, JSON.stringify(over)).toBe(422);
+      expect(errOf(r).code).toBe('RESTRICTED_ASSET');
+    }
+  });
+
   it('K07: baseTripId must be mine and baseRevision current', async () => {
     const { app } = make();
     const a = await login(app, 'user-a');

@@ -23,6 +23,9 @@ export const DAY_START = '09:00';
 export const DAY_END = '19:00';
 export const STAY_MINUTES = { visit: 90, other: 60 } as const;
 export const MAX_LEG_PAIRS = 8;
+/** M1's cap on live Routes lookups for the whole job (all candidates together). The configured value can only lower it. */
+export const MAX_LIVE_LEG_PAIRS = 6;
+export const LIVE_DEPARTURE_WARNING = '移動時間は出発日の9:00発（出発時刻の指定があればその時刻）を想定して取得しています。';
 const MAX_LIST = 10;
 const MAX_TEXT = 200;
 const MAX_ISSUES = 20;
@@ -65,11 +68,11 @@ function activityFor(candidateId: string, place: PlaceInfo): Activity {
 }
 
 /** Consecutive pairs of a visiting order (from the start place first), de-duplicated, at most MAX_LEG_PAIRS. */
-export function consecutivePairs(start: string | null, order: readonly string[]): LegPair[] {
+export function consecutivePairs(start: string | null, order: readonly string[], cap: number = MAX_LEG_PAIRS): LegPair[] {
   const seq = start === null ? [...order] : [start, ...order];
   const seen = new Set<string>();
   const out: LegPair[] = [];
-  for (let i = 0; i + 1 < seq.length && out.length < MAX_LEG_PAIRS; i++) {
+  for (let i = 0; i + 1 < seq.length && out.length < cap; i++) {
     const k = `${seq[i]}|${seq[i + 1]}`;
     if (seq[i] !== seq[i + 1] && !seen.has(k)) {
       seen.add(k);
@@ -147,6 +150,7 @@ export async function assembleBatch(
   constraints: TripConstraints,
   operationKey: string,
   fetchLegs?: FetchLegs,
+  opts: { maxLivePairs?: number } = {},
 ): Promise<AssembleOk | StageFail> {
   const ids = blueprint.candidates.map(c => c.candidateId);
   if (new Set(ids).size !== ids.length || ids.some(i => i.length > 100)) return fail('INVALID_OUTPUT', true);
@@ -157,22 +161,36 @@ export async function assembleBatch(
   const dates = eachDate(constraints.startDate, constraints.endDate);
   const startPlaceId = constraints.departure?.placeId && placeById.has(constraints.departure.placeId) ? constraints.departure.placeId : null;
 
+  for (const c of blueprint.candidates as CandidateBlueprint[]) {
+    if (c.activityOrder.some(id => !placeById.has(id) || !VISITABLE_KINDS.has(placeById.get(id)!.kind))) return fail('INVALID_OUTPUT', true);
+  }
+  const byPair = new Map<string, TravelLeg>();
+  const remember = (ls: readonly TravelLeg[]) => {
+    for (const l of ls) if (!byPair.has(`${l.fromPlaceId}|${l.toPlaceId}`)) byPair.set(`${l.fromPlaceId}|${l.toPlaceId}`, l);
+  };
+  if (fetchLegs) {
+    // Live lookups cost quota (M1: at most 6 Routes calls per JOB). Take the pairs of ALL candidates, round-robin so no
+    // candidate starves, drop duplicates, cap, and ask once. Pairs beyond the cap stay unknown (stops without times).
+    const cap = Math.min(opts.maxLivePairs ?? MAX_LIVE_LEG_PAIRS, MAX_LIVE_LEG_PAIRS);
+    const lists = (blueprint.candidates as CandidateBlueprint[]).map(c => consecutivePairs(startPlaceId, c.activityOrder, MAX_LEG_PAIRS));
+    const picked: LegPair[] = [];
+    const seen = new Set<string>();
+    for (let i = 0; picked.length < cap && lists.some(l => i < l.length); i++) {
+      for (const l of lists) {
+        const p = l[i];
+        if (p && picked.length < cap && !seen.has(`${p.from}|${p.to}`)) {
+          seen.add(`${p.from}|${p.to}`);
+          picked.push(p);
+        }
+      }
+    }
+    if (picked.length > 0) remember(await fetchLegs(picked));
+  }
   const candidates: PlanCandidate[] = [];
   const used = new Set<string>();
-  const asked = new Set<string>();
-  const byPair = new Map<string, TravelLeg>();
   for (const c of blueprint.candidates as CandidateBlueprint[]) {
     const order = c.activityOrder;
-    if (order.some(id => !placeById.has(id) || !VISITABLE_KINDS.has(placeById.get(id)!.kind))) return fail('INVALID_OUTPUT', true);
-    const pairs = consecutivePairs(startPlaceId, order);
-    if (fetchLegs) {
-      // Live lookups cost quota: ask only for pairs not asked yet, and at most MAX_LEG_PAIRS for the whole job.
-      const fresh = pairs.filter(p => !asked.has(`${p.from}|${p.to}`)).slice(0, MAX_LEG_PAIRS - asked.size);
-      for (const p of fresh) asked.add(`${p.from}|${p.to}`);
-      if (fresh.length > 0) for (const l of await fetchLegs(fresh)) if (!byPair.has(`${l.fromPlaceId}|${l.toPlaceId}`)) byPair.set(`${l.fromPlaceId}|${l.toPlaceId}`, l);
-    } else {
-      for (const l of await legsFor(pairs)) if (!byPair.has(`${l.fromPlaceId}|${l.toPlaceId}`)) byPair.set(`${l.fromPlaceId}|${l.toPlaceId}`, l);
-    }
+    if (!fetchLegs) remember(await legsFor(consecutivePairs(startPlaceId, order)));
     const travel = (f: string, t: string) => {
       const l = byPair.get(`${f}|${t}`);
       return l ? { ...l, departure: null, arrival: null } : null; // sample/fixture times are never a timetable
@@ -211,6 +229,7 @@ export async function assembleBatch(
     const excluded = [...new Set([...(c.excludedPlaceIds ?? []), ...plan.dropped.map(d => d.placeId)])].filter(id => !inDays.has(id));
     const ours = [
       STAY_ASSUMPTION_WARNING,
+      ...(fetchLegs ? [LIVE_DEPARTURE_WARNING] : []),
       ...(plan.untimed ? [UNTIMED_WARNING] : []),
       ...(proj.legsProjected ? [LEG_REFETCH_WARNING] : []),
       ...(proj.placesProjected ? [PLACE_REFETCH_WARNING] : []),

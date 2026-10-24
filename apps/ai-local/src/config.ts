@@ -24,11 +24,19 @@ export interface PersonalConfig {
   saveTimeoutMs: number;
   /** Job journal directory (AI_JOB_DIR); null = in-memory only. main.ts defaults it to <repo>/.local/ai-local. */
   jobDir: string | null;
+  /** AI_MAX_LIVE_LEGS: live Routes lookups per job (1-6, default 6; M1 cap). */
+  maxLiveLegs: number;
 }
 
 function posInt(v: string | undefined, def: number, name: string): number {
   const n = Number(v ?? def);
   if (!Number.isInteger(n) || n < 1) throw new Error(`invalid ${name}`);
+  return n;
+}
+
+function liveLegs(v: string | undefined): number {
+  const n = posInt(v, 6, 'AI_MAX_LIVE_LEGS');
+  if (n > 6) throw new Error('AI_MAX_LIVE_LEGS cannot exceed 6');
   return n;
 }
 
@@ -67,6 +75,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): PersonalConfig
     cliTimeoutMs: posInt(env.CLI_TIMEOUT_SECONDS, 120, 'CLI_TIMEOUT_SECONDS') * 1000,
     pairingTtlMs: 10 * 60_000,
     saveTimeoutMs: posInt(env.AI_SAVE_TIMEOUT_SECONDS, 60, 'AI_SAVE_TIMEOUT_SECONDS') * 1000,
+    maxLiveLegs: liveLegs(env.AI_MAX_LIVE_LEGS),
     jobDir: env.AI_JOB_DIR?.trim() ? resolve(env.AI_JOB_DIR.trim()) : null,
   };
 }

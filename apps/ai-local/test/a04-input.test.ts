@@ -83,3 +83,13 @@ describe('toGenerationInput', () => {
     expect(input.allowedPlaceIds).toContain('fx_omicho');
   });
 });
+
+describe('AI_MAX_LIVE_LEGS', () => {
+  it('defaults to 6, can lower the cap, and cannot exceed 6', async () => {
+    const { loadConfig } = await import('../src/config.ts');
+    expect(loadConfig({}).maxLiveLegs).toBe(6);
+    expect(loadConfig({ AI_MAX_LIVE_LEGS: '3' }).maxLiveLegs).toBe(3);
+    expect(() => loadConfig({ AI_MAX_LIVE_LEGS: '7' })).toThrow(/cannot exceed 6/);
+    expect(() => loadConfig({ AI_MAX_LIVE_LEGS: '0' })).toThrow();
+  });
+});

@@ -14,3 +14,27 @@ export function batchReferencesOnlyKnownPlaces(candidates: readonly PlanCandidat
   }
   return true;
 }
+
+const isGoogle = (source: string) => source.startsWith('google_');
+
+/**
+ * Provider content that may not be kept must not arrive at all: a place or leg labelled as Google data may carry
+ * only ids (the client's labels are not trusted to mean "already stripped").
+ */
+export function carriesRestrictedProviderContent(
+  places: readonly Pick<PlaceInfo, 'provenance' | 'location' | 'openingHours' | 'description' | 'photo'>[],
+  candidates: readonly PlanCandidate[],
+): boolean {
+  if (places.some(p => isGoogle(p.provenance.source) && (p.location !== null || p.openingHours !== null || p.description !== null || p.photo !== null))) return true;
+  return candidates.some(c =>
+    c.days.some(d =>
+      d.items.some(
+        it =>
+          it.type === 'leg' &&
+          it.provenance !== null &&
+          isGoogle(it.provenance.source) &&
+          (it.durationSeconds !== null || it.fare !== null || it.lineName !== null || it.platform !== null || it.transfers !== null),
+      ),
+    ),
+  );
+}

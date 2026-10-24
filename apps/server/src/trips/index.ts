@@ -25,7 +25,7 @@ import { requireActor } from '../platform/auth/index.ts';
 import type { SharedConfig } from '../platform/config.ts';
 import { applyOperations, computeDiff } from './operations.ts';
 import { registerPlanningContext } from './generation/index.ts';
-import { batchReferencesOnlyKnownPlaces } from './generation/verify-batch.ts';
+import { batchReferencesOnlyKnownPlaces, carriesRestrictedProviderContent } from './generation/verify-batch.ts';
 
 function fail(
   reply: FastifyReply,
@@ -145,6 +145,7 @@ export function registerTrips(app: FastifyInstance, db: Db, config: SharedConfig
     if (new Set(ids).size !== ids.length) return fail(reply, req.id, 'VALIDATION_FAILED', 'Duplicate candidateId.');
     // Every place an activity or leg points at must travel with the batch (the model's blueprint is never trusted for ids).
     if (!batchReferencesOnlyKnownPlaces(input.candidates, input.places)) return fail(reply, req.id, 'VALIDATION_FAILED', 'Unknown place reference.');
+    if (carriesRestrictedProviderContent(input.places, input.candidates)) return fail(reply, req.id, 'RESTRICTED_ASSET', 'Data may not be stored.');
     const now = nowIso();
     const candidates = input.candidates.map((c) => ({ ...c, validationState: reviewCandidate(c) }));
     const state = worst(candidates.map((c) => c.validationState));

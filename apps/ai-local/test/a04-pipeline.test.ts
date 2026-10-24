@@ -4,6 +4,7 @@ import { FakeRunner, type Runner } from '@tkb/ai';
 import { SCHEMA_VERSION, type GenerationInput, type PlanBatchCreate } from '@tkb/contracts';
 import { samplePlanBlueprint } from '@tkb/fixtures';
 import { JobManager, type GenerationPipeline, type JobRequest } from '../src/jobs/index.ts';
+import { createPipeline } from '../src/generation/pipeline.ts';
 import type { JobMetrics } from '../src/generation/metrics.ts';
 
 const request: JobRequest = {
@@ -104,5 +105,25 @@ describe('GenerationPipeline in JobManager', () => {
     await new Promise(res => setTimeout(res, 50));
     expect(m.status('u1', r.jobId)).toMatchObject({ state: 'failed', error: { code: 'UNAVAILABLE' } });
     expect(ran).toBe(0);
+  });
+});
+
+describe('K07 refusals (O4)', () => {
+  const up = { id: 's', csrfToken: 'x', expiresAt: 1, upstream: { userId: 'u1', displayName: 'T', cookie: 'c', csrfToken: 't' } };
+  const withSave = (r: { ok: false; code: string; retryable: boolean }, found: string | null = null) => {
+    const real = createPipeline({
+      contextClient: { getPlanningContext: async () => ({ ok: false, code: 'UNAVAILABLE', retryable: true }) },
+      planClient: { savePlanBatch: async () => r as never, findPlanBatchByGenerationId: async () => found },
+      sessions: { findUpstream: () => up },
+    });
+    return setup({ pipeline: { save: real.save } });
+  };
+  it.each(['RESTRICTED_ASSET', 'VALIDATION_FAILED', 'IDEMPOTENCY_CONFLICT', 'CONSTRAINT_UNSATISFIED'] as const)('a definite %s refusal fails the job at once, not retryable', async code => {
+    const s = await withSave({ ok: false, code, retryable: false }).go();
+    expect(s).toMatchObject({ state: 'failed', error: { code, retryable: false } });
+  });
+  it('a retryable failure is an unknown outcome and goes through the lookup path', async () => {
+    const s = await withSave({ ok: false, code: 'UNAVAILABLE', retryable: true }).go();
+    expect(s).toMatchObject({ state: 'failed', error: { code: 'UNAVAILABLE', retryable: true } });
   });
 });
