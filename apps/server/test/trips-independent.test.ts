@@ -496,9 +496,7 @@ describe('K09 list and detail', () => {
     for (const id of ['x%20y', '%00']) expect((await call(app, a, 'GET', `/api/v1/trips/${id}`)).statusCode, id).toBe(404);
   });
 
-  // Platform issue (M1): Fastify maxParamLength maps an over-long id to 422 in platform/app.ts frameworkErrors.
-  // K09/K23 expect 404. Kept as a known gap until the platform maps it; see PR description.
-  it.skip('an over-long id (beyond Id max 128) is just a nonexistent trip: 404, not a validation error', async () => {
+  it('an over-long id (beyond Id max 128) is just a nonexistent trip: 404, not a validation error', async () => {
     const { app } = make();
     const a = await login(app, 'user-a');
     expect((await call(app, a, 'GET', `/api/v1/trips/${'a'.repeat(200)}`)).statusCode).toBe(404);

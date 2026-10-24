@@ -208,3 +208,20 @@ describe('git hygiene', () => {
     }
   });
 });
+
+describe('trip_versions consistency', () => {
+  it('stores the same createdAt in the version document as the returned trip, whatever the caller sends', () => {
+    const db = openDatabase(':memory:');
+    migrate(db);
+    createUser(db, { id: 'user_owner', loginId: 'owner', passwordHash: 'hash', displayName: 'o', createdAt: '2026-01-01T00:00:00Z' });
+    const base = { ...structuredClone(fixtureTrips[0]!), tripId: 'trip_v', ownerId: 'user_owner', revision: 1 };
+    insertTrip(db, 'user_owner', base, '2026-10-24T03:00:00Z');
+    const r = updateTripWithRevision(db, 'user_owner', { ...base, createdAt: '2030-01-01T00:00:00Z', title: 'v2' }, 1, '2026-10-24T03:00:01Z');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const row = db.prepare('SELECT document_json FROM trip_versions WHERE trip_id = ? AND revision = 2').get('trip_v') as { document_json: string };
+    expect(JSON.parse(row.document_json)).toEqual(r.trip);
+    expect(r.trip.createdAt).toBe('2026-10-24T03:00:00Z');
+    db.close();
+  });
+});
