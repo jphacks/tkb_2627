@@ -26,8 +26,15 @@ const pointsOf = (link: MapsLink) => {
 describe('placeSearchLink', () => {
   it('uses the official search URL with coordinates when known', () => {
     expect(placeSearchLink(place('k', { location: { lat: 36.562, lng: 136.662 } })).url).toBe(
-      'https://www.google.com/maps/search/?api=1&query=36.562%2C136.662',
+      'https://www.google.com/maps/search/?api=1&query=36.562000%2C136.662000',
     );
+    // Fixed decimals: never an exponent.
+    expect(placeSearchLink(place('t', { location: { lat: 1e-7, lng: 2 } })).url).toContain('query=0.000000%2C2.000000');
+  });
+
+  it('adds the area to a name-only search so a common name does not open elsewhere', () => {
+    expect(params(placeSearchLink(place('s', { name: '寿司店A' }), '金沢')).get('query')).toBe('寿司店A 金沢');
+    expect(params(placeSearchLink(place('s', { name: '金沢駅' }), '金沢')).get('query')).toBe('金沢駅');
   });
 
   it('falls back to the name and escapes separators, spaces and Japanese', () => {
@@ -108,6 +115,15 @@ describe('tripMapsLinks', () => {
     ]);
     expect(day2).toMatchObject({ date: '2026-11-02', routes: [], tooLong: [] });
     expect(day2!.places).toHaveLength(1);
+    expect(r.withheldPlaceIds).toEqual([]);
+    expect(r.unknownPlaceIds).toEqual([]);
+  });
+
+  it('reports activities whose place is missing from trip.places instead of dropping them silently', () => {
+    const trip = structuredClone(domesticTrip);
+    trip.places = trip.places.filter(p => p.placeId !== 'fx_omicho');
+    const r = tripMapsLinks(trip);
+    expect(r.unknownPlaceIds).toEqual(['fx_omicho']);
     expect(r.withheldPlaceIds).toEqual([]);
   });
 

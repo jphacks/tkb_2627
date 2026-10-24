@@ -153,7 +153,7 @@ export interface IcsResult {
   notice: string;
   eventCount: number;
   /** Items not written, with the reason: times unknown are never guessed (R19). */
-  omitted: { itemId: string; reason: 'time_unknown' | 'not_exportable' }[];
+  omitted: { itemId: string; reason: 'time_unknown' | 'invalid_time' | 'not_exportable' }[];
   /** Places whose details were not written because their provider does not allow export (docs/08). */
   withheldPlaceIds: string[];
 }
@@ -163,12 +163,28 @@ export interface IcsResult {
  * zone, with a VTIMEZONE per zone. Skipped activities are left out and private notes are never written. Place names
  * and coordinates are written only when the provider allows export; a leg whose provider does not allow export is
  * left out entirely, since its times come from that provider. `revision` becomes SEQUENCE so a re-export updates
- * the imported events.
+ * the imported events. The trip's departure/return places (often home) are written only as 出発地/到着地, because
+ * ICS files are easily forwarded. An item ending before it starts is omitted rather than shortened.
  */
-export function tripToIcs(trip: Pick<Trip, 'tripId' | 'title' | 'days' | 'places'> & Partial<Pick<Trip, 'revision'>>, options: IcsOptions): IcsResult {
+export function tripToIcs(
+  // constraints is required so a caller cannot drop it and silently write the home name.
+  trip: Pick<Trip, 'tripId' | 'title' | 'days' | 'places'> &
+    Partial<Pick<Trip, 'revision'>> & { constraints: Pick<Trip['constraints'], 'departure' | 'return'> },
+  options: IcsOptions,
+): IcsResult {
   const places = new Map(trip.places.map(p => [p.placeId, p]));
+  const dep = trip.constraints.departure?.placeId ?? null;
+  const ret = trip.constraints.return?.placeId ?? null;
+  const isPrivate = (placeId: string | null) => placeId !== null && (placeId === dep || placeId === ret);
+  /** Label for a private place by direction: where a leg leaves from vs arrives at. */
+  const labelFor = (placeId: string | null, side: 'from' | 'to'): string | undefined => {
+    if (!isPrivate(placeId)) return undefined;
+    if (side === 'from') return placeId === dep ? '出発地' : '到着地';
+    return placeId === ret ? '到着地' : '出発地';
+  };
   const withheld = new Set<string>();
   const exportable = (placeId: string | null): PlaceInfo | undefined => {
+    if (isPrivate(placeId)) return undefined;
     const place = placeId === null ? undefined : places.get(placeId);
     if (place && !place.provenance.mayExport) {
       withheld.add(place.placeId);
@@ -178,6 +194,8 @@ export function tripToIcs(trip: Pick<Trip, 'tripId' | 'title' | 'days' | 'places
   };
 
   const omitted: IcsResult['omitted'] = [];
+  const credit = (attribution: string | null | undefined) => (attribution ? [`出典: ${attribution}`] : []);
+  const backwards = (start: ZonedTime, end: ZonedTime) => Date.parse(end.utc) < Date.parse(start.utc);
   const events: { id: string; start: ZonedTime; end: ZonedTime; props: string[] }[] = [];
   for (const day of trip.days) {
     for (const item of day.items) {
@@ -187,11 +205,18 @@ export function tripToIcs(trip: Pick<Trip, 'tripId' | 'title' | 'days' | 'places
           omitted.push({ itemId: item.activityId, reason: 'time_unknown' });
           continue;
         }
+        if (backwards(item.start, item.end)) {
+          omitted.push({ itemId: item.activityId, reason: 'invalid_time' });
+          continue;
+        }
         const place = exportable(item.placeId);
-        const where = [...new Set([place?.name, item.areaName].filter((v): v is string => Boolean(v)))].join(' / ');
+        const label = labelFor(item.placeId, 'from');
+        // At a private place the area name could pinpoint it, so only the label is written.
+        const where = label ?? [...new Set([place?.name, item.areaName].filter((v): v is string => Boolean(v)))].join(' / ');
         const description = [
           `${KIND_LABEL[item.kind]}${item.fixed ? '（固定予定）' : ''}${item.status === 'completed' ? '（訪問済み）' : ''}`,
           `費用: ${money(item.cost)}`,
+          ...credit(place?.provenance.attribution),
           ...(place?.dataStatus === 'fixture' || item.costStatus === 'fixture' ? [FIXTURE_NOTE] : []),
         ];
         events.push({
@@ -214,14 +239,19 @@ export function tripToIcs(trip: Pick<Trip, 'tripId' | 'title' | 'days' | 'places
           omitted.push({ itemId: item.legId, reason: 'time_unknown' });
           continue;
         }
-        const from = exportable(item.fromPlaceId)?.name;
-        const to = exportable(item.toPlaceId)?.name;
+        if (backwards(item.departure, item.arrival)) {
+          omitted.push({ itemId: item.legId, reason: 'invalid_time' });
+          continue;
+        }
+        const from = labelFor(item.fromPlaceId, 'from') ?? exportable(item.fromPlaceId)?.name;
+        const to = labelFor(item.toPlaceId, 'to') ?? exportable(item.toPlaceId)?.name;
         const line = item.lineName ?? MODE_LABEL[item.mode];
         const description = [
           `移動（${MODE_LABEL[item.mode]}）`,
           ...(item.platform ? [`乗り場: ${item.platform}`] : []),
           ...(item.transfers !== null ? [`乗換: ${item.transfers}回`] : []),
           `運賃: ${money(item.fare)}`,
+          ...credit(item.provenance?.attribution),
           ...(item.dataStatus === 'fixture' ? [FIXTURE_NOTE] : []),
         ];
         events.push({
