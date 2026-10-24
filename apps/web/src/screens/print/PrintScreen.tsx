@@ -6,6 +6,7 @@ import { createMockApi } from '../../mocks/index.ts';
 import { fetchTrip, fetchTripFromMock, type TripLoad } from '../itinerary/api.ts';
 import { MAP_NOTE, PHOTO_PLACEHOLDER, buildPrintModel, costText } from './model.ts';
 import { PDF_MESSAGES, createMockPdf, createPdf, type PdfOutcome } from './pdf.ts';
+import { CAL_MESSAGES, fetchIcs, fetchMapsLinks, mockIcs, mockMapsLinks, type MapsOutcome } from './calendar-maps.ts';
 import type { PrintRoute } from './route.ts';
 import './print.css';
 
@@ -103,6 +104,67 @@ function PdfPanel({ trip, mode }: { trip: Trip; mode: PrintRoute['mode'] }) {
   );
 }
 
+const KIND_LABEL = { place: '地点', leg: '区間', photo: '写真' } as const;
+
+/** E03: ICS download and per-day Google Maps links (R19/R20: nothing is registered in any account). */
+function CalendarMapsPanel({ trip, mode }: { trip: Trip; mode: PrintRoute['mode'] }) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [maps, setMaps] = useState<MapsOutcome | null>(null);
+  const ctrl = useRef<AbortController | null>(null);
+  useEffect(() => () => ctrl.current?.abort(), []);
+
+  async function downloadIcs() {
+    setBusy(true); setMessage(null);
+    ctrl.current = new AbortController();
+    try {
+      const r = mode === 'mock' ? await mockIcs() : await fetchIcs(trip.tripId, { signal: ctrl.current.signal });
+      if (r.state === 'ready') {
+        const url = URL.createObjectURL(r.blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `trip-${trip.tripId}.ics`;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+      } else setMessage(r.state === 'error' ? r.message : CAL_MESSAGES[r.state]);
+    } catch { /* aborted on unmount */ } finally { setBusy(false); }
+  }
+  async function loadMaps() {
+    setBusy(true); setMessage(null);
+    ctrl.current = new AbortController();
+    try {
+      const r = mode === 'mock' ? await mockMapsLinks() : await fetchMapsLinks(trip.tripId, { signal: ctrl.current.signal });
+      setMaps(r);
+      if (r.state === 'error') setMessage(r.message);
+      else if (r.state !== 'ready') setMessage(CAL_MESSAGES[r.state]);
+    } catch { /* aborted on unmount */ } finally { setBusy(false); }
+  }
+
+  const withheld = maps && 'withheld' in maps ? maps.withheld : [];
+  return (
+    <div className="pr-cal">
+      <button type="button" className="btn" onClick={() => void downloadIcs()} disabled={busy}>カレンダー（ICS）をダウンロード</button>
+      <button type="button" className="btn" onClick={() => void loadMaps()} disabled={busy}>Googleマップで開く</button>
+      {message && <p role="alert">{message}</p>}
+      {maps?.state === 'ready' && (
+        <ul aria-label="日ごとのGoogleマップ">
+          {maps.byDay.map(d => (
+            <li key={d.dayIndex}>
+              {d.dayIndex + 1}日目:{' '}
+              {d.urls.map((u, i) => <a key={u} href={u} target="_blank" rel="noopener noreferrer">{d.urls.length > 1 ? `リンク${i + 1}` : 'Googleマップで開く'} </a>)}
+            </li>
+          ))}
+        </ul>
+      )}
+      {withheld.length > 0 && (
+        <div role="status">
+          <p>転載できないため、次の項目は含まれません。</p>
+          <ul>{withheld.map(w => <li key={`${w.kind}:${w.id}`}>{KIND_LABEL[w.kind]}: {w.id}</li>)}</ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PrintBody({ load, mode }: { load: TripLoad | null; mode: PrintRoute['mode'] }) {
   if (load === null) return <p role="status">旅程を読み込み中…</p>;
   if (load.state === 'notFound') return <p role="alert">旅程が見つかりません（404）。</p>;
@@ -114,6 +176,7 @@ export function PrintBody({ load, mode }: { load: TripLoad | null; mode: PrintRo
         <a href={`#/${mode === 'mock' ? 'mock/' : ''}trips/${encodeURIComponent(load.trip.tripId)}/map`}>← 地図と旅程へ</a>
         <button type="button" className="btn" onClick={() => window.print()}>ブラウザで印刷</button>
         <PdfPanel trip={load.trip} mode={mode} />
+        <CalendarMapsPanel trip={load.trip} mode={mode} />
       </div>
       <PrintSheet trip={load.trip} />
     </>

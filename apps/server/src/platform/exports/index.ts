@@ -7,6 +7,8 @@ import { buildPrintModel, localParts } from './print-model.ts';
 import { renderPdf } from './pdf.ts';
 import type { PrintLine } from './print-model.ts';
 
+import { registerCalendarMaps } from './calendar-maps.ts';
+
 export { ExportJobs } from './jobs.ts';
 
 /**
@@ -15,7 +17,7 @@ export { ExportJobs } from './jobs.ts';
  * - GET  /api/v1/exports/:id        → the PDF when ready, otherwise ExportStatus JSON (queued/failed/expired)
  * - DELETE /api/v1/exports/:id      → 204; a later GET is 404
  * Another user's trip or export and a missing one are both 404. A deleted trip makes its exports 404 too.
- * ICS and Maps URL (E03) are library functions in @tkb/exports and are not served by this route.
+ * ICS and Maps links (E03) are served by calendar-maps.ts: GET /api/v1/trips/:id/ics and /maps-links.
  */
 
 export interface ExportsDeps {
@@ -47,6 +49,7 @@ export function registerExports(app: FastifyInstance, db: Db, deps: ExportsDeps 
   const jobs = deps.jobs ?? new ExportJobs(deps.jobOptions);
   const render = deps.render ?? renderPdf;
   const pre = { preHandler: app.authenticate };
+  registerCalendarMaps(app, db);
 
   app.addHook('onSend', async (req, reply) => {
     if (req.url.startsWith('/api/v1/exports')) reply.header('cache-control', 'no-store');
