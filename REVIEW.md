@@ -12,6 +12,7 @@
 
 | 番号 | 画面 | Issue |
 |---|---|---|
+| U13 | ホーム | https://github.com/jphacks/tkb_2627/issues/218 |
 | U03 | 条件入力 | https://github.com/jphacks/tkb_2627/issues/31 |
 | U04 | 地図と旅程 | https://github.com/jphacks/tkb_2627/issues/32 |
 | U05 | 計画の進捗と候補 | https://github.com/jphacks/tkb_2627/issues/33 |
