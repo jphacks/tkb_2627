@@ -473,7 +473,7 @@ export function createMockSocialApi(options: MockSocialOptions = {}): SocialApi 
         follows.set(viewer.userId, set);
         return ok(UserProfile, profileOf(userId, viewer.userId));
       }),
-    uploadImage: file =>
+    uploadPostImage: file =>
       call(() => {
         if (!viewer) return unauth();
         if (validateImageFile(file, 0) !== null) return invalid();

@@ -4,13 +4,11 @@
  * Presentational: every action is a callback; nothing here talks to the API.
  */
 import { useEffect, useRef, useState } from 'react';
-import type { ApiError, PostAuthor, PostImage, PostSummary } from '@tkb/contracts';
+import type { ApiError, PostAuthor, PostSummary } from '@tkb/contracts';
 import { formatDay } from '../../lib/format.ts';
-import { imageSrc } from './api.ts';
+import { PostImages } from './images.tsx';
 import { postTimeLabel } from './postActions.ts';
 import { ResultError, VisibilityChip } from './views.tsx';
-
-export const IMAGE_ALT = '投稿の画像';
 
 export function Avatar({ author, fallbackName }: { author: PostAuthor | undefined; fallbackName: string }) {
   const initial = author?.avatarInitial ?? ([...fallbackName][0] ?? '?');
@@ -18,17 +16,6 @@ export function Avatar({ author, fallbackName }: { author: PostAuthor | undefine
     <span className="s9-avatar" style={{ background: author?.avatarColor ?? '#718096' }} aria-hidden="true">
       {initial}
     </span>
-  );
-}
-
-export function PostImages({ images }: { images: readonly PostImage[] | undefined }) {
-  if (!images || images.length === 0) return null;
-  return (
-    <div className={`s9-imgs s9-imgs-${images.length}`}>
-      {images.map(img => (
-        <img key={img.imageId} src={imageSrc(img.url)} alt={IMAGE_ALT} loading="lazy" decoding="async" />
-      ))}
-    </div>
   );
 }
 

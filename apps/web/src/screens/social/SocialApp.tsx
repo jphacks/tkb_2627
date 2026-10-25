@@ -4,13 +4,14 @@
  * always labelled. The session lives in an HttpOnly cookie (server) and the CSRF token in memory only.
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type FormEvent } from 'react';
-import type { ApiError, CopyResult, Group, Post, PostImage, PostPreview, PostSummary, TripSummary, Visibility } from '@tkb/contracts';
+import type { ApiError, CopyResult, Group, Post, PostPreview, PostSummary, TripSummary, Visibility } from '@tkb/contracts';
 import { ScreenHeader } from '../../components/ScreenHeader.tsx';
 import { VISIBILITY_LABEL } from '../../components/labels.ts';
 import { MOCK_NOTICE } from '../../mocks/index.ts';
 import { formatDay } from '../../lib/format.ts';
-import { MAX_POST_IMAGES, createHttpSocialApi, imageSrc, inviteTokenFrom, validateImageFile, type DataSource, type FeedScope, type SessionUser, type SocialApi, type SocialResult } from './api.ts';
-import { VISIBILITY_HELP } from './messages.ts';
+import { createHttpSocialApi, inviteTokenFrom, type DataSource, type FeedScope, type SessionUser, type SocialApi, type SocialResult } from './api.ts';
+import { ImagePicker, type UploadedImage } from './images.tsx';
+import { VISIBILITY_HELP, errorText } from './messages.ts';
 import { createMockSocialApi, type MockSocialScenario } from './mockSocialApi.ts';
 import { initialNav, navReducer, tabOf, type SocialNavAction, type SocialTab } from './nav.ts';
 import { useCardActions } from './useCardActions.ts';
@@ -584,10 +585,7 @@ function ComposeForm({ api, onPosted }: { api: SocialApi; onPosted: (postId: str
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ step: 'preview' | 'post'; error: ApiError } | null>(null);
-  const [images, setImages] = useState<PostImage[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [imageProblems, setImageProblems] = useState<string[]>([]);
-  const [uploadError, setUploadError] = useState<ApiError | null>(null);
+  const [images, setImages] = useState<UploadedImage[]>([]);
 
   const tripList: TripSummary[] = trips.status === 'done' && trips.result.ok ? trips.result.data.items : [];
   const selected = tripList.find(t => t.tripId === tripId) ?? null;
@@ -611,31 +609,10 @@ function ComposeForm({ api, onPosted }: { api: SocialApi; onPosted: (postId: str
     if (r.ok) setPreview(r.data);
     else setError({ step: 'preview', error: r.error });
   }
-  async function pickImages(files: FileList | null) {
-    if (!files || files.length === 0) return;
-    setUploadError(null);
-    const problems: string[] = [];
-    const accepted: File[] = [];
-    for (const file of Array.from(files)) {
-      const problem = validateImageFile(file, images.length + accepted.length);
-      if (problem) problems.push(problem);
-      else accepted.push(file);
-    }
-    setImageProblems(problems);
-    if (accepted.length === 0) return;
-    setUploading(true);
-    const uploaded: PostImage[] = [];
-    for (const file of accepted) {
-      const r = await api.uploadImage(file);
-      if (r.ok) uploaded.push(r.data);
-      else {
-        setUploadError(r.error);
-        break;
-      }
-    }
-    setUploading(false);
-    if (uploaded.length > 0) setImages(list => [...list, ...uploaded].slice(0, MAX_POST_IMAGES));
-  }
+  const upload = useCallback(async (file: File) => {
+    const r = await api.uploadPostImage(file);
+    return r.ok ? { ok: true as const, image: r.data } : { ok: false as const, error: errorText(r.error) };
+  }, [api]);
   async function post() {
     if (!preview || !confirmed) return;
     setBusy(true);
@@ -679,33 +656,9 @@ function ComposeForm({ api, onPosted }: { api: SocialApi; onPosted: (postId: str
             <textarea id="s8-story" rows={4} value={story} maxLength={5000} onChange={e => setStory(e.target.value)} aria-describedby="s8-story-count" />
             <span id="s8-story-count" className="meta">{story.length} / 5000</span>
           </div>
-          <fieldset className="u1-field u1-fieldset s9-attach">
-            <legend>画像（任意、{MAX_POST_IMAGES}枚まで・JPEG/PNG/WebP・5MBまで）</legend>
-            {images.length > 0 && (
-              <ul className="s9-thumbs" aria-label="添付する画像">
-                {images.map((img, i) => (
-                  <li key={img.imageId}>
-                    <img src={imageSrc(img.url)} alt={`添付する画像 ${i + 1}`} />
-                    <button type="button" className="s9-thumb-x" aria-label={`画像 ${i + 1} を外す`}
-                      onClick={() => setImages(list => list.filter(x => x.imageId !== img.imageId))}>×</button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <input id="s9-images" className="s9-file" type="file" multiple accept="image/jpeg,image/png,image/webp"
-              disabled={images.length >= MAX_POST_IMAGES || uploading}
-              onChange={e => { void pickImages(e.target.files); e.target.value = ''; }} />
-            <label className={`btn s9-pick${images.length >= MAX_POST_IMAGES || uploading ? ' s9-pick-off' : ''}`} htmlFor="s9-images">
-              {uploading ? 'アップロード中…' : '画像を選ぶ'}
-            </label>
-            {imageProblems.length > 0 && (
-              <ul className="u1-error" role="alert">{imageProblems.map(m => <li key={m}>{m}</li>)}</ul>
-            )}
-            {uploadError && <ResultError title="画像をアップロードできませんでした" error={uploadError} />}
-            <span className="meta">位置情報（EXIF）はサーバーが取り除きます。投稿を確定するまで、画像は自分だけが見られます。</span>
-          </fieldset>
+          <ImagePicker value={images} onChange={setImages} upload={upload} disabled={busy} />
           <div className="u1-actions">
-            <button type="submit" className="btn u1-primary" disabled={busy || uploading || !selected || (visibility === 'group' && groupId === '')}>
+            <button type="submit" className="btn u1-primary" disabled={busy || !selected || (visibility === 'group' && groupId === '')}>
               {busy ? '確認を作成中…' : '公開前の確認へ'}
             </button>
           </div>
@@ -713,7 +666,7 @@ function ComposeForm({ api, onPosted }: { api: SocialApi; onPosted: (postId: str
         </form>
       ) : (
         <>
-          <PreviewView preview={preview} visibility={visibility} groupName={groupName} story={story} images={images} />
+          <PreviewView preview={preview} visibility={visibility} groupName={groupName} story={story} images={images.map(i => ({ imageId: i.imageId, url: i.url, width: null, height: null }))} />
           <label className="u1-choice s8-confirm">
             <input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />
             <span>上の内容が「{VISIBILITY_LABEL[visibility]}」で見られることを確認しました。</span>

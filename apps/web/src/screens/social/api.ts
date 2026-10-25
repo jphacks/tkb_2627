@@ -87,7 +87,7 @@ export interface SocialApi {
   /** S07 PUT|DELETE /api/v1/users/{id}/follow (idempotent); returns the followed user's profile. */
   setFollow(userId: string, follow: boolean): Promise<SocialResult<UserProfile>>;
   /** S07 POST /api/v1/post-images: raw body, Content-Type = the file type. Validate with validateImageFile first. */
-  uploadImage(file: Blob): Promise<SocialResult<PostImage>>;
+  uploadPostImage(file: Blob): Promise<SocialResult<PostImage>>;
   /** K16 POST /api/v1/posts/{id}/copy */
   copyPost(postId: string, req: z.input<typeof CopyRequest>): Promise<SocialResult<CopyResult>>;
   /** K17 GET /api/v1/groups */
@@ -291,7 +291,7 @@ export function createHttpSocialApi(options: HttpSocialApiOptions = {}): SocialA
       const id = idPath(userId);
       return id ? request(follow ? 'PUT' : 'DELETE', `/api/v1/users/${id}/follow`, UserProfile) : Promise.resolve(invalidInput());
     },
-    uploadImage(file) {
+    uploadPostImage(file) {
       if (validateImageFile(file, 0) !== null) return Promise.resolve(invalidInput());
       return request('POST', '/api/v1/post-images', PostImage, undefined, file);
     },

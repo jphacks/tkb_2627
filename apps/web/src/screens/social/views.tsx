@@ -8,7 +8,8 @@ import { TRANSPORT_LABEL, VALIDATION_LABEL, VISIBILITY_LABEL } from '../../compo
 import { formatDay } from '../../lib/format.ts';
 import type { DataSource, FeedScope } from './api.ts';
 import { PostItinerary } from './PostItinerary.tsx';
-import { Avatar, PostCard, PostImages, type PostCardProps } from './PostCard.tsx';
+import { PostImages } from './images.tsx';
+import { Avatar, PostCard, type PostCardProps } from './PostCard.tsx';
 import { NOT_VISIBLE, ROLE_LABEL, errorText, redactedLabel } from './messages.ts';
 
 export const SCOPE_LABEL: Record<FeedScope, string> = {

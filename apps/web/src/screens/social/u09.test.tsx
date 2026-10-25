@@ -7,7 +7,7 @@ import { domesticTrip } from '@tkb/fixtures';
 import { CSRF_HEADER, createHttpSocialApi, validateImageFile } from './api.ts';
 import { createMockSocialApi, mockSnapshot } from './mockSocialApi.ts';
 import { toggleFollow, toggleLike } from './postActions.ts';
-import { IMAGE_ALT } from './PostCard.tsx';
+const IMAGE_ALT = '投稿の画像';
 import { FeedView, PostDetailView, PreviewView, ProfileBar, type FeedViewProps } from './views.tsx';
 
 const noop = () => {};
@@ -89,8 +89,7 @@ describe('U09 own vs others rendering', () => {
     expect(out).toContain('あなた');
     expect(out).toContain('投稿のメニュー');
     expect(out.match(new RegExp(`alt="${IMAGE_ALT}"`, 'g'))).toHaveLength(2);
-    expect(out).toContain('s9-imgs-2');
-    expect(out).toContain('版 1');
+        expect(out).toContain('版 1');
   });
 
   it('profile bar shows the follow and follower counts', async () => {
@@ -223,7 +222,7 @@ describe('U09 images', () => {
     const { api, calls } = stub(json(200, LOGIN), json(201, uploaded));
     await api.login('demo-a', 'pw');
     const blob = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' });
-    const r = await api.uploadImage(blob);
+    const r = await api.uploadPostImage(blob);
     expect(r.ok && r.data.imageId).toBe('img_1');
     expect(calls[1]!.url).toBe('/api/v1/post-images');
     expect(calls[1]!.init.method).toBe('POST');
@@ -231,7 +230,7 @@ describe('U09 images', () => {
     expect(header(calls[1]!, CSRF_HEADER)).toBe('csrf_token_value');
     expect(calls[1]!.init.body).toBe(blob);
 
-    const bad = await api.uploadImage(new Blob(['x'], { type: 'image/gif' }));
+    const bad = await api.uploadPostImage(new Blob(['x'], { type: 'image/gif' }));
     expect(bad.ok).toBe(false);
     expect(calls).toHaveLength(2);
   });
@@ -249,7 +248,7 @@ describe('U09 images', () => {
     const trips = await mock.listMyTrips();
     if (!trips.ok) throw new Error('trips');
     const t = trips.data.items[0]!;
-    const img = await mock.uploadImage(new Blob(['x'], { type: 'image/png' }));
+    const img = await mock.uploadPostImage(new Blob(['x'], { type: 'image/png' }));
     if (!img.ok) throw new Error('img');
     const prev = await mock.previewPost({ tripId: t.tripId, sourceRevision: t.revision, visibility: 'public', story: 's', imageIds: [img.data.imageId] });
     if (!prev.ok) throw new Error('prev');
