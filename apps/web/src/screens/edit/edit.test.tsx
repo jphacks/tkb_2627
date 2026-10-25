@@ -21,9 +21,9 @@ const firstActivityId = (t: Trip): string => {
 };
 
 describe('routes', () => {
-  it('parses edit/travel for server and mock', () => {
+  it('parses edit for server and mock', () => {
     expect(parseTripScreenHash('#/trips/abc/edit', 'edit')).toEqual({ mode: 'server', tripId: 'abc' });
-    expect(parseTripScreenHash('#/mock/trips/abc/travel', 'travel')).toEqual({ mode: 'mock', tripId: 'abc' });
+    expect(parseTripScreenHash('#/mock/trips/abc/edit', 'edit')).toEqual({ mode: 'mock', tripId: 'abc' });
     expect(parseTripScreenHash('#/trips/abc/map', 'edit')).toBeNull();
     expect(tripScreenHash({ mode: 'mock', tripId: 'a b' }, 'edit')).toBe('#/mock/trips/a%20b/edit');
   });
@@ -223,7 +223,8 @@ describe('views', () => {
     expect(html).toContain('class="it-conn it-conn-start"');
     expect(html).toContain('を削除');
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>直前の編集を取り消す/);
-    expect(html).toContain(`#/mock/trips/${base.tripId}/travel`);
+    expect(html).not.toContain('/travel');
+    expect(html).not.toContain('旅行中');
   });
   it('shows the 409 message with a reload button and no retry', () => {
     const err: ApiError = { code: 'REVISION_CONFLICT', message: 'x', retryable: false, requestId: 'r' };

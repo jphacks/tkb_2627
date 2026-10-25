@@ -5,7 +5,7 @@ describe('screen badge: which task / Issue a screen belongs to', () => {
   it('maps every reviewed screen to its task and Issue', () => {
     const cases: [string, string, number | null][] = [
       ['#conditions', 'U03', 31], ['#/trips/t1/map', 'U04/U06', 34], ['#/mock/trips/t1/map?day=1', 'U04/U06', 34], ['#generate', 'U05', 33],
-      ['#/trips/t1/edit', 'U04/U06', 34], ['#/trips/t1/travel', 'U06', 34], ['#/trips/t1/guide', 'U07', 35], ['#social', 'U08', 36],
+      ['#/trips/t1/edit', 'U04/U06', 34], ['#/trips/t1/guide', 'U07', 35], ['#social', 'U08', 36],
       ['#/trips/t1/print', 'E01', 37], ['', 'U13', 218], ['#home', 'U13', 218], ['#u01', 'U01', null],
     ];
     for (const [hash, code, issue] of cases) expect([hash, screenFor(hash).code, screenFor(hash).issue]).toEqual([hash, code, issue]);
@@ -16,7 +16,7 @@ describe('screen badge: which task / Issue a screen belongs to', () => {
 describe('home review list', () => {
   it('links every reviewed screen and its Issue, and each link maps back to the same task', async () => {
     const { REVIEW_LINKS } = await import('./reviewLinks.ts');
-    expect(new Set(REVIEW_LINKS.map(l => l.code))).toEqual(new Set(['U13', 'U03', 'U04/U06', 'U05', 'U06', 'U07', 'U08']));
+    expect(new Set(REVIEW_LINKS.map(l => l.code))).toEqual(new Set(['U13', 'U03', 'U04/U06', 'U05', 'U07', 'U08']));
     for (const l of REVIEW_LINKS) {
       const s = screenFor(l.href);
       expect([l.href, s.code, `https://github.com/jphacks/tkb_2627/issues/${s.issue}`]).toEqual([l.href, l.code, l.issueUrl]);

@@ -18,7 +18,7 @@ import { createLiveTripEditApi, createMockTripEditApi, sharedMockApi, type TripE
 import { DiffView, EditError, NO_OPERATIONS_REASON, TRAVEL_LABEL } from './DiffView.tsx';
 import { applyOperations, itemIdOf, newFreeActivity, reorderOps, titleLookup } from './ops.ts';
 import { describeOp, initialPending, pendingReducer } from './pending.ts';
-import { tripScreenHash, type TripScreenRoute } from './route.ts';
+import type { TripScreenRoute } from './route.ts';
 import '../../components/u01.css';
 import './edit.css';
 
@@ -189,9 +189,6 @@ export function EditView(p: EditViewProps) {
     <>
       <ScreenHeader title={p.trip.title} />
       <p className="it-meta">版 {p.trip.revision}（保存はこの版が最新の場合だけ成功します）</p>
-      <nav className="ed-links" aria-label="関連画面">
-        <a href={tripScreenHash(p.route, 'travel')}>旅行中の画面</a>
-      </nav>
       {p.error && <EditError error={p.error} onReload={p.onReload} onDismiss={p.onDismissError} />}
       {p.saved && (
         <section role="status" className="ed-cand" aria-label="保存結果">

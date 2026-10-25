@@ -9,7 +9,6 @@ import { EditScreen } from './screens/edit/EditScreen.tsx';
 import { parseTripScreenHash } from './screens/edit/route.ts';
 import { GuideScreen } from './screens/guide/GuideScreen.tsx';
 import { parseGuideHash } from './screens/guide/route.ts';
-import { TravelScreen } from './screens/travel/TravelScreen.tsx';
 import { U01App } from './screens/U01App.tsx';
 import { NavBar } from './screens/hub/NavBar.tsx';
 import { ScreenBadge } from './screens/hub/ScreenBadge.tsx';
@@ -57,11 +56,9 @@ function Screen({ hash }: { hash: string }) {
   // E01: #/trips/<id>/print (+ #/mock/... variant).
   const print = parsePrintHash(hash);
   if (print) return <PrintScreen key={`${print.mode}:${print.tripId}`} route={print} />;
-  // U06: #/trips/<id>/edit and #/trips/<id>/travel (+ #/mock/... variants).
+  // U06: #/trips/<id>/edit (+ #/mock/... variant). The travel (旅行中) screen was removed (UI review on #34).
   const edit = parseTripScreenHash(hash, 'edit');
   if (edit) return <EditScreen key={`${edit.mode}:${edit.tripId}`} route={edit} />;
-  const travel = parseTripScreenHash(hash, 'travel');
-  if (travel) return <TravelScreen key={`${travel.mode}:${travel.tripId}`} route={travel} />;
   // U07: #/trips/<id>/guide (+ #/mock/...): current location and digital guide.
   const guide = parseGuideHash(hash);
   if (guide) return <GuideScreen key={`${guide.mode}:${guide.tripId}`} route={guide} />;

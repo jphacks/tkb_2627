@@ -13,7 +13,6 @@ export function tripLinks(tripId: string) {
   return [
     { key: 'map', label: '地図', href: `${base}/map` },
     { key: 'edit', label: '編集', href: `${base}/edit` },
-    { key: 'travel', label: '旅行中', href: `${base}/travel` },
     { key: 'guide', label: 'ガイド', href: `${base}/guide` },
   ] as const;
 }
