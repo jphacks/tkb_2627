@@ -3,6 +3,7 @@
  * a stay opens one level (nested activities by time), clicking shows details, the map has arrows and no list, rows can
  * be reordered (drag / keyboard) as K10 move operations, and the result shows under the U03 form.
  */
+import { readFileSync } from 'node:fs';
 import type { ReactElement } from 'react';
 import { renderToString as renderRaw } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
@@ -10,13 +11,13 @@ import type { Activity, Trip, TripOperation } from '@tkb/contracts';
 import { PlanBatch, Trip as TripSchema } from '@tkb/contracts';
 import { createSamplePlanBatch, domesticTrip } from '@tkb/fixtures';
 import { applyOperations as applyServer, nestingError } from '../../../../server/src/trips/operations.ts';
-import { applyOperations as applyClient } from '../edit/ops.ts';
+import { applyOperations as applyClient, reorderOps } from '../edit/ops.ts';
 import { CandidatePreview, candidateAsTrip } from '../generate/CandidatePreview.tsx';
 import { ItineraryView } from './ItineraryScreen.tsx';
 import { StaticMap, projectPoints, segmentArrows } from './MapPanel.tsx';
 import { mapPoints } from './model.ts';
 import {
-  blockOf, formatHm, insertBeforeKey, keyboardTarget, legDetails, planMoves, reorderedOrder, stayDetails, stayRange, tableRows,
+  blockOf, formatHm, hoverTarget, insertBeforeKey, keyboardTarget, legDetails, planMoves, reorderedOrder, stayDetails, stayRange, tableRows,
   type LegRow, type StayRow,
 } from './table.ts';
 
@@ -34,7 +35,7 @@ describe('the sample trip (H)', () => {
     expect(domesticTrip.title).toContain('fixture');
     expect(domesticTrip.days).toHaveLength(2);
     const titles1 = tableRows(day1, domesticTrip.places).flatMap(r => (r.kind === 'stay' ? [r.item.title] : []));
-    expect(titles1).toEqual(['金沢駅（出発）', '近江町市場エリア', '金沢城公園', '兼六園を散策', '金沢21世紀美術館', '香林坊で夕食', 'ホテルにチェックイン']);
+    expect(titles1).toEqual(['金沢駅（出発）', '近江町市場エリア', '金沢城公園', '兼六園を散策', '金沢21世紀美術館', '香林坊で夕食', '香林坊バス停（乗車）', 'ホテルにチェックイン']);
     const titles2 = tableRows(day2, domesticTrip.places).flatMap(r => (r.kind === 'stay' ? [r.item.title] : []));
     expect(titles2).toEqual(['ひがし茶屋街', '主計町茶屋街を歩く', '尾山神社', '香林坊で昼食', 'にし茶屋街を見学', '妙立寺', '長町武家屋敷跡', '金沢駅（到着）']);
   });
@@ -44,7 +45,7 @@ describe('the sample trip (H)', () => {
       const rows = tableRows(day, domesticTrip.places);
       rows.forEach((r, i) => {
         if (r.kind === 'stay' && rows[i + 1]) expect(rows[i + 1]!.kind, `after ${r.item.title}`).toBe('leg');
-        if (r.kind === 'leg') expect(rows[i + 1]?.kind).toBe('stay');
+        if (r.kind === 'leg') expect(['stay', 'stop']).toContain(rows[i + 1]?.kind);
       });
       const meals = day.items.filter((it): it is Activity => it.type === 'activity' && it.kind === 'meal');
       meals.forEach((m, i) => { const n = meals[i + 1]; if (n) expect(n.placeId).not.toBe(m.placeId); });
@@ -104,8 +105,9 @@ describe('B: table with one place per row and legs as two rows (R3)', () => {
 
   it('an unknown time is 未取得 (never 0 or a guess), including a leg without arrival', () => {
     const html = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
-    const end = /<tr class="(?:it-conn it-conn-end|it-stoprow)[^"]*" data-leg-key="fx_leg_k1"[^>]*>(.*?)<\/tr>/.exec(html)?.[1] ?? '';
-    expect(end).toContain('<span class="u1-unknown">未取得</span>');
+    const leg = tableRows(day1, domesticTrip.places).find(r => r.kind === 'leg' && r.key === 'fx_leg_k1') as LegRow;
+    const d = legDetails(leg, '2026-11-01');
+    expect(d.find(l => l.label === '到着')).toMatchObject({ value: '未取得', unknown: true });
     expect(html).not.toMatch(SHOWN_AS_ZERO);
     expect(stayRange(null, null, '2026-11-01')).toBe('未取得〜未取得');
     expect(formatHm({ utc: '2026-11-01T16:00:00Z', timeZone: 'Asia/Tokyo' }, '2026-11-01')).toBe('11/2 1:00');
@@ -154,10 +156,10 @@ describe('C: a stay opens one level with its nested activities by time (R2)', ()
   it('the map numbers top-level stays only: nested activities are not points', () => {
     const points = mapPoints(day1, domesticTrip.places);
     expect(points.map(p => p.placeId)).toEqual([
-      'fx_kanazawa_station', 'fx_omicho', 'fx_kanazawa_castle', 'fx_kenrokuen', 'fx_21c_museum', 'fx_dinner', 'fx_hotel',
+      'fx_kanazawa_station', 'fx_omicho', 'fx_kanazawa_castle', 'fx_kenrokuen', 'fx_21c_museum', 'fx_dinner', 'fx_korinbo_stop', 'fx_hotel',
     ]);
     expect(points.some(p => p.placeId === 'fx_sushi')).toBe(false);
-    expect(points.map(p => p.number)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(points.map(p => p.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
 });
 
@@ -183,8 +185,8 @@ describe('D: clicking shows details (description, time, cost, source)', () => {
   it('a leg shows departure, arrival, duration, fare and source when opened', () => {
     const leg = tableRows(day1, domesticTrip.places).find(r => r.kind === 'leg' && r.key === 'fx_leg_k6') as LegRow;
     const d = Object.fromEntries(legDetails(leg, '2026-11-01').map(l => [l.label, l.value]));
-    expect(d['出発']).toBe('19:00');
-    expect(d['到着']).toBe('19:15');
+    expect(d['出発']).toBe('19:10');
+    expect(d['到着']).toBe('19:25');
     expect(d['運賃']).toContain('210');
     expect(d['路線']).toBe('（fixture）路線バス');
   });
@@ -204,8 +206,8 @@ describe('E/F: map without a list, with direction arrows', () => {
     expect(html).toContain('<svg');
     expect(html).not.toContain('aria-label="地図上の地点（訪問順）"');
     expect(html).not.toContain('it-points');
-    expect((html.match(/data-testid="map-arrow"/g) ?? []).length).toBe(6);
-    expect((html.match(/role="button" tabindex="0"/g) ?? []).length).toBe(7);
+    expect((html.match(/data-testid="map-arrow"/g) ?? []).length).toBe(7);
+    expect((html.match(/role="button" tabindex="0"/g) ?? []).length).toBe(8);
   });
 
   it('arrows point from each point to the next (angle follows the direction of travel)', () => {
@@ -309,7 +311,7 @@ describe('G: drag-and-drop reordering as K10 move operations (R1)', () => {
 
   it('editable tables have a handle per stay (with an accessible name) and a hint; read-only tables have none', () => {
     const rw = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} editor={{ kind: 'local' }} />);
-    expect((rw.match(/class="it-handle"/g) ?? []).length).toBe(7);
+    expect((rw.match(/class="it-handle"/g) ?? []).length).toBe(8);
     expect(rw).toContain('aria-label="「兼六園を散策」を並べ替える"');
     expect(rw).not.toContain('上へ');
     expect(rw).not.toContain('下へ');
@@ -378,5 +380,38 @@ describe('server-mode saving (G): K10 PATCH with expectedRevision; a 409 never o
     const { TripPatchRequest } = await import('@tkb/contracts');
     const ops: TripOperation[] = planMoves(day1.items.map(i => (i.type === 'activity' ? i.activityId : i.legId)), blockOf(day1, 'fx_act_museum'), 'fx_act_castle', 0);
     expect(TripPatchRequest.safeParse({ expectedRevision: domesticTrip.revision, operations: ops }).success).toBe(true);
+  });
+});
+
+describe('UI review on #34: drag handle size and a stable layout while dragging', () => {
+  const css = readFileSync(new URL('./itinerary.css', import.meta.url), 'utf8');
+  const rule = (sel: string): string => {
+    const start = css.indexOf(`\n${sel} {`);
+    return start < 0 ? '' : css.slice(start, css.indexOf('}', start));
+  };
+  it('the dashed handle fills its cell, which is as tall as the row (and as the blue left bar)', () => {
+    expect(rule('.it-handlecell')).toContain('position: relative');
+    expect(rule('.it-handlecell')).toContain('padding: 0');
+    expect(rule('.it-handle')).toMatch(/position: absolute;\s*inset: 0/);
+    expect(rule('.it-handle')).toContain('border: 1px dashed');
+    expect(css).toMatch(/\.it-stay > :first-child, \.it-stoprow > :first-child \{ border-left: 4px solid/);
+  });
+  it('the 「移動中」 note does not push the table down while a stay is dragged (it made adjacent swaps impossible)', () => {
+    expect(rule('.it-dragnote')).toContain('position: fixed');
+  });
+  it('swapping with the next stay (dragging down) is planned and applied like dragging up', () => {
+    const day = domesticTrip.days[0]!;
+    const stays = tableRows(day, domesticTrip.places).flatMap(r => (r.kind === 'stay' ? [r.key] : []));
+    const i = stays.indexOf('fx_act_castle');
+    // Dragging the castle over the lower half of the next stay (兼六園): insert before the one after it.
+    const before = hoverTarget(stays, stays, 'fx_act_castle', stays[i + 1]!, true);
+    expect(before).toBe(stays[i + 2]);
+    const r = applyClient(domesticTrip, reorderOps(domesticTrip, 0, 'fx_act_castle', before as string));
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const order = tableRows(r.trip.days[0]!, r.trip.places).flatMap(x => (x.kind === 'stay' ? [x.key] : []));
+      expect(order.indexOf('fx_act_kenrokuen')).toBe(i);
+      expect(order.indexOf('fx_act_castle')).toBe(i + 1);
+    }
   });
 });
