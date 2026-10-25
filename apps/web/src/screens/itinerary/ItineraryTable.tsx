@@ -200,7 +200,7 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
                   onToggle={() => onToggleRow(r.key)}
                   onHandlePointerDown={e => onHandlePointerDown(e, r.key)} onHandleKeyDown={e => onHandleKeyDown(e, r.key)} />
               ) : r.kind === 'stop' ? (
-                <StopTableRows row={r} editable={editable} dragging={r.ownerKey !== null && drag?.key === r.ownerKey} hasNext={i < shown.length - 1}
+                <StopTableRows row={r} editable={editable} dragging={r.ownerKey !== null && drag?.key === r.ownerKey} hasNext={shown[i + 1]?.kind === 'stay'}
                   onHandlePointerDown={e => r.ownerKey !== null && onHandlePointerDown(e, r.ownerKey)} onHandleKeyDown={e => r.ownerKey !== null && onHandleKeyDown(e, r.ownerKey)} />
               ) : (
                 <LegTableRows row={r} open={expanded.has(r.key)} selected={selectedKeys?.has(r.key) ?? false} dayDate={dayDate} editable={editable} onToggle={() => onToggleRow(r.key)} />
@@ -347,8 +347,7 @@ function LegTableRows({ row, open, selected, dayDate, editable, onToggle }: { ro
 
 
 /**
- * The stop a transit leg gets off at, as a numbered spot like a stay (UI review on #34), followed by an arrow to the next
- * spot. It is derived from the leg, not stored: its handle moves the stay the leg starts from, and the leg with this
+ * The stop a transit leg gets off at, as a numbered spot like a stay (UI review on #34), followed by the walking leg to the next spot when the trip has one (otherwise an arrow with the time unknown). It is derived from the leg, not stored: its handle moves the stay the leg starts from, and the leg with this
  * stop moves along with it.
  */
 function StopTableRows({ row, editable, dragging, hasNext, onHandlePointerDown, onHandleKeyDown }: {
@@ -365,7 +364,7 @@ function StopTableRows({ row, editable, dragging, hasNext, onHandlePointerDown, 
         {editable && (
           <td className="it-handlecell">
             {row.ownerKey !== null && (
-              <button type="button" className="it-handle" aria-label={`「${row.name}」（降車する停留所）を並べ替える。前の区間と一緒に動きます`} aria-pressed={dragging}
+              <button type="button" className="it-handle" aria-label={`「${row.name}」（降車）を並べ替える。前の区間と一緒に動きます`} aria-pressed={dragging}
                 onPointerDown={onHandlePointerDown} onKeyDown={onHandleKeyDown}>⠿</button>
             )}
           </td>
@@ -377,7 +376,7 @@ function StopTableRows({ row, editable, dragging, hasNext, onHandlePointerDown, 
               <span className="it-num" aria-label={`地図の地点${row.number}`}>{row.number}</span>
               <span className="it-rowtext">
                 <span className="it-title">{row.name}</span>
-                <span className="meta">降車する停留所</span>
+                <span className="meta">降車</span>
               </span>
             </span>
           </div>
@@ -390,7 +389,7 @@ function StopTableRows({ row, editable, dragging, hasNext, onHandlePointerDown, 
             <td className="it-time" />
             <td className="it-conncell" rowSpan={2}>
               <span aria-hidden="true" className="it-arrowline" />
-              <span className="it-connbtn"><span className="it-legmode">{row.modeLabel}</span></span>
+              <span className="it-connbtn"><span className="it-legmode">移動・時間 <span className="u1-unknown">未取得</span></span></span>
             </td>
           </tr>
           <tr className="it-conn it-conn-end" data-leg-key={row.legId} data-row-key={`${row.key}:out-end`}>

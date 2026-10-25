@@ -150,9 +150,10 @@ export const domesticTrip: Trip = {
       timeZone: JST,
       items: [
         activity('fx_act_station', '金沢駅（出発）', 'custom', JST, t(D1, '09:00'), t(D1, '09:10'), { placeId: 'fx_kanazawa_station' }),
-        // The arrival time of the bus is not known (fixture): null, never guessed.
-        leg('fx_leg_k1', 'fx_kanazawa_station', 'fx_omicho', 'transit', JST, t(D1, '09:10'), null, {
-          lineName: '（fixture）路線バス', fare: yen(210), dataStatus: 'unknown', provenance: null,
+        // Stop names are sample data (fixture), not provider values; the walk from the stop to the next spot is not in the data (shown as unknown).
+        leg('fx_leg_k1', 'fx_kanazawa_station', 'fx_omicho', 'transit', JST, t(D1, '09:10'), t(D1, '09:20'), {
+          lineName: '（fixture）路線バス', fare: yen(210),
+          transit: { boardingStop: '金沢駅', alightingStop: '武蔵ヶ辻・近江町市場', transferStops: [] },
         }),
         activity('fx_act_omicho', '近江町市場エリア', 'free_walk', JST, t(D1, '09:30'), t(D1, '12:30'), {
           areaName: '近江町市場周辺', placeId: 'fx_omicho',
@@ -191,6 +192,7 @@ export const domesticTrip: Trip = {
         activity('fx_act_korinbo_stop', '香林坊バス停（乗車）', 'custom', JST, t(D1, '19:05'), t(D1, '19:10'), { placeId: 'fx_korinbo_stop' }),
         leg('fx_leg_k6', 'fx_korinbo_stop', 'fx_hotel', 'transit', JST, t(D1, '19:10'), t(D1, '19:25'), {
           lineName: '（fixture）路線バス', fare: yen(210),
+          transit: { boardingStop: '香林坊', alightingStop: '（fixture）ホテル前', transferStops: [] },
         }),
         activity('fx_act_hotel', 'ホテルにチェックイン', 'lodging', JST, t(D1, '19:25'), null, { placeId: 'fx_hotel' }),
       ],
@@ -228,7 +230,7 @@ export const domesticTrip: Trip = {
   ],
   places: kanazawaTripPlaces,
   validationState: 'needs_review',
-  warnings: ['fx_leg_k1 の到着時刻は未取得です', '美術館の入館料と各所の営業時間は未取得です'],
+  warnings: ['美術館の入館料と各所の営業時間は未取得です'],
   createdAt: '2026-10-24T00:00:00Z',
   updatedAt: '2026-10-24T00:00:00Z',
 };
