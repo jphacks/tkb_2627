@@ -88,15 +88,17 @@ describe('B: table with one place per row and legs as two rows (R3)', () => {
     const html = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
     expect(html).toContain('<table class="it-table"');
     expect(html).toContain('<th scope="col" class="it-col-time">時刻</th><th scope="col">内容</th>');
-    const start = /<tr class="it-conn it-conn-start" data-leg-key="fx_leg_k2">(.*?)<\/tr>/.exec(html)?.[1] ?? '';
-    const end = /<tr class="it-conn it-conn-end" data-leg-key="fx_leg_k2">(.*?)<\/tr>/.exec(html)?.[1] ?? '';
-    expect(text(start)).toContain('出発 12:30');
+    const start = /<tr class="it-conn it-conn-start" data-leg-key="fx_leg_k2"[^>]*>(.*?)<\/tr>/.exec(html)?.[1] ?? '';
+    const end = /<tr class="it-conn it-conn-end" data-leg-key="fx_leg_k2"[^>]*>(.*?)<\/tr>/.exec(html)?.[1] ?? '';
+    expect(text(start)).toContain('12:30');
+    expect(text(start)).not.toContain('出発');
     expect(text(start)).toContain('徒歩・15分');
     // The names are the rows above and below: read out, not repeated on screen (UI review on #33).
     expect(text(start)).not.toContain('近江町市場から');
     expect(start).toContain('aria-label="近江町市場から金沢城公園への移動：徒歩・15分"');
     expect(text(start)).not.toContain('→');
-    expect(text(end)).toContain('到着 12:45');
+    expect(text(end)).toContain('12:45');
+    expect(text(end)).not.toContain('到着');
     expect(text(end)).not.toContain('金沢城公園へ');
     expect(text(start)).not.toContain('12:45');
     expect(text(end)).not.toContain('12:30');
@@ -105,7 +107,7 @@ describe('B: table with one place per row and legs as two rows (R3)', () => {
 
   it('an unknown time is 未取得 (never 0 or a guess), including a leg without arrival', () => {
     const html = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
-    const end = /<tr class="it-conn it-conn-end[^"]*" data-leg-key="fx_leg_k1">(.*?)<\/tr>/.exec(html)?.[1] ?? '';
+    const end = /<tr class="(?:it-conn it-conn-end|it-stoprow)[^"]*" data-leg-key="fx_leg_k1"[^>]*>(.*?)<\/tr>/.exec(html)?.[1] ?? '';
     expect(end).toContain('<span class="u1-unknown">未取得</span>');
     expect(html).not.toMatch(SHOWN_AS_ZERO);
     expect(stayRange(null, null, '2026-11-01')).toBe('未取得〜未取得');
@@ -311,6 +313,15 @@ describe('G: drag-and-drop reordering as K10 move operations (R1)', () => {
     expect(stay.indexOf('it-handle')).toBeLessThan(stay.indexOf('it-time'));
     const ro = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
     expect(ro).not.toContain('it-col-handle');
+  });
+
+  it('editable tables offer undo (disabled until something changed) and re-timing; read-only tables do not', () => {
+    const rw = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} editor={{ kind: 'local' }} />);
+    expect(rw).toMatch(/<button[^>]*disabled=""[^>]*>元に戻す<\/button>/);
+    expect(rw).toContain('>時刻を再計算</button>');
+    const ro = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
+    expect(ro).not.toContain('元に戻す');
+    expect(ro).not.toContain('時刻を再計算');
   });
 
   it('a stay row does not repeat an unknown cost (it stays in the details)', () => {
