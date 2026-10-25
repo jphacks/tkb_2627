@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
-import type { ApiError, GenerateRequest, JobAccepted, PlanBatch, TripWriteResult } from '@tkb/contracts';
+import type { ApiError, GenerateRequest, JobAccepted, PlanBatch, TripConstraints, TripWriteResult } from '@tkb/contracts';
 import { ErrorBox } from '../../components/ErrorBox.tsx';
 import { MoneyTotals } from '../../components/MoneyText.tsx';
 import { ScreenHeader } from '../../components/ScreenHeader.tsx';
@@ -7,6 +7,7 @@ import { JOB_STAGE_LABEL, JOB_STATE_LABEL, UNKNOWN_LABEL, VALIDATION_LABEL } fro
 import { formatDuration } from '../../lib/format.ts';
 import type { ApiResult } from '../conditions/api.ts';
 import type { GenerateFlowApi } from './api.ts';
+import { CandidatePreview } from './CandidatePreview.tsx';
 import {
   aiReasonMessage, applyErrorMessage, buildApplyRequest, canRetry, createRetryKeys, DATA_MODE_LABEL, initialPoll, modeChipLabel, type ModeCapState, jobErrorMessage, nextDelayMs, pollReducer, shouldPoll,
   summarizeCandidate, type CandidateSummary, type PollState,
@@ -305,5 +306,64 @@ export function CompareScreen({ api, batchId, mapHrefFor, onApplied, onBack, onB
       mapHref={applied ? mapHrefFor(applied.tripId) : null}
       onAdopt={id => void adopt(id)} onReload={() => setReloadKey(k => k + 1)} onBack={onBack}
     />
+  );
+}
+
+/**
+ * U05 after generating (UI review on #33): the map and table of a candidate with 「この候補を採用」 next to
+ * 「時刻を再計算」. The candidate compare list is gone; the candidates are switched with the tabs above the map.
+ * Loads the batch (K07 read), adopts the shown candidate (K08) and hands the map link on.
+ */
+export function PreviewAdoptScreen({ api, batchId, constraints, mapHrefFor, onApplied, onBack }: {
+  api: GenerateFlowApi;
+  batchId: string;
+  constraints: TripConstraints;
+  mapHrefFor: (tripId: string) => string;
+  onApplied?: (mapHref: string) => void;
+  onBack: () => void;
+}) {
+  const [load, setLoad] = useState<BatchLoad>({ status: 'loading' });
+  const [reloadKey, setReloadKey] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [applyError, setApplyError] = useState<ApiError | null>(null);
+  const [applied, setApplied] = useState<TripWriteResult | null>(null);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    setLoad({ status: 'loading' });
+    void api.getBatch(batchId, ac.signal).then(result => { if (!ac.signal.aborted) setLoad({ status: 'done', result }); });
+    return () => ac.abort();
+  }, [api, batchId, reloadKey]);
+
+  const adopt = async (candidateId: string) => {
+    setBusy(true);
+    setApplyError(null);
+    const r = await api.apply(buildApplyRequest(batchId, candidateId));
+    setBusy(false);
+    if (r.ok) {
+      setApplied(r.data);
+      onApplied?.(mapHrefFor(r.data.tripId));
+    } else setApplyError(r.error);
+  };
+
+  return (
+    <section aria-label="生成された候補">
+      <ScreenHeader title="生成された旅程" onBack={onBack} />
+      {load.status === 'loading' && <p role="status" className="u1-loading">候補を読み込み中…</p>}
+      {load.status === 'done' && !load.result.ok && (
+        <ErrorBox title="候補を読み込めませんでした" error={errInfo(load.result.error, applyErrorMessage(load.result.error))} onRetry={() => setReloadKey(k => k + 1)} />
+      )}
+      {load.status === 'done' && load.result.ok && (load.result.data.candidates.length === 0
+        ? <div className="u1-empty"><p>候補がありません。条件を変えてもう一度お試しください。</p></div>
+        : <CandidatePreview batch={load.result.data} constraints={constraints} onAdopt={id => void adopt(id)} adoptBusy={busy || applied !== null} />)}
+      {applyError && <ErrorBox title="採用できませんでした" error={errInfo(applyError, applyErrorMessage(applyError))} />}
+      {applied && (
+        <div role="status" className="note u5-done">
+          <p><strong>採用しました。</strong> 旅程ID: {applied.tripId}（版 {applied.revision}）</p>
+          {applied.warnings.length > 0 && <ul>{applied.warnings.map(w => <li key={w}>{w}</li>)}</ul>}
+          <a className="btn u1-primary" href={mapHrefFor(applied.tripId)}>地図で旅程を開く</a>
+        </div>
+      )}
+    </section>
   );
 }

@@ -368,7 +368,7 @@ describe('A: the result is shown under the U03 form on the planning page', () =>
   it('GenerateApp keeps the condition form on the page and renders the result section after it', async () => {
     const src = (await import('node:fs')).readFileSync(new URL('../generate/GenerateApp.tsx', import.meta.url), 'utf8');
     const form = src.indexOf('<ConditionsScreen');
-    const preview = src.indexOf('<CandidatePreview');
+    const preview = src.indexOf('<PreviewAdoptScreen');
     expect(form).toBeGreaterThan(-1);
     expect(preview).toBeGreaterThan(form);
     expect(src).not.toContain("step.name === 'conditions' && (");
