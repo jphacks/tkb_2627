@@ -14,7 +14,7 @@ import {
   type TripDay,
   type ValidationState,
 } from '@tkb/contracts';
-import { groupNearby, sequenceDay, validateSchedule, type SequenceStop } from '@tkb/planner';
+import { groupNearby, NEARBY_WALK_METERS, sequenceDay, validateSchedule, type SequenceStop } from '@tkb/planner';
 import type { StageFail } from '../jobs/index.ts';
 import { VISITABLE_KINDS, tripDays, MAX_TRIP_DAYS } from './collect.ts';
 import { INSUFFICIENT_PLACE_WARNING, LEG_REFETCH_WARNING, PLACE_REFETCH_WARNING, projectDays, projectPlace } from './project.ts';
@@ -66,6 +66,45 @@ function activityFor(candidateId: string, place: PlaceInfo): Activity {
     costStatus: 'unknown',
     privateNotes: null,
   };
+}
+
+/**
+ * #32 R4 / #28: groupNearby only joins stops that are next to each other, so a nearby pair that Claude put apart (a market
+ * walk and the sushi lunch beside it, with a museum in between) would stay split. Before the day is planned, later stops
+ * within NEARBY_WALK_METERS of a run are pulled up behind it, but only when the run then holds an area-level stop
+ * (kind 'area': it becomes the parent). Runs without one keep Claude's order. Deterministic; places without a location
+ * are never moved.
+ */
+export function keepNearbyTogether(order: readonly string[], placeById: ReadonlyMap<string, PlaceInfo>): string[] {
+  const loc = (id: string) => placeById.get(id)?.location ?? null;
+  const near = (a: string, b: string) => {
+    const pa = loc(a);
+    const pb = loc(b);
+    if (!pa || !pb) return false;
+    const rad = (d: number) => (d * Math.PI) / 180;
+    const h = Math.sin(rad(pb.lat - pa.lat) / 2) ** 2 + Math.cos(rad(pa.lat)) * Math.cos(rad(pb.lat)) * Math.sin(rad(pb.lng - pa.lng) / 2) ** 2;
+    return 2 * 6_371_008.8 * Math.asin(Math.min(1, Math.sqrt(h))) <= NEARBY_WALK_METERS;
+  };
+  const isArea = (id: string) => placeById.get(id)?.kind === 'area';
+  const rest = [...order];
+  const out: string[] = [];
+  while (rest.length > 0) {
+    const run = [rest.shift()!];
+    const left = [...rest];
+    for (let grew = true; grew; ) {
+      grew = false;
+      const i = left.findIndex(q => run.some(r => near(r, q)));
+      if (i >= 0) {
+        run.push(left.splice(i, 1)[0]!);
+        grew = true;
+      }
+    }
+    if (run.length > 1 && run.some(isArea)) {
+      out.push(...run);
+      rest.splice(0, rest.length, ...left);
+    } else out.push(run[0]!);
+  }
+  return out;
 }
 
 /** Consecutive pairs of a visiting order (from the start place first), de-duplicated, at most MAX_LEG_PAIRS. */
@@ -165,6 +204,8 @@ export async function assembleBatch(
   for (const c of blueprint.candidates as CandidateBlueprint[]) {
     if (c.activityOrder.some(id => !placeById.has(id) || !VISITABLE_KINDS.has(placeById.get(id)!.kind))) return fail('INVALID_OUTPUT', true);
   }
+  // #28: the order that is planned (nearby stops pulled together) is also the order whose legs are looked up.
+  const orders = (blueprint.candidates as CandidateBlueprint[]).map(c => keepNearbyTogether(c.activityOrder, placeById));
   const byPair = new Map<string, TravelLeg>();
   const remember = (ls: readonly TravelLeg[]) => {
     for (const l of ls) if (!byPair.has(`${l.fromPlaceId}|${l.toPlaceId}`)) byPair.set(`${l.fromPlaceId}|${l.toPlaceId}`, l);
@@ -173,7 +214,7 @@ export async function assembleBatch(
     // Live lookups cost quota (M1: at most 6 Routes calls per JOB). Take the pairs of ALL candidates, round-robin so no
     // candidate starves, drop duplicates, cap, and ask once. Pairs beyond the cap stay unknown (stops without times).
     const cap = Math.min(opts.maxLivePairs ?? MAX_LIVE_LEG_PAIRS, MAX_LIVE_LEG_PAIRS);
-    const lists = (blueprint.candidates as CandidateBlueprint[]).map(c => consecutivePairs(startPlaceId, c.activityOrder, MAX_LEG_PAIRS));
+    const lists = orders.map(o => consecutivePairs(startPlaceId, o, MAX_LEG_PAIRS));
     const picked: LegPair[] = [];
     const seen = new Set<string>();
     for (let i = 0; picked.length < cap && lists.some(l => i < l.length); i++) {
@@ -189,8 +230,8 @@ export async function assembleBatch(
   }
   const candidates: PlanCandidate[] = [];
   const used = new Set<string>();
-  for (const c of blueprint.candidates as CandidateBlueprint[]) {
-    const order = c.activityOrder;
+  for (const [ci, c] of (blueprint.candidates as CandidateBlueprint[]).entries()) {
+    const order = orders[ci]!;
     if (!fetchLegs) remember(await legsFor(consecutivePairs(startPlaceId, order)));
     const travel = (f: string, t: string) => {
       const l = byPair.get(`${f}|${t}`);

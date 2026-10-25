@@ -106,8 +106,7 @@ describe('B: table with one place per row and legs as two rows (R3)', () => {
   it('an unknown time is 未取得 (never 0 or a guess), including a leg without arrival', () => {
     const html = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
     const leg = tableRows(day1, domesticTrip.places).find(r => r.kind === 'leg' && r.key === 'fx_leg_k1') as LegRow;
-    const d = legDetails(leg, '2026-11-01');
-    expect(d.find(l => l.label === '到着')).toMatchObject({ value: '未取得', unknown: true });
+    expect(legDetails({ ...leg, leg: { ...leg.leg, arrival: null } }, '2026-11-01').find(l => l.label === '到着')).toMatchObject({ value: '未取得', unknown: true });
     expect(html).not.toMatch(SHOWN_AS_ZERO);
     expect(stayRange(null, null, '2026-11-01')).toBe('未取得〜未取得');
     expect(formatHm({ utc: '2026-11-01T16:00:00Z', timeZone: 'Asia/Tokyo' }, '2026-11-01')).toBe('11/2 1:00');
@@ -159,7 +158,7 @@ describe('C: a stay opens one level with its nested activities by time (R2)', ()
       'fx_kanazawa_station', 'fx_omicho', 'fx_kanazawa_castle', 'fx_kenrokuen', 'fx_21c_museum', 'fx_dinner', 'fx_korinbo_stop', 'fx_hotel',
     ]);
     expect(points.some(p => p.placeId === 'fx_sushi')).toBe(false);
-    // 2 and 9 are the stops the buses get off at (derived stop rows, no map marker).
+    // 2 and 9 are the derived alighting stops (no marker).
     expect(points.map(p => p.number)).toEqual([1, 3, 4, 5, 6, 7, 8, 10]);
   });
 });
@@ -312,7 +311,7 @@ describe('G: drag-and-drop reordering as K10 move operations (R1)', () => {
 
   it('editable tables have a handle per stay (with an accessible name) and a hint; read-only tables have none', () => {
     const rw = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} editor={{ kind: 'local' }} />);
-    expect((rw.match(/class="it-handle"/g) ?? []).length).toBe(10); // 8 stays + 2 bus stops
+    expect((rw.match(/class="it-handle"/g) ?? []).length).toBe(10);
     expect(rw).toContain('aria-label="「兼六園を散策」を並べ替える"');
     expect(rw).not.toContain('上へ');
     expect(rw).not.toContain('下へ');

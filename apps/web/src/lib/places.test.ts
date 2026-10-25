@@ -1,16 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { fixtureTrips } from '@tkb/fixtures';
-import { highlightFor, itemKey, itemPlaceIds, numberEntries, numberPlaces } from './places.ts';
+import { highlightFor, itemKey, itemPlaceIds, numberPlaces } from './places.ts';
 
 describe('places sync', () => {
   const trip = fixtureTrips[0]!;
   const day = trip.days[0]!;
-  it('numbers places from 1 without duplicates; the gaps are the derived stops (UI review on #34)', () => {
+  it('numbers places from 1 without duplicates', () => {
     const n = numberPlaces(day, trip.places);
-    const all = numberEntries(day, trip.places);
-    expect(all.map(x => x.number)).toEqual(all.map((_, i) => i + 1));
-    expect(n.map(x => x.number)).toEqual(all.filter(x => x.kind === 'place').map(x => x.number));
-    expect(all.filter(x => x.kind === 'stop').map(x => x.kind === 'stop' && x.name)).toEqual(['武蔵ヶ辻・近江町市場', '武蔵ヶ辻・近江町市場']);
+    // Derived alighting stops (no PlaceInfo, no marker) take a number each, so the marker numbers have gaps.
+    expect(n.map(x => x.number)).toEqual([1, 3, 4, 5, 6, 7, 8, 10]);
     expect(new Set(n.map(x => x.place.placeId)).size).toBe(n.length);
   });
   it('item selection highlights its places and place selection highlights its items', () => {

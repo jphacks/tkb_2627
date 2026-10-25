@@ -129,3 +129,16 @@ describe('U03 mock client', () => {
     expect(c.ok ? null : c.error.code).toBe('IDEMPOTENCY_CONFLICT');
   });
 });
+
+describe('capabilities when the personal entry is not reachable (review / LAN mode)', () => {
+  it('falls back to the shared capabilities and its reason instead of a contract error', async () => {
+    const { createLiveConditionsApi } = await import('./api.ts');
+    const shared = { entry: 'shared', aiGeneration: { available: false, runner: 'none', reason: 'SHARED_ENTRY_NO_PERSONAL_CLAUDE' }, storage: 'shared-server', dataMode: 'fixture', schemaVersion: 1 };
+    const fetchFn = (async (url: string) => url.startsWith('/local/')
+      ? new Response('<!doctype html><div id="root"></div>', { status: 200, headers: { 'content-type': 'text/html' } })
+      : new Response(JSON.stringify(shared), { status: 200, headers: { 'content-type': 'application/json' } })) as unknown as typeof fetch;
+    const r = await createLiveConditionsApi(fetchFn).capabilities();
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.aiGeneration.reason).toBe('SHARED_ENTRY_NO_PERSONAL_CLAUDE');
+  });
+});
