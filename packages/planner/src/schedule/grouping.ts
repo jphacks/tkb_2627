@@ -13,7 +13,7 @@ export interface GroupingResult {
   day: TripDay;
   groups: ActivityGroup[];
   /** Runs that should be one area but were left as they are, with why. */
-  skipped: { activityIds: string[]; reason: 'no_area_activity' | 'fixed_parent_too_short' | 'time_unknown' }[];
+  skipped: { activityIds: string[]; reason: 'no_area_activity' | 'fixed_parent_too_short' }[];
 }
 
 function meters(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
@@ -28,7 +28,8 @@ const toUtc = (ms: number) => new Date(ms).toISOString().replace(/\.000Z$/, 'Z')
  * #32 R4: consecutive top-level activities that are within NEARBY_WALK_METERS of each other, or share an area name,
  * become one area: the area-level activity (a free walk or a place of kind 'area') is the parent and the others get
  * its `parentActivityId`. The parent's window is widened to cover its children unless it is fixed (then the run is
- * left alone and reported). Legs between two members of a group are dropped: travel is made per parent.
+ * left alone and reported). Unknown times do not block grouping (live walking legs often have no duration): only the
+ * known times are compared, and a missing time is never filled in. Legs between two members of a group are dropped: travel is made per parent.
  * Runs without an area-level activity are reported, not invented into a new parent. Deterministic; one level only.
  */
 export function groupNearby(day: TripDay, places: readonly PlaceInfo[], thresholdMeters = NEARBY_WALK_METERS): GroupingResult {
@@ -69,19 +70,20 @@ export function groupNearby(day: TripDay, places: readonly PlaceInfo[], threshol
     const children = run.filter(a => a !== parent && !hasChildren.has(a.activityId));
     if (children.length === 0) continue;
     const members = [parent, ...children];
-    if (members.some(a => a.start === null || a.end === null)) {
-      skipped.push({ activityIds: ids, reason: 'time_unknown' });
-      continue;
-    }
-    const startMs = Math.min(...members.map(a => parseUtc(a.start!.utc)));
-    const endMs = Math.max(...members.map(a => parseUtc(a.end!.utc)));
-    const covers = parseUtc(parent.start!.utc) <= startMs && parseUtc(parent.end!.utc) >= endMs;
-    if (!covers && parent.fixed) {
-      skipped.push({ activityIds: ids, reason: 'fixed_parent_too_short' });
-      continue;
-    }
-    if (!covers) {
-      newTimes.set(parent.activityId, { start: { ...parent.start!, utc: toUtc(startMs) }, end: { ...parent.end!, utc: toUtc(endMs) } });
+    // Only known times take part; an unknown time stays unknown (never guessed).
+    const timed = members.filter(a => a.start !== null && a.end !== null);
+    const parentTimed = parent.start !== null && parent.end !== null;
+    if (parentTimed && timed.length > 1) {
+      const startMs = Math.min(...timed.map(a => parseUtc(a.start!.utc)));
+      const endMs = Math.max(...timed.map(a => parseUtc(a.end!.utc)));
+      const covers = parseUtc(parent.start!.utc) <= startMs && parseUtc(parent.end!.utc) >= endMs;
+      if (!covers && parent.fixed) {
+        skipped.push({ activityIds: ids, reason: 'fixed_parent_too_short' });
+        continue;
+      }
+      if (!covers) {
+        newTimes.set(parent.activityId, { start: { ...parent.start!, utc: toUtc(startMs) }, end: { ...parent.end!, utc: toUtc(endMs) } });
+      }
     }
     for (const c of children) parentOf.set(c.activityId, parent.activityId);
     groups.push({ parentActivityId: parent.activityId, childActivityIds: children.map(c => c.activityId) });
