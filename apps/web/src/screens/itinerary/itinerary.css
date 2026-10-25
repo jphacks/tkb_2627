@@ -42,6 +42,8 @@
 .it-notice.it-error { border-color: var(--warn); background: var(--warnbg); }
 .it-table, .it-subtable { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .it-table th, .it-table td, .it-subtable th, .it-subtable td { text-align: left; vertical-align: top; padding: 0; }
+/* UI review on #32: the time and the handle sit in the middle of their row (more specific than the rule above). */
+.it-table .it-time, .it-table .it-handlecell, .it-subtable .it-time { vertical-align: middle; }
 .it-table > thead th, .it-subtable > thead th { font-size: 12px; color: var(--mut); font-weight: 600; padding: 2px 6px; border-bottom: 1px solid var(--line); }
 .it-col-time { width: 7.2em; }
 .it-col-handle, .it-handlecell { width: 48px; }
