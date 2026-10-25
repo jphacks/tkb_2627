@@ -112,6 +112,24 @@ describe('B: table with one place per row and legs as two rows (R3)', () => {
   });
 });
 
+describe('UI review on #32 (second round)', () => {
+  it('a station shows one time (leave / arrive), other stays a range', () => {
+    const rows = tableRows(day1, domesticTrip.places);
+    const range = (k: string) => (rows.find(r => r.kind === 'stay' && r.key === k) as StayRow).range;
+    expect(range('fx_act_station')).toBe('9:00');
+    expect(range('fx_act_castle')).toBe('12:45〜14:00');
+  });
+  it('nested activities show only their time and name; undo / re-timing sit under the table; no hint text on screen', () => {
+    const html = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} editor={{ kind: 'local' }} initialExpanded={['fx_act_omicho']} />);
+    const child = /<tr class="it-child">(.*?)<\/tr>/.exec(html)?.[1] ?? '';
+    expect(child).toContain('市場を散策');
+    expect(child).not.toContain('<dl');
+    expect(html.indexOf('>元に戻す</button>')).toBeGreaterThan(html.indexOf('aria-label="行程表"'));
+    expect(html).toContain('<p class="u1-sr" id="it-reorder-help">');
+    expect(html).not.toContain('it-hint');
+  });
+});
+
 describe('C: a stay opens one level with its nested activities by time (R2)', () => {
   it('closed by default: nested activities are not shown; opened: they appear inside the parent, in time order', () => {
     const closed = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);

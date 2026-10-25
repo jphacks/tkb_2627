@@ -261,18 +261,20 @@ export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, m
               <AttributionBlock attribution={attribution} mapShown={mapsKey !== null} />
             </div>
             <div className="it-tablecol">
+              {/* The how-to is read out only (UI review on #32: no hint text on screen). */}
+              {editable && <p className="u1-sr" id="it-reorder-help">左端の「⠿」をドラッグで並べ替え。キーボードは Enter で持ち上げ、上下の矢印キーで動かし、Enter で置きます。行を押すと詳細が開きます。</p>}
+              {saving && <p role="status" className="u1-loading">並べ替えを保存中…</p>}
+              {notice && <p role={notice.kind === 'error' ? 'alert' : 'status'} className={notice.kind === 'error' ? 'it-notice it-error' : 'it-notice'}>{notice.text}</p>}
+              <ItineraryTable key={idx} rows={rows} dayDate={day.date} expanded={expanded} selectedKeys={sync?.itemKeys}
+                onToggleRow={selectRow} saving={saving} {...(editable ? { onReorder: (k: string, b: string | null) => void commitMove(k, b) } : {})}
+                setRowRef={(k, el) => { if (el) rowRefs.current.set(k, el); else rowRefs.current.delete(k); }} />
+              {/* Under the table (UI review on #32). */}
               {editable && (
                 <div className="it-editbar">
                   <button type="button" className="btn" disabled={saving || history.length === 0} onClick={() => void undo()}>元に戻す</button>
                   <button type="button" className="btn" disabled={saving} onClick={() => void recalc()}>時刻を再計算</button>
                 </div>
               )}
-              {editable && <p className="meta it-hint">左端の「⠿」をドラッグで並べ替え（キーボードは Enter→↑↓→Enter）。行を押すと詳細。</p>}
-              {saving && <p role="status" className="u1-loading">並べ替えを保存中…</p>}
-              {notice && <p role={notice.kind === 'error' ? 'alert' : 'status'} className={notice.kind === 'error' ? 'it-notice it-error' : 'it-notice'}>{notice.text}</p>}
-              <ItineraryTable key={idx} rows={rows} dayDate={day.date} expanded={expanded} selectedKeys={sync?.itemKeys}
-                onToggleRow={selectRow} saving={saving} {...(editable ? { onReorder: (k: string, b: string | null) => void commitMove(k, b) } : {})}
-                setRowRef={(k, el) => { if (el) rowRefs.current.set(k, el); else rowRefs.current.delete(k); }} />
             </div>
           </section>
         </>

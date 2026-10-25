@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { UNKNOWN, formatMoney } from '../../lib/format.ts';
 import { KIND_LABEL, VALUE_UNKNOWN, transitDetail } from './model.ts';
 import {
-  hoverTarget, keyboardTarget, childDetails, legDetails, previewRows, reorderedOrder, stayDetails,
+  hoverTarget, keyboardTarget, legDetails, previewRows, reorderedOrder, stayDetails,
   type ChildRow, type DetailLine, type LegRow, type StayRow, type TableRow,
 } from './table.ts';
 import './itinerary.css';
@@ -254,8 +254,8 @@ function ChildTableRow({ child }: { child: ChildRow }) {
     <tr className="it-child">
       <th scope="row" className="it-time"><TimeText text={child.range} /></th>
       <td>
+        {/* Only the name: compact (UI review on #32). */}
         <span className="it-title">{child.item.title}</span>
-        <DetailList lines={childDetails(child).filter(l => l.label !== '時間')} label={`${child.item.title}の詳細`} />
       </td>
     </tr>
   );

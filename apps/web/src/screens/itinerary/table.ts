@@ -100,9 +100,11 @@ export function tableRows(day: TripDay, places: readonly PlaceInfo[]): TableRow[
     }
     if (it.parentActivityId && activityIds.has(it.parentActivityId)) continue;
     const n = it.placeId ? numbered.get(it.placeId) : undefined;
+    const place = it.placeId ? byPlace.get(it.placeId) ?? null : null;
     rows.push({
-      kind: 'stay', key: it.activityId, item: it, number: n ?? null, place: it.placeId ? byPlace.get(it.placeId) ?? null : null,
-      range: stayRange(it.start, it.end, day.date), children: children.get(it.activityId) ?? [],
+      kind: 'stay', key: it.activityId, item: it, number: n ?? null, place,
+      // At a station you only leave or arrive: one time, not a range (UI review on #32).
+      range: place?.kind === 'station' ? formatHm(it.start, day.date) : stayRange(it.start, it.end, day.date), children: children.get(it.activityId) ?? [],
     });
   }
   rows.forEach((row, i) => {
