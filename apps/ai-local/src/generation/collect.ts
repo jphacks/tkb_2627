@@ -6,6 +6,10 @@ import type { ContextClient, UpstreamHolder } from '../shared-client/index.ts';
 export const VISITABLE_KINDS: ReadonlySet<PlaceInfo['kind']> = new Set(['spot', 'restaurant', 'area']);
 export const MAX_TRIP_DAYS = 14;
 export const CONTEXT_MAX_PLACES = 8;
+/** Places asked for per trip day, so a longer trip has enough stops to fill its days (UI review on #33). */
+export const CONTEXT_PLACES_PER_DAY = 7;
+/** K05 accepts at most 30. */
+export const contextMaxPlaces = (days: number) => Math.min(30, Math.max(CONTEXT_MAX_PLACES, CONTEXT_PLACES_PER_DAY * days));
 
 const DAY_MS = 86_400_000;
 export const tripDays = (c: Pick<TripConstraints, 'startDate' | 'endDate'>): number => Math.round((Date.parse(c.endDate) - Date.parse(c.startDate)) / DAY_MS) + 1;
@@ -29,7 +33,7 @@ export async function collectContext(
   const must = [...new Set(constraints.mustVisit ?? [])];
   const r = await client.getPlanningContext(
     session,
-    { area: constraints.area, transportMode: constraints.transportMode, maxPlaces: CONTEXT_MAX_PLACES, timeZone: constraints.timeZone, ...(must.length ? { placeIds: must } : {}) },
+    { area: constraints.area, transportMode: constraints.transportMode, maxPlaces: contextMaxPlaces(tripDays(constraints)), timeZone: constraints.timeZone, ...(must.length ? { placeIds: must } : {}) },
     signal,
   );
   if (!r.ok) return fail(r.code, r.retryable);

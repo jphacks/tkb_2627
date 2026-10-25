@@ -7,7 +7,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { Runner } from '@tkb/ai';
 import { ApiError, PlanBatch, JobStatus, type GenerationInput, type TripConstraints } from '@tkb/contracts';
 import { createUser, migrate, openDatabase } from '@tkb/db';
-import { kanazawaPlaces } from '@tkb/fixtures';
+import { domesticTrip } from '@tkb/fixtures';
 import { buildApp as buildShared } from '../../server/src/platform/app.ts';
 import { hashPassword } from '../../server/src/platform/auth/password.ts';
 import { loadConfig as loadShared } from '../../server/src/platform/config.ts';
@@ -19,7 +19,8 @@ import type { FetchLike } from '../src/shared-client/index.ts';
 const PW = 'correct horse battery';
 const HOST = '127.0.0.1:4311';
 const ORIGIN = 'http://127.0.0.1:4311';
-const KNOWN = new Set(kanazawaPlaces.map(p => p.placeId));
+// Known = the fixture places of the Kanazawa sample (the area pool plus the places the dense trip visits).
+const KNOWN = new Set(domesticTrip.places.map(p => p.placeId));
 const closers: { close(): Promise<unknown> }[] = [];
 const dirs: string[] = [];
 let pwHash: string;
@@ -135,7 +136,8 @@ describe('A04 end to end (fixture mode)', () => {
     expect(runner.calls).toBe(1);
     // O9: what the model was given. Visitable places only as ids to plan with; facts are fixture places (the station as a travel endpoint) and fixture legs.
     const given = runner.inputs[0]!;
-    expect([...given.allowedPlaceIds].sort()).toEqual(['fx_21c_museum', 'fx_higashi', 'fx_kenrokuen', 'fx_omicho', 'fx_sushi']);
+    // 2 days: up to 14 places, so the plan can fill both days (UI review on #33); never the hotel or the station.
+    expect([...given.allowedPlaceIds].sort()).toEqual(['fx_21c_museum', 'fx_dinner', 'fx_higashi', 'fx_kanazawa_castle', 'fx_kazue', 'fx_kenrokuen', 'fx_korinbo', 'fx_lunch2', 'fx_myoryuji', 'fx_nagamachi', 'fx_omicho', 'fx_oyama', 'fx_sushi']);
     expect(given.allowedPlaceIds).not.toContain('fx_kanazawa_station');
     expect(given.fixedActivities).toEqual([]);
     expect(given.facts.length).toBeGreaterThan(0);

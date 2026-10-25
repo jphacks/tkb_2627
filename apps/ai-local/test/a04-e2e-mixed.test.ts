@@ -129,7 +129,8 @@ describe('A04 end to end, PROVIDER_MODE=mixed', () => {
     expect(JSON.stringify(given)).not.toMatch(/SENTINEL|777|2222/);
     expect(given.facts.every(f => (f.kind === 'place' ? f.place.provenance.source === 'fixture' && f.place.provenance.maySendToModel : f.leg.provenance === null || f.leg.provenance.maySendToModel))).toBe(true);
     expect(given.facts.some(f => f.kind === 'leg' && f.leg.provenance?.source === 'google_routes')).toBe(false);
-    expect([...given.allowedPlaceIds].sort()).toEqual([...FIVE].sort());
+    // 1 day: 8 places, the six area places first, then the next spots of the dense sample (castle, shrine).
+    expect([...given.allowedPlaceIds].sort()).toEqual([...FIVE, 'fx_kanazawa_castle', 'fx_oyama'].sort());
 
     // The persisted row: computed times yes, live route details no.
     const row = db.prepare('SELECT id, candidates_json, places_json FROM plan_batches').get() as { id: string; candidates_json: string; places_json: string };

@@ -36,11 +36,14 @@ const AREA_ALIASES: Record<string, string[]> = { 金沢: ['kanazawa'], paris: ['
 const KIND_RANK: Record<string, number> = { spot: 0, restaurant: 1, area: 2 };
 
 /** area keyword -> places, built once from the B04 fixture trips (constraints.area -> places). */
-function fixtureAreaTable(): { keys: string[]; places: readonly PlaceInfo[] }[] {
+function fixtureAreaTable(): { keys: string[]; places: readonly PlaceInfo[]; head: number }[] {
   return fixtureTrips.map(t => {
     const base = norm(t.constraints.area);
-    // The dense sample trip visits more places than the area pool; the K05 pool stays the six area places.
-    return { keys: [base, ...(AREA_ALIASES[base] ?? []).map(norm)], places: t === domesticTrip ? kanazawaPlaces : t.places };
+    // Kanazawa: every place the dense sample trip visits (not the hotel), so a generated multi-day plan can fill its days
+    // the way the sample does (UI review on #33). The six-place area pool alone fitted in about one day.
+    const kanazawa = [...kanazawaPlaces, ...domesticTrip.places.filter(p => p.kind !== 'lodging' && !kanazawaPlaces.some(k => k.placeId === p.placeId))];
+    // `head`: the area pool comes first, so a small maxPlaces still returns the same six places as before.
+    return { keys: [base, ...(AREA_ALIASES[base] ?? []).map(norm)], places: t === domesticTrip ? kanazawa : t.places, head: t === domesticTrip ? kanazawaPlaces.length : t.places.length };
   });
 }
 
@@ -52,11 +55,12 @@ export class FixtureAreaPlaceSource implements AreaPlaceSource {
     const a = norm(req.area);
     const hit = this.table.find(e => e.keys.some(k => a.includes(k) || k.includes(a)));
     const pool = hit?.places ?? [];
+    const head = new Set(pool.slice(0, hit?.head ?? 0).map(p => p.placeId));
     const byId = new Map(pool.map(p => [p.placeId, p]));
     const wanted = req.placeIds.map(id => byId.get(id)).filter((p): p is PlaceInfo => p !== undefined);
     const rest = pool
       .filter(p => !req.placeIds.includes(p.placeId))
-      .sort((x, y) => (KIND_RANK[x.kind] ?? 3) - (KIND_RANK[y.kind] ?? 3));
+      .sort((x, y) => Number(!head.has(x.placeId)) - Number(!head.has(y.placeId)) || (KIND_RANK[x.kind] ?? 3) - (KIND_RANK[y.kind] ?? 3));
     const places = [...wanted, ...rest].slice(0, req.maxPlaces);
     return { places: structuredClone(places), reason: places.length === 0 ? ('no_results' as const) : null };
   }

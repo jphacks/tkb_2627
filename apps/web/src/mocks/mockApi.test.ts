@@ -9,7 +9,8 @@ import type { MockApi, MockResult } from './index.ts';
 // Plan order of the dense fixture: every activity without a known cost (lunch, kenrokuen and the legs with a fare are known).
 const KANAZAWA_UNKNOWN = [
   'fx_act_station', 'fx_act_omicho', 'fx_act_omicho_walk', 'fx_act_castle', 'fx_act_museum', 'fx_act_dinner', 'fx_act_hotel',
-  'fx_act_higashi', 'fx_act_higashi_tea', 'fx_act_higashi_sweets', 'fx_act_kazue', 'fx_act_oyama', 'fx_act_nagamachi', 'fx_act_station_end',
+  'fx_act_higashi', 'fx_act_higashi_tea', 'fx_act_higashi_sweets', 'fx_act_kazue', 'fx_act_oyama',
+  'fx_act_lunch2', 'fx_act_nishi', 'fx_act_myoryuji', 'fx_act_nagamachi', 'fx_act_station_end',
 ];
 /** KANAZAWA_UNKNOWN with `id` inserted right before 'fx_act_higashi' (the first item of day 2). */
 const unknownWithAddedBeforeHigashi = (id: string) => KANAZAWA_UNKNOWN.flatMap(x => (x === 'fx_act_higashi' ? [id, x] : [x]));
