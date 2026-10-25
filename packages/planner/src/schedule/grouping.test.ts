@@ -54,6 +54,37 @@ describe('groupNearby (#32 R4)', () => {
     expect(f.skipped).toEqual([{ activityIds: ['area', 'lunch'], reason: 'fixed_parent_too_short' }]);
   });
 
+  it('groups near activities whose times are unknown (live walking legs without a duration), without filling times', () => {
+    const T = 'Asia/Tokyo';
+    const act = (id: string, placeId: string | null, extra: Partial<Activity> = {}): Activity => ({
+      type: 'activity', activityId: id, kind: 'visit', title: id, placeId, areaName: null, start: null, end: null,
+      fixed: false, status: 'planned', cost: null, costStatus: 'unknown', privateNotes: null, ...extra,
+    });
+    const day: TripDay = { date: '2026-11-01', timeZone: T, items: [act('area', 'fx_omicho', { kind: 'free_walk' }), act('lunch', 'fx_sushi', { kind: 'meal' })] };
+    const r = groupNearby(day, domesticTrip.places);
+    expect(r.groups).toEqual([{ parentActivityId: 'area', childActivityIds: ['lunch'] }]);
+    expect(r.skipped).toEqual([]);
+    expect(byId(r.day, 'lunch').parentActivityId).toBe('area');
+    expect([byId(r.day, 'area').start, byId(r.day, 'area').end, byId(r.day, 'lunch').start]).toEqual([null, null, null]);
+
+    // A fixed parent with known times still may not be stretched over a known child outside it.
+    const at = (h: string) => ({ utc: `2026-11-01T${h}:00Z`, timeZone: T });
+    const fixedShort: TripDay = { ...day, items: [act('area', 'fx_omicho', { kind: 'free_walk', fixed: true, start: at('02:00'), end: at('03:00') }), act('lunch', 'fx_sushi', { start: at('03:00'), end: at('04:00') }), act('tea', 'fx_omicho')] };
+    expect(groupNearby(fixedShort, domesticTrip.places).skipped).toEqual([{ activityIds: ['area', 'lunch', 'tea'], reason: 'fixed_parent_too_short' }]);
+  });
+
+  it('does not group an activity whose location is unknown (no place, no shared area name)', () => {
+    const T = 'Asia/Tokyo';
+    const act = (id: string, placeId: string | null, extra: Partial<Activity> = {}): Activity => ({
+      type: 'activity', activityId: id, kind: 'visit', title: id, placeId, areaName: null, start: null, end: null,
+      fixed: false, status: 'planned', cost: null, costStatus: 'unknown', privateNotes: null, ...extra,
+    });
+    const day: TripDay = { date: '2026-11-01', timeZone: T, items: [act('area', 'fx_omicho', { kind: 'free_walk' }), act('nowhere', null), act('unknown_place', 'no_such_place')] };
+    const r = groupNearby(day, domesticTrip.places);
+    expect(r.groups).toEqual([]);
+    expect(acts(r.day).every(a => !a.parentActivityId)).toBe(true);
+  });
+
   it('does not invent a parent when no area-level activity is in the run', () => {
     const T = 'Asia/Tokyo';
     const a = (id: string, placeId: string, h: string): Activity => ({
