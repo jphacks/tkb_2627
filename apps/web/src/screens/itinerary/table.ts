@@ -125,7 +125,6 @@ export interface DetailLine {
 const line = (label: string, value: string | null, extra = ''): DetailLine =>
   value === null || value === '' || value === UNKNOWN ? { label, value: UNKNOWN, unknown: true } : { label, value: value + extra, unknown: false };
 
-/** What the user sees when a place row is opened: time, cost, description and where each value came from. */
 /**
  * Details of a stay: only what the row does not already show (UI review on #32: no time/kind again, no description
  * or source lines; the sources are in the attribution block under the map).
