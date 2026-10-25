@@ -8,16 +8,19 @@ const render = (hash: string, pathname = '/') => renderRaw(<NavBar hash={hash} p
 
 describe('trip tabs', () => {
   it('keeps mode and trip id, in order', () => {
-    expect(tripTabs('#/trips/t1/map').map((t) => t.href)).toEqual(['#/trips/t1/edit', '#/trips/t1/travel', '#/trips/t1/guide']);
+    expect(tripTabs('#/trips/t1/map').map((t) => t.href)).toEqual(['#/trips/t1/edit', '#/trips/t1/guide']);
     expect(tripTabs('#/mock/trips/fx_trip_kanazawa/guide').map((t) => t.href)[0]).toBe('#/mock/trips/fx_trip_kanazawa/edit');
-    expect(tripTabs('#/mock/trips/x/edit').map((t) => t.label)).toEqual(['地図・編集', '旅行中', 'ガイド']);
+    expect(tripTabs('#/mock/trips/x/edit').map((t) => t.label)).toEqual(['地図・編集', 'ガイド']);
   });
   it('marks exactly the current tab', () => {
-    for (const [h, k] of [['map', 'edit'], ['edit', 'edit'], ['travel', 'travel'], ['guide', 'guide']]) {
+    for (const [h, k] of [['map', 'edit'], ['edit', 'edit'], ['guide', 'guide']]) {
       const cur = tripTabs(`#/trips/t1/${h}`).filter((t) => t.current);
       expect(cur.map((t) => t.key)).toEqual([k]);
     }
     expect(render('#/mock/trips/t/guide').match(/aria-current="page"/g)).toHaveLength(1);
+  });
+  it('has no tab pointing to /travel', () => {
+    for (const h of ['map', 'edit', 'guide']) expect(tripTabs(`#/trips/t1/${h}`).some((t) => t.href.endsWith('/travel'))).toBe(false);
   });
   it('no tabs on non-trip screens', () => { expect(tripTabs('#generate')).toEqual([]); });
 });

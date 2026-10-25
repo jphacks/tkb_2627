@@ -12,7 +12,7 @@
 @media (min-width: 720px) {
   .it-layout { grid-template-columns: 1fr 1fr; align-items: start; }
   .it-daymode { grid-column: 1 / -1; }
-  .it-mapcol { position: sticky; top: 8px; }
+  .it-layout > .it-mapcol { position: sticky; top: 8px; }
 }
 .it-mapcol { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 

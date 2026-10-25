@@ -16,7 +16,7 @@ describe('screen badge: which task / Issue a screen belongs to', () => {
 describe('home review list', () => {
   it('links every reviewed screen and its Issue, and each link maps back to the same task', async () => {
     const { REVIEW_LINKS } = await import('./reviewLinks.ts');
-    expect(new Set(REVIEW_LINKS.map(l => l.code))).toEqual(new Set(['U13', 'U03', 'U04/U06', 'U05', 'U06', 'U07', 'U08']));
+    expect(new Set(REVIEW_LINKS.map(l => l.code))).toEqual(new Set(['U13', 'U03', 'U04/U06', 'U05', 'U07', 'U08']));
     for (const l of REVIEW_LINKS) {
       const s = screenFor(l.href);
       expect([l.href, s.code, `https://github.com/jphacks/tkb_2627/issues/${s.issue}`]).toEqual([l.href, l.code, l.issueUrl]);
