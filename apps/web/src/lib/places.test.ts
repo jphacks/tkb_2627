@@ -7,7 +7,8 @@ describe('places sync', () => {
   const day = trip.days[0]!;
   it('numbers places from 1 without duplicates', () => {
     const n = numberPlaces(day, trip.places);
-    expect(n.map(x => x.number)).toEqual(n.map((_, i) => i + 1));
+    // Derived alighting stops (no PlaceInfo, no marker) take a number each, so the marker numbers have gaps.
+    expect(n.map(x => x.number)).toEqual([1, 3, 4, 5, 6, 7, 8, 10]);
     expect(new Set(n.map(x => x.place.placeId)).size).toBe(n.length);
   });
   it('item selection highlights its places and place selection highlights its items', () => {

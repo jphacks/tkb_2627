@@ -112,7 +112,6 @@ describe('tripToIcs', () => {
     const { events, lines } = readIcs(r.ics);
     expect(events.map(e => [e.UID!.slice(4).split('.')[0], e.startUtc, e.endUtc])).toEqual(timedItems(domesticTrip).map(i => [i.id, i.start, i.end]));
     expect(r.omitted).toEqual([
-      { itemId: 'fx_leg_k1', reason: 'time_unknown' },
       { itemId: 'fx_act_hotel', reason: 'time_unknown' },
       { itemId: 'fx_act_station_end', reason: 'time_unknown' },
     ]);

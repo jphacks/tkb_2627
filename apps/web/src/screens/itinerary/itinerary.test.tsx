@@ -108,6 +108,10 @@ describe('transit details (R05)', () => {
     const stop = /<tr class="it-stoprow"[^>]*>(.*?)<\/tr>/.exec(html)?.[1] ?? '';
     expect(stop).toContain('<span class="it-title">兼六園下</span>');
     expect(stop).toContain('aria-label="地図の地点2"');
+    // Like the departure row: one time (the leg's arrival), number badge, bold name, small 降車 label.
+    expect(stop).not.toContain('〜');
+    expect(stop).toContain('<span class="meta">降車</span>');
+    expect(stop).toMatch(/<th scope="row" class="it-time">\d+:\d\d<\/th>|<span class="u1-unknown">未取得<\/span>/);
     expect((html.match(/class="it-conn it-conn-start"/g) ?? []).length).toBe(2);
     const rows = tableRows(trip.days[0]!, trip.places);
     expect(rows.map(r => r.kind)).toEqual(['stay', 'leg', 'stop', 'stay']);
@@ -115,6 +119,17 @@ describe('transit details (R05)', () => {
     expect(numbers).toEqual([1, null, 2, 3]);
     // The map uses the same numbering: the stop has no marker (no location), the stays keep the table's numbers.
     expect(mapPoints(trip.days[0]!, trip.places).map(p => [p.placeId, p.number])).toEqual([['fx_kenrokuen', 1], ['fx_21c_museum', 3]]);
+  });
+  it('Kanazawa: the bus arrives at its own stop row (single time) between the departure row and the next stay', () => {
+    const rows = tableRows(domesticTrip.days[0]!, domesticTrip.places);
+    const i = rows.findIndex(r => r.kind === 'stop');
+    expect(rows.slice(i - 2, i + 2).map(r => r.kind)).toEqual(['stay', 'leg', 'stop', 'stay']);
+    expect(rows[i]).toMatchObject({ name: '武蔵ヶ辻・近江町市場', time: '9:20', number: 2 });
+    const html = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} editor={{ kind: 'local' }} />);
+    const stop = /<tr class="it-stoprow"[^>]*>(.*?)<\/tr>/.exec(html)?.[1] ?? '';
+    expect(stop).toContain('it-handlecell');
+    expect(stop).toContain('<th scope="row" class="it-time">9:20</th>');
+    expect(stop).toContain('<span class="meta">降車</span>');
   });
   it('an unknown stop is not drawn at all: just the arrow with 公共交通 (and 未取得 duration), no special adjacent row', () => {
     const trip = tripAB(unknownLeg({}));
@@ -134,7 +149,7 @@ describe('transit details (R05)', () => {
     const stop = tableRows(trip.days[0]!, trip.places).find(r => r.kind === 'stop');
     expect(stop).toMatchObject({ ownerKey: 'fx_act_kenrokuen', key: 'leg_u:stop' });
     const html = render(<ItineraryView trip={trip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} editor={{ kind: 'local' }} />);
-    expect(html).toContain('aria-label="「兼六園下」（降車する停留所）を並べ替える。前の区間と一緒に動きます"');
+    expect(html).toContain('aria-label="「兼六園下」（降車）を並べ替える。前の区間と一緒に動きます"');
   });
 });
 

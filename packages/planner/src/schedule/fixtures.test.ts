@@ -21,7 +21,6 @@ describe('validateSchedule on B04 fixtures', () => {
     const r = check(domesticTrip);
     expect(r).toMatchObject({ feasible: true, validationState: 'needs_review', dataMode: 'fixture' });
     expect(r.issues.map(i => [i.code, i.refs[0]])).toEqual([
-      ['travel_time_unknown', 'fx_leg_k1'],
       ['opening_hours_unknown', 'fx_act_castle'],
       ['opening_hours_unknown', 'fx_act_museum'],
       ['opening_hours_unknown', 'fx_act_dinner'],
