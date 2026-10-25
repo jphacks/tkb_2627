@@ -2,26 +2,27 @@
  * U08 presentational views (no I/O). Everything shown comes from an API result; nothing is invented.
  * Unknown values are shown as 未取得 (never 0).
  */
-import type { ApiError, CopyResult, ErrorCode, Group, PlaceInfo, Post, PostPreview, PostSnapshot, PostSummary, Trip, Visibility } from '@tkb/contracts';
+import type { ApiError, CopyResult, ErrorCode, Group, Post, PostPreview, PostSnapshot, PostSummary, Trip, Visibility } from '@tkb/contracts';
 import { ErrorBox } from '../../components/ErrorBox.tsx';
 import { TRANSPORT_LABEL, VALIDATION_LABEL, VISIBILITY_LABEL } from '../../components/labels.ts';
-import { formatDay, formatMoney, formatZoned, UNKNOWN } from '../../lib/format.ts';
+import { formatDay } from '../../lib/format.ts';
 import type { DataSource, FeedScope } from './api.ts';
+import { PostItinerary } from './PostItinerary.tsx';
 import { NOT_VISIBLE, ROLE_LABEL, errorText, redactedLabel } from './messages.ts';
 
 export const SCOPE_LABEL: Record<FeedScope, string> = {
   public: '公開',
   mine: '自分の投稿',
   groups: 'グループ',
+  following: 'フォロー中',
 };
 
 const EMPTY_FEED: Record<FeedScope, string> = {
+  following: 'フォローしている人の投稿はまだありません。',
   public: '公開された投稿はまだありません。',
   mine: 'まだ投稿していません。「投稿する」から旅程を公開できます。',
   groups: '所属グループの投稿はまだありません。',
 };
-
-const LEG_LABEL = { transit: '公共交通', car: '車', walk: '徒歩' } as const;
 
 /** API error with a Japanese message. 404 always reads 見つからないか閲覧権限がありません. */
 export function ResultError({ error, title, onRetry, overrides }: {
@@ -113,50 +114,15 @@ export function FeedView(p: FeedViewProps) {
   );
 }
 
-function placeName(places: Map<string, PlaceInfo>, id: string | null): string {
-  if (id === null) return '地点なし';
-  if (id.startsWith('hidden_')) return '非公開の地点';
-  return places.get(id)?.name ?? '非公開の地点';
-}
-
 /** The public snapshot exactly as the API returned it (K12/K14). */
 export function SnapshotView({ snapshot }: { snapshot: PostSnapshot }) {
-  const places = new Map(snapshot.places.map(p => [p.placeId, p]));
   const c = snapshot.constraints;
   return (
     <div className="s8-snapshot">
       <p className="meta">
         {c.area} / {formatDay(c.startDate)} - {formatDay(c.endDate)} / {c.timeZone} / {TRANSPORT_LABEL[c.transportMode]}
       </p>
-      {snapshot.days.length === 0 && <p className="meta">日程の内容はありません。</p>}
-      {snapshot.days.map((day, i) => (
-        <div key={`${day.date}-${i}`}>
-          <h4 className="u1-dayhead">{i + 1}日目 {formatDay(day.date)}</h4>
-          {day.items.length === 0 ? (
-            <p className="meta">予定はありません。</p>
-          ) : (
-            <ul className="s8-items">
-              {day.items.map(item =>
-                item.type === 'activity' ? (
-                  <li key={item.activityId}>
-                    <strong>{item.title}</strong>
-                    <span className="meta">
-                      {formatZoned(item.start)} 〜 {formatZoned(item.end)} / {placeName(places, item.placeId)} / 費用 {formatMoney(item.cost)}
-                    </span>
-                  </li>
-                ) : (
-                  <li key={item.legId} className="s8-leg">
-                    <span>移動（{LEG_LABEL[item.mode]}）{placeName(places, item.fromPlaceId)} → {placeName(places, item.toPlaceId)}</span>
-                    <span className="meta">
-                      出発 {formatZoned(item.departure)} / 到着 {formatZoned(item.arrival)} / 路線 {item.lineName ?? UNKNOWN}
-                    </span>
-                  </li>
-                ),
-              )}
-            </ul>
-          )}
-        </div>
-      ))}
+      <PostItinerary days={snapshot.days} places={snapshot.places} />
       {snapshot.places.length > 0 && (
         <details>
           <summary>含まれる地点（{snapshot.places.length}件）</summary>
@@ -242,20 +208,7 @@ export function CopiedTripView({ trip }: { trip: Trip }) {
           {trip.warnings.map(w => <li key={w}>{w}</li>)}
         </ul>
       )}
-      {trip.days.map((d, i) => (
-        <div key={`${d.date}-${i}`}>
-          <h3 className="u1-dayhead">{i + 1}日目 {formatDay(d.date)}</h3>
-          <ul className="s8-items">
-            {d.items.map(it =>
-              it.type === 'activity' ? (
-                <li key={it.activityId}>{it.title}<span className="meta">時刻 {formatZoned(it.start)} / 費用 {formatMoney(it.cost)}</span></li>
-              ) : (
-                <li key={it.legId} className="s8-leg">移動（{LEG_LABEL[it.mode]}）<span className="meta">時刻 {formatZoned(it.departure)}</span></li>
-              ),
-            )}
-          </ul>
-        </div>
-      ))}
+      <PostItinerary days={trip.days} places={trip.places} />
     </article>
   );
 }

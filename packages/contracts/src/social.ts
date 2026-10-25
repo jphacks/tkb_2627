@@ -28,6 +28,8 @@ export const PostPreviewRequest = z
     visibility: Visibility,
     groupId: Id.nullable().optional(),
     story: z.string().max(5000),
+    /** S07: images uploaded with POST /api/v1/post-images (max 4). Compatible addition. */
+    imageIds: z.array(Id).max(4).optional(),
   })
   .refine(r => (r.visibility === 'group') === Boolean(r.groupId), {
     message: 'groupId is required for group visibility and forbidden otherwise',
@@ -50,6 +52,24 @@ export const PostCreateRequest = z.strictObject({
 });
 export type PostCreateRequest = z.infer<typeof PostCreateRequest>;
 
+/** S07: who posted. Avatar is generated (initial + colour), never an uploaded photo of the user. */
+export const PostAuthor = z.object({
+  userId: Id,
+  displayName: z.string(),
+  avatarInitial: z.string().min(1).max(2),
+  avatarColor: z.string().regex(/^#[0-9a-f]{6}$/i),
+});
+export type PostAuthor = z.infer<typeof PostAuthor>;
+
+/** S07: an image attached to a post. Served with the same visibility as the post; EXIF (incl. GPS) is stripped. */
+export const PostImage = z.object({
+  imageId: Id,
+  url: z.string().startsWith('/api/v1/post-images/'),
+  width: z.number().int().positive().nullable(),
+  height: z.number().int().positive().nullable(),
+});
+export type PostImage = z.infer<typeof PostImage>;
+
 export const PostSummary = z.object({
   postId: Id,
   postRevision: z.number().int().positive(),
@@ -61,6 +81,13 @@ export const PostSummary = z.object({
   area: z.string(),
   startDate: LocalDate,
   createdAt: UtcInstant,
+  /** S07 additions (optional for compatibility; the S07 server always sends them). */
+  author: PostAuthor.optional(),
+  isMine: z.boolean().optional(),
+  likeCount: z.number().int().nonnegative().optional(),
+  likedByMe: z.boolean().optional(),
+  images: z.array(PostImage).max(4).optional(),
+  updatedAt: UtcInstant.nullable().optional(),
 });
 export type PostSummary = z.infer<typeof PostSummary>;
 
@@ -69,7 +96,8 @@ export type Post = z.infer<typeof Post>;
 
 /** K14 GET /api/v1/posts */
 export const FeedQuery = z.object({
-  scope: z.enum(['public', 'groups', 'mine']),
+  /** S07 adds 'following': posts the viewer may see from users they follow. */
+  scope: z.enum(['public', 'groups', 'mine', 'following']),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(20).default(20),
 });
@@ -98,6 +126,26 @@ export const PostPatchRequest = z
     path: ['groupId'],
   });
 export type PostPatchRequest = z.infer<typeof PostPatchRequest>;
+
+/** S07 PUT|DELETE /api/v1/posts/{id}/like — only posts the viewer may read; idempotent. */
+export const LikeState = z.object({ postId: Id, likeCount: z.number().int().nonnegative(), likedByMe: z.boolean() });
+export type LikeState = z.infer<typeof LikeState>;
+
+/** S07 GET /api/v1/users/{id}/profile and GET /api/v1/me/profile; PUT|DELETE /api/v1/users/{id}/follow returns it. */
+export const UserProfile = z.object({
+  user: PostAuthor,
+  followerCount: z.number().int().nonnegative(),
+  followingCount: z.number().int().nonnegative(),
+  followedByMe: z.boolean(),
+  isMe: z.boolean(),
+});
+export type UserProfile = z.infer<typeof UserProfile>;
+
+/** S07 POST /api/v1/post-images (raw body; Content-Type image/jpeg|png|webp; max 5 MB). Owner-only until attached. */
+export const POST_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+export const POST_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const PostImageUploaded = PostImage;
+export type PostImageUploaded = z.infer<typeof PostImageUploaded>;
 
 /** K16 POST /api/v1/posts/{id}/copy */
 export const CopyRequest = z.strictObject({

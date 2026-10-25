@@ -25,6 +25,7 @@ import {
   insertPreview,
   isActiveMember,
   listFeed,
+  ownUnattachedImages,
   patchPost,
   type Db,
   type PostRecord,
@@ -60,6 +61,8 @@ export function registerPosts(app: FastifyInstance, db: Db): void {
     if (!trip) return notFound(reply, req.id);
     // A missing group and a group the user is not in look the same (422), so existence does not leak.
     if (b.visibility === 'group' && !isActiveMember(db, b.groupId!, userId)) return invalid(reply, req.id);
+    // Images must be the actor's own uploads that no post uses yet; anything else looks like a bad request.
+    if (!ownUnattachedImages(db, userId, b.imageIds ?? [])) return invalid(reply, req.id);
     if (trip.revision !== b.sourceRevision) return fail(reply, req.id, 'REVISION_CONFLICT', 'Trip was updated.');
     const { snapshot, redactedFields } = buildSnapshot(trip);
     const token = randomBytes(32).toString('base64url');
@@ -77,6 +80,7 @@ export function registerPosts(app: FastifyInstance, db: Db): void {
         story: b.story,
         snapshotJson: JSON.stringify(snapshot),
         expiresAt,
+        imageIds: b.imageIds ?? [],
       },
       iso(now),
     );
@@ -91,6 +95,7 @@ export function registerPosts(app: FastifyInstance, db: Db): void {
     const r = createPostFromPreview(db, hashPreviewToken(body.data.previewToken), userId, iso(Date.now()));
     if (!r.ok) {
       if (r.code === 'NOT_FOUND') return notFound(reply, req.id);
+      if (r.code === 'IMAGES_INVALID') return invalid(reply, req.id);
       if (r.code === 'EXPIRED') return fail(reply, req.id, 'EXPIRED', 'Preview expired.');
       if (r.code === 'ALREADY_COMMITTED') return fail(reply, req.id, 'ALREADY_COMMITTED', 'Preview already used.');
       return fail(reply, req.id, 'REVISION_CONFLICT', 'Trip was updated.');

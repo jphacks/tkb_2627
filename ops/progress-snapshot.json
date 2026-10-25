@@ -1,6 +1,6 @@
 {
   "repository": "jphacks/tkb_2627",
-  "fetchedAt": "2026-10-25T01:57:57.862Z",
+  "fetchedAt": "2026-10-25T02:48:00.429Z",
   "warnings": [],
   "tasks": {
     "B01": {
@@ -144,7 +144,7 @@
       }
     },
     "D06": {
-      "status": "review",
+      "status": "doing",
       "issue": {
         "number": 16,
         "url": "https://github.com/jphacks/tkb_2627/issues/16",
@@ -343,7 +343,7 @@
       }
     },
     "U07": {
-      "status": "done",
+      "status": "review",
       "issue": {
         "number": 35,
         "url": "https://github.com/jphacks/tkb_2627/issues/35",
@@ -355,7 +355,7 @@
       }
     },
     "U08": {
-      "status": "review",
+      "status": "doing",
       "issue": {
         "number": 36,
         "url": "https://github.com/jphacks/tkb_2627/issues/36",
@@ -556,6 +556,36 @@
         "url": "https://github.com/jphacks/tkb_2627/issues/55",
         "assignees": [
           "KatTanaka"
+        ]
+      }
+    },
+    "S07": {
+      "status": "review",
+      "issue": {
+        "number": 187,
+        "url": "https://github.com/jphacks/tkb_2627/issues/187",
+        "assignees": [
+          "KatTanaka"
+        ]
+      }
+    },
+    "U09": {
+      "status": "todo",
+      "issue": {
+        "number": 188,
+        "url": "https://github.com/jphacks/tkb_2627/issues/188",
+        "assignees": [
+          "poyyk"
+        ]
+      }
+    },
+    "U10": {
+      "status": "review",
+      "issue": {
+        "number": 189,
+        "url": "https://github.com/jphacks/tkb_2627/issues/189",
+        "assignees": [
+          "ryoumatimati"
         ]
       }
     }

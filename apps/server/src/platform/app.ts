@@ -14,6 +14,8 @@ import { registerExports, type ExportsDeps } from './exports/index.ts';
 import { registerGroups } from '../social/groups/index.ts';
 import { registerCopy } from '../social/copy/index.ts';
 import { registerPosts } from '../social/posts/index.ts';
+import { registerPostImages } from '../social/posts/images-routes.ts';
+import { registerFollowLike } from '../social/follow/index.ts';
 import { registerTrips } from '../trips/index.ts';
 import { registerGuides } from '../guides/index.ts';
 import { registerSpotGuides, type SpotGuideDeps } from '../guides/spots.ts';
@@ -104,6 +106,8 @@ export function buildApp(opts: BuildAppOptions): FastifyInstance {
   registerAuth(app, handle, config);
   registerGroups(app, handle, config);
   registerPosts(app, handle);
+  registerPostImages(app, handle);
+  registerFollowLike(app, handle);
   registerTrips(app, handle, config);
   registerCopy(app, handle);
   registerExports(app, handle, opts.exports); // E02 (K18 PDF)

@@ -67,4 +67,5 @@ export * from './repo.ts';
 export * from './auth.ts';
 export * from './groups.ts';
 export * from './posts.ts';
+export * from './social.ts';
 export * from './backup.ts';
