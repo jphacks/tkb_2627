@@ -6,6 +6,7 @@ import { ScreenHeader } from '../../components/ScreenHeader.tsx';
 import { formatDay } from '../../lib/format.ts';
 import { TIME_UNKNOWN } from '../itinerary/model.ts';
 import { ItineraryTable } from '../itinerary/ItineraryTable.tsx';
+import { recalcDay } from '../itinerary/recalc.ts';
 import { tableRows } from '../itinerary/table.ts';
 import { createLiveTripEditApi, createMockTripEditApi, type TripEditApi } from './api.ts';
 import { DiffView, EditError, NO_OPERATIONS_REASON, TRAVEL_LABEL } from './DiffView.tsx';
@@ -108,7 +109,9 @@ export function EditView(p: EditViewProps) {
 
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const toggleRow = (key: string) => setExpanded(x => { const n = new Set(x); if (n.has(key)) n.delete(key); else n.add(key); return n; });
-  const rows = useMemo(() => (day ? tableRows(day, p.working.places) : []), [day, p.working.places]);
+  // Shown with the times re-computed for the current order, so a moved stay never keeps its old time (UI review on #32).
+  // Display only: the saved times come from the candidate preview (K10 alternatives), as before.
+  const rows = useMemo(() => (day ? tableRows(recalcDay(p.working, idx).trip.days[idx] ?? day, p.working.places) : []), [day, p.working, idx]);
 
   // R1: a drag becomes K10 `move` operations on the pending list (a stay moves together with its children).
   const reorder = (key: string, before: string | null) => {
@@ -140,7 +143,8 @@ export function EditView(p: EditViewProps) {
       </div>
       {day ? (
         <>
-          <p className="ed-note">左の「⠿」をドラッグ（またはEnterで持ち上げて↑↓キー、Enterで置く）で並べ替えられます。行を押すと詳細が開きます。並べ替えは「未保存の編集」に入り、保存するまで確定しません。</p>
+          {/* The how-to is read out only (UI review on #32: no hint text on screen). */}
+          <p className="u1-sr">左端の「⠿」をドラッグで並べ替え。キーボードは Enter で持ち上げ、上下の矢印キーで動かし、Enter で置きます。行を押すと詳細が開きます。並べ替えは「未保存の編集」に入り、保存するまで確定しません。</p>
           <ItineraryTable key={idx} rows={rows} dayDate={day.date} expanded={expanded} onToggleRow={toggleRow} onReorder={reorder}
             stayBadge={r => (baseIds.has(r.key) ? null : <span className="ed-flag">未保存</span>)}
             stayExtra={r => (
