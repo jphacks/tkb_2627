@@ -83,26 +83,56 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
   const dropRef = useRef(dropFromPoint);
   dropRef.current = dropFromPoint;
   const pointerDragging = drag?.mode === 'pointer';
+  const pointerId = useRef<number | null>(null);
   useEffect(() => {
     if (!pointerDragging) return undefined;
-    const move = (e: PointerEvent) => { const d = dragRef.current; if (d?.mode === 'pointer') setDrag(dropRef.current(e, d)); };
+    // Only the pointer that picked the row up counts (a second finger is ignored).
+    const mine = (e: PointerEvent) => pointerId.current === null || e.pointerId === pointerId.current;
+    const end = () => { pointerId.current = null; setDrag(null); };
+    let last: { clientX: number; clientY: number } | null = null;
+    const move = (e: PointerEvent) => {
+      if (!mine(e)) return;
+      // Released outside the window (no pointerup reached us): end the drag instead of leaving it stuck (review on #34).
+      if (e.buttons === 0 && e.pointerType === 'mouse') { end(); return; }
+      last = { clientX: e.clientX, clientY: e.clientY };
+      const d = dragRef.current;
+      if (d?.mode === 'pointer') setDrag(dropRef.current(e, d));
+    };
     const up = (e: PointerEvent) => {
+      if (!mine(e)) return;
       const d = dragRef.current;
       if (d?.mode !== 'pointer') return;
       const final = dropRef.current(e, d);
-      setDrag(null);
+      end();
       if (final.before !== undefined) void commitMoveRef.current(final.key, final.before);
     };
-    const cancel = () => setDrag(null);
+    const cancel = (e: PointerEvent) => { if (mine(e)) end(); };
+    // Near the top or bottom of the screen the page scrolls by itself, so a stay can be taken off screen in one drag
+    // (touch-action: none on the handle stops the finger from scrolling).
+    const EDGE = 64;
+    const timer = window.setInterval(() => {
+      if (!last) return;
+      const dy = last.clientY < EDGE ? -12 : last.clientY > window.innerHeight - EDGE ? 12 : 0;
+      if (dy === 0) return;
+      window.scrollBy(0, dy);
+      const d = dragRef.current;
+      if (d?.mode === 'pointer') setDrag(dropRef.current(last, d));
+    }, 30);
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', cancel);
-    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel); };
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel);
+    };
   }, [pointerDragging]);
   const onHandlePointerDown = (e: React.PointerEvent, key: string) => {
     if (saving || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    pointerId.current = e.pointerId;
+    // A slide from the previous drop may still be running: finish it so the rows are measured where they really are.
+    bodyRef.current?.querySelectorAll<HTMLElement>('[data-row-key]').forEach(el => el.getAnimations?.().forEach(a => a.finish()));
     bandTops.current = stayKeys.map(k => {
       const tr = bodyRef.current?.querySelector<HTMLElement>(`tr[data-stay-key="${k}"]:not([data-detail])`);
       return tr ? tr.getBoundingClientRect().top + window.scrollY : Number.NaN;
