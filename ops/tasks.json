@@ -2728,6 +2728,45 @@
       "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
       "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
       "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "U13",
+      "owner": "M1",
+      "title": "ホーム画面（全画面への入口・自分の旅程）",
+      "dependsOn": [
+        "U03"
+      ],
+      "uiDependency": "approval",
+      "writePaths": [
+        "apps/web/src/screens/hub/"
+      ],
+      "requirements": [
+        "R29"
+      ],
+      "estimateMinutes": {
+        "low": 20,
+        "high": 60
+      },
+      "acceptance": "ホーム画面（データの種類、ログイン状態、旅行を計画する／SNS・グループ、自分の旅程の一覧と各画面へのリンク）を人がレビューし、指摘を反映する。",
+      "verification": "人の「UI承認：OK」。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K09",
+        "K22"
+      ],
+      "components": [
+        "web-shared"
+      ],
+      "branch": "feat/m1/u13",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "利用者の指示（ホーム画面もレビュー対象にする、2026-10-25）",
+        "docs/ui/reviews/ の R1〜R7"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
     }
   ],
   "version": "4.0"
