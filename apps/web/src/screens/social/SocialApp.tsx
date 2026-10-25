@@ -609,8 +609,11 @@ function ComposeForm({ api, onPosted }: { api: SocialApi; onPosted: (postId: str
     if (r.ok) setPreview(r.data);
     else setError({ step: 'preview', error: r.error });
   }
+  // Images still uploading are not in `images` yet: block the submit until every upload has finished (M3 on #188).
+  const [uploading, setUploading] = useState(0);
   const upload = useCallback(async (file: File) => {
-    const r = await api.uploadPostImage(file);
+    setUploading(n => n + 1);
+    const r = await api.uploadPostImage(file).finally(() => setUploading(n => n - 1));
     return r.ok ? { ok: true as const, image: r.data } : { ok: false as const, error: errorText(r.error) };
   }, [api]);
   async function post() {
@@ -658,8 +661,8 @@ function ComposeForm({ api, onPosted }: { api: SocialApi; onPosted: (postId: str
           </div>
           <ImagePicker value={images} onChange={setImages} upload={upload} disabled={busy} />
           <div className="u1-actions">
-            <button type="submit" className="btn u1-primary" disabled={busy || !selected || (visibility === 'group' && groupId === '')}>
-              {busy ? '確認を作成中…' : '公開前の確認へ'}
+            <button type="submit" className="btn u1-primary" disabled={busy || uploading > 0 || !selected || (visibility === 'group' && groupId === '')}>
+              {busy ? '確認を作成中…' : uploading > 0 ? '画像をアップロード中…' : '公開前の確認へ'}
             </button>
           </div>
           <p className="meta">まだ投稿されません。次の画面で、公開される内容を確認してから確定します。</p>
