@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { UNKNOWN, formatMoney } from '../../lib/format.ts';
 import { KIND_LABEL, VALUE_UNKNOWN, transitDetail } from './model.ts';
 import {
@@ -37,13 +37,15 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
   const cols = editable ? 3 : 2;
   const stayKeys = rows.flatMap(r => (r.kind === 'stay' ? [r.key] : []));
   const commitMove = (key: string, before: string | null) => onReorder?.(key, before);
+  const commitMoveRef = useRef(commitMove);
+  commitMoveRef.current = commitMove;
 
   // While dragging, the table shows the order the drop would give (UI review on #33).
   const order = drag && drag.before !== undefined ? reorderedOrder(stayKeys, [drag.key], drag.before) : stayKeys;
   const shown = drag ? previewRows(rows, order) : rows;
 
   // R1: pointer based drag (mouse and touch) from the handle. The hovered row is read in the order on screen.
-  const dropFromPoint = (e: React.PointerEvent, d: Drag): Drag => {
+  const dropFromPoint = (e: { clientX: number; clientY: number }, d: Drag): Drag => {
     const el = document.elementFromPoint?.(e.clientX, e.clientY)?.closest?.('[data-stay-key]') as HTMLElement | null;
     const overKey = el?.dataset.stayKey;
     if (!el || !overKey || overKey === d.key) return d;
@@ -52,14 +54,17 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
     return { ...d, before: hoverTarget(stayKeys, order, d.key, overKey, after) };
   };
 
-  // Rows slide from where they were to where they are now (FLIP), so a moving row can be followed by eye.
+  // Rows slide from where they were to where they are now (FLIP), so a moving row can be followed by eye. Only a change
+  // of the row order animates (not scrolling or opening a row); positions are page-relative so scrolling is not a move.
   const bodyRef = useRef<HTMLTableSectionElement>(null);
   const lastTops = useRef(new Map<string, number>());
+  const lastOrder = useRef('');
+  const orderSig = shown.map(r => r.key).join('|');
   useLayoutEffect(() => {
     const els = [...(bodyRef.current?.querySelectorAll<HTMLElement>('[data-row-key]') ?? [])];
-    const reduce = typeof window !== 'undefined' && (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
-    const tops = new Map(els.map(el => [el.dataset.rowKey!, el.getBoundingClientRect().top]));
-    if (!reduce) {
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const tops = new Map(els.map(el => [el.dataset.rowKey!, el.getBoundingClientRect().top + window.scrollY]));
+    if (!reduce && lastOrder.current !== '' && lastOrder.current !== orderSig) {
       for (const el of els) {
         const was = lastTops.current.get(el.dataset.rowKey!);
         const dy = was === undefined ? 0 : was - tops.get(el.dataset.rowKey!)!;
@@ -67,21 +72,42 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
       }
     }
     lastTops.current = tops;
+    lastOrder.current = orderSig;
+    // Moving rows in the DOM can blur the focused handle: keep the keyboard drag on it.
+    if (drag?.mode === 'keyboard') {
+      const h = bodyRef.current?.querySelector<HTMLElement>(`tr[data-stay-key="${drag.key}"] .it-handle`);
+      if (h && document.activeElement !== h) h.focus({ preventScroll: true });
+    }
   });
+
+  // Pointer moves are followed on the window, not on the handle: the handle's row moves in the DOM while dragging,
+  // which can drop its pointer capture.
+  const dragRef = useRef(drag);
+  dragRef.current = drag;
+  const dropRef = useRef(dropFromPoint);
+  dropRef.current = dropFromPoint;
+  const pointerDragging = drag?.mode === 'pointer';
+  useEffect(() => {
+    if (!pointerDragging) return undefined;
+    const move = (e: PointerEvent) => { const d = dragRef.current; if (d?.mode === 'pointer') setDrag(dropRef.current(e, d)); };
+    const up = (e: PointerEvent) => {
+      const d = dragRef.current;
+      if (d?.mode !== 'pointer') return;
+      const final = dropRef.current(e, d);
+      setDrag(null);
+      if (final.before !== undefined) void commitMoveRef.current(final.key, final.before);
+    };
+    const cancel = () => setDrag(null);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel); };
+  }, [pointerDragging]);
   const onHandlePointerDown = (e: React.PointerEvent, key: string) => {
     if (saving || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     setDrag({ key, before: undefined, mode: 'pointer', order: stayKeys });
-  };
-  const onHandlePointerMove = (e: React.PointerEvent) => {
-    if (drag?.mode === 'pointer') setDrag(dropFromPoint(e, drag));
-  };
-  const onHandlePointerUp = (e: React.PointerEvent) => {
-    if (drag?.mode !== 'pointer') return;
-    const final = dropFromPoint(e, drag);
-    setDrag(null);
-    if (final.before !== undefined) void commitMove(final.key, final.before);
   };
   // Keyboard alternative: Enter/Space picks the row up, arrow keys move it, Enter/Space drops, Escape cancels.
   const onHandleKeyDown = (e: React.KeyboardEvent, key: string) => {
@@ -129,8 +155,7 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
                   dragging={drag?.key === r.key}
                   setRef={el => setRowRef?.(r.key, el)} extra={stayExtra?.(r)} badge={stayBadge?.(r)}
                   onToggle={() => onToggleRow(r.key)}
-                  onHandlePointerDown={e => onHandlePointerDown(e, r.key)} onHandlePointerMove={onHandlePointerMove}
-                  onHandlePointerUp={onHandlePointerUp} onHandleCancel={() => setDrag(null)} onHandleKeyDown={e => onHandleKeyDown(e, r.key)} />
+                  onHandlePointerDown={e => onHandlePointerDown(e, r.key)} onHandleKeyDown={e => onHandleKeyDown(e, r.key)} />
               ) : (
                 <LegTableRows row={r} open={expanded.has(r.key)} selected={selectedKeys?.has(r.key) ?? false} dayDate={dayDate} editable={editable} onToggle={() => onToggleRow(r.key)} />
               )}
@@ -160,7 +185,7 @@ function DetailList({ lines, label }: { lines: DetailLine[]; label: string }) {
   );
 }
 
-function StayTableRows({ row, open, selected, editable, dragging, extra, badge, setRef, onToggle, onHandlePointerDown, onHandlePointerMove, onHandlePointerUp, onHandleCancel, onHandleKeyDown }: {
+function StayTableRows({ row, open, selected, editable, dragging, extra, badge, setRef, onToggle, onHandlePointerDown, onHandleKeyDown }: {
   row: StayRow;
   open: boolean;
   selected: boolean;
@@ -171,9 +196,6 @@ function StayTableRows({ row, open, selected, editable, dragging, extra, badge, 
   setRef: (el: HTMLTableRowElement | null) => void;
   onToggle: () => void;
   onHandlePointerDown: (e: React.PointerEvent) => void;
-  onHandlePointerMove: (e: React.PointerEvent) => void;
-  onHandlePointerUp: (e: React.PointerEvent) => void;
-  onHandleCancel: () => void;
   onHandleKeyDown: (e: React.KeyboardEvent) => void;
 }) {
   const a = row.item;
@@ -184,8 +206,7 @@ function StayTableRows({ row, open, selected, editable, dragging, extra, badge, 
         {editable && (
           <td className="it-handlecell">
             <button type="button" className="it-handle" aria-label={`「${a.title}」を並べ替える`} aria-pressed={dragging}
-              onPointerDown={onHandlePointerDown} onPointerMove={onHandlePointerMove} onPointerUp={onHandlePointerUp}
-              onPointerCancel={onHandleCancel} onKeyDown={onHandleKeyDown}>⠿</button>
+              onPointerDown={onHandlePointerDown} onKeyDown={onHandleKeyDown}>⠿</button>
           </td>
         )}
         <th scope="row" className="it-time"><TimeText text={row.range} /></th>
