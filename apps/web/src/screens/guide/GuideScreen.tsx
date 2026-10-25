@@ -7,12 +7,14 @@ import { ScreenHeader } from '../../components/ScreenHeader.tsx';
 import { formatDay } from '../../lib/format.ts';
 import { createMockApi } from '../../mocks/index.ts';
 import { fetchTrip, fetchTripFromMock, type TripLoad } from '../itinerary/api.ts';
-import { MapPanel } from '../itinerary/MapPanel.tsx';
+import { ItineraryTable } from '../itinerary/ItineraryTable.tsx';
+import { MapPanel, type MapMarker } from '../itinerary/MapPanel.tsx';
 import { readBrowserMapsKey } from '../itinerary/mapsKey.ts';
 import { mapPoints, unlocatedPlaces } from '../itinerary/model.ts';
+import { tableRows } from '../itinerary/table.ts';
 import type { GeoLike } from '../travel/geo.ts';
 import {
-  AMENITY_KIND_LABEL, EMPTY_TEXT, LOCATION_CONSENT_TEXT, SHELTER_WARNING, UNSUPPORTED_TEXT,
+  AMENITY_KIND_LABEL, EMPTY_TEXT, SHELTER_WARNING, UNSUPPORTED_TEXT,
   chooseArea, currentDayIndex, displayName, fetchAmenities, fetchGuide, filterKinds, hazardText, isFictional, mergeGuide, mockAmenities,
   spotDetail, warningFor, type AmenitiesLoad, type AmenityItem, type AmenityKind, type GuideLoad, type SpotDetail,
 } from './model.ts';
@@ -22,6 +24,21 @@ import '../itinerary/itinerary.css';
 import './guide.css';
 
 const ALL_KINDS: readonly AmenityKind[] = ['toilet', 'evacuation_site', 'evacuation_shelter'];
+/** Map symbol per kind; the list rows carry the same symbol so the two correspond. */
+export const AMENITY_MARK: Record<AmenityKind, { label: string; color: string }> = {
+  toilet: { label: 'ト', color: '#0f766e' },
+  evacuation_site: { label: '緊', color: '#b91c1c' },
+  evacuation_shelter: { label: '避', color: '#7c3aed' },
+};
+
+/** Amenities of the enabled kinds as map symbols (the list below the map shows the same items). */
+export function amenityMarkers(load: AmenitiesLoad | null, enabled: ReadonlySet<AmenityKind>): MapMarker[] {
+  if (load?.state !== 'ok') return [];
+  return filterKinds(load.items, enabled).map(i => ({
+    id: `am:${i.id}`, lat: i.location.lat, lng: i.location.lng, label: AMENITY_MARK[i.kind].label, color: AMENITY_MARK[i.kind].color,
+    title: `${AMENITY_KIND_LABEL[i.kind]}: ${displayName(i)}`,
+  }));
+}
 const todayLocal = (): string => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -94,7 +111,30 @@ export function GuideView({ trip, mock, geo, today }: { trip: Trip; mock: boolea
     return () => ctrl.abort();
   }, [selected, mock]);
   const toggle = (k: AmenityKind) => setEnabled(s => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
-  const pick = (id: string) => setSelected(s => (s === id ? null : id));
+
+  // The day's itinerary right under the map; its numbers are the map's point numbers.
+  const rows = useMemo(() => (day ? tableRows(day, trip.places) : []), [day, trip.places]);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
+  const selectedKeys = useMemo(() => new Set(rows.flatMap(r => (r.kind === 'stay' && selected !== null && r.item.placeId === selected ? [r.key] : []))), [rows, selected]);
+  const markers = useMemo(() => amenityMarkers(amen, enabled), [amen, enabled]);
+  const highlighted = useMemo(() => new Set(selected ? [selected] : []), [selected]);
+  // The row the explanation is shown under: the one last opened, else the first row of the selected place.
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const pick = (id: string) => {
+    setSelected(s => (s === id ? null : id));
+    const key = rows.find(r => r.kind === 'stay' && r.item.placeId === id)?.key;
+    if (key) rowRefs.current.get(key)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+  };
+  const toggleRow = (key: string) => {
+    const opening = !expanded.has(key);
+    setExpanded(s => { const n = new Set(s); if (opening) n.add(key); else n.delete(key); return n; });
+    const r = rows.find(x => x.key === key);
+    const placeId = r?.kind === 'stay' ? r.item.placeId : null;
+    if (placeId) setSelected(s => (opening ? placeId : s === placeId ? null : s));
+    if (opening) setFocusKey(key);
+  };
+  const spotKey = focusKey !== null && selectedKeys.has(focusKey) ? focusKey : rows.find(r => selectedKeys.has(r.key))?.key ?? null;
 
   return (
     <>
@@ -102,7 +142,7 @@ export function GuideView({ trip, mock, geo, today }: { trip: Trip; mock: boolea
       {trip.days.length > 1 && (
         <div className="it-days" role="tablist" aria-label="日付">
           {trip.days.map((d, i) => (
-            <button key={d.date} type="button" role="tab" aria-selected={d === day} className={`it-day${d === day ? ' it-on' : ''}`} onClick={() => { setDayIndex(i); setSelected(null); }}>
+            <button key={d.date} type="button" role="tab" aria-selected={d === day} className={`it-day${d === day ? ' it-on' : ''}`} onClick={() => { setDayIndex(i); setSelected(null); setExpanded(new Set()); }}>
               {i + 1}日目 {formatDay(d.date)}
             </button>
           ))}
@@ -112,16 +152,19 @@ export function GuideView({ trip, mock, geo, today }: { trip: Trip; mock: boolea
         <h2>今日の地点</h2>
         {!day || points.length === 0 ? <p className="u1-empty">この日に位置のある地点はありません。</p> : (
           <>
-            <MapPanel apiKey={readBrowserMapsKey()} points={points} highlighted={new Set(selected ? [selected] : [])} onSelectPlace={pick} />
+            <MapPanel apiKey={readBrowserMapsKey()} points={points} highlighted={highlighted} onSelectPlace={pick} markers={markers} />
             {day && unlocatedPlaces(day, trip.places).length > 0 && <p className="meta">位置不明: {unlocatedPlaces(day, trip.places).map(u => u.name).join('、')}</p>}
           </>
         )}
-        <SpotPanel detail={detail} guide={guide && guide.placeId === selected ? guide.load : null} />
+        {day && rows.length > 0 && (
+          <ItineraryTable key={day.date} rows={rows} dayDate={day.date} expanded={expanded} selectedKeys={selectedKeys} onToggleRow={toggleRow}
+            setRowRef={(key, el) => { if (el) rowRefs.current.set(key, el); else rowRefs.current.delete(key); }}
+            stayExtra={r => (r.key === spotKey ? <SpotPanel detail={detail} guide={guide && guide.placeId === selected ? guide.load : null} /> : null)} />
+        )}
       </section>
 
       <section aria-label="近くのトイレ・避難場所" className="gd-sec">
         <h2>近くのトイレ・避難場所</h2>
-        <p className="meta" role="note">{LOCATION_CONSENT_TEXT}</p>
         <button type="button" className="btn" onClick={() => { void run(true); }}>現在地を使う</button>
         <fieldset className="gd-layers">
           <legend>表示する種類</legend>
@@ -138,7 +181,7 @@ export function GuideView({ trip, mock, geo, today }: { trip: Trip; mock: boolea
 
 /** `guide` is null while loading (or in mock mode): the trip's own description is shown meanwhile. */
 export function SpotPanel({ detail, guide = null }: { detail: SpotDetail | null; guide?: GuideLoad | null }) {
-  if (!detail) return <p className="meta">地点を選ぶと解説を表示します。</p>;
+  if (!detail) return null;
   const view = mergeGuide(detail, guide);
   return (
     <article className="gd-detail" aria-label={`地点${view.number}の解説`}>
@@ -193,6 +236,7 @@ function AmenityRow({ item }: { item: AmenityItem }) {
   const warn = warningFor(item);
   return (
     <li className={`gd-am gd-${item.kind}`}>
+      <span className="gd-mark" style={{ background: AMENITY_MARK[item.kind].color }} aria-hidden="true">{AMENITY_MARK[item.kind].label}</span>{' '}
       <strong>{displayName(item)}</strong> <span className="gd-kind">{AMENITY_KIND_LABEL[item.kind]}</span>
       {item.kind === 'toilet' && <span className="meta"> 車いす: {item.accessible === true ? '可' : item.accessible === false ? '不可' : '不明'} / 営業時間: {item.openingHours ?? '不明'}</span>}
       {item.kind !== 'toilet' && <span className="meta"> {hazardText(item)}</span>}

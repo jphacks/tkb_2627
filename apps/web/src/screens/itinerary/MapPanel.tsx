@@ -75,24 +75,31 @@ export function chooseMapMode(apiKey: string | null, origin: string | null, fail
   return { kind: 'google', apiKey };
 }
 
-export function MapPanel({ apiKey, points, highlighted, onSelectPlace }: {
+/** Extra unnumbered symbol on top of the route (e.g. toilets and shelters on the guide screen); not part of the line. */
+export interface MapMarker { id: string; lat: number; lng: number; label: string; title: string; color: string }
+
+const NO_MARKERS: readonly MapMarker[] = [];
+
+export function MapPanel({ apiKey, points, highlighted, onSelectPlace, markers = NO_MARKERS }: {
   apiKey: string | null;
   points: MapPoint[];
   highlighted: ReadonlySet<string>;
   onSelectPlace: (placeId: string) => void;
+  markers?: readonly MapMarker[];
 }) {
   const [failed, setFailed] = useState<string | null>(null);
   const mode = chooseMapMode(apiKey, typeof location !== 'undefined' ? location.origin : null, failed);
-  if (mode.kind === 'sketch') return <StaticMap points={points} highlighted={highlighted} onSelectPlace={onSelectPlace} reason={mode.reason} />;
-  return <LiveMap apiKey={mode.apiKey} points={points} highlighted={highlighted} onSelectPlace={onSelectPlace} onError={setFailed} />;
+  if (mode.kind === 'sketch') return <StaticMap points={points} highlighted={highlighted} onSelectPlace={onSelectPlace} reason={mode.reason} markers={markers} />;
+  return <LiveMap apiKey={mode.apiKey} points={points} highlighted={highlighted} onSelectPlace={onSelectPlace} onError={setFailed} extras={markers} />;
 }
 
-function LiveMap({ apiKey, points, highlighted, onSelectPlace, onError }: {
+function LiveMap({ apiKey, points, highlighted, onSelectPlace, onError, extras }: {
   apiKey: string;
   points: MapPoint[];
   highlighted: ReadonlySet<string>;
   onSelectPlace: (placeId: string) => void;
   onError: (msg: string) => void;
+  extras: readonly MapMarker[];
 }) {
   const el = useRef<HTMLDivElement>(null);
   const [libs, setLibs] = useState<MapsLibs | null>(null);
@@ -159,6 +166,30 @@ function LiveMap({ apiKey, points, highlighted, onSelectPlace, onError }: {
     if (first && map.current) map.current.panTo({ lat: first.lat, lng: first.lng });
   }, [libs, points, highlighted]);
 
+  // Extra symbols (square, lettered); the view is refitted so both the route and the symbols are visible,
+  // and back to the route alone when the last symbol is removed.
+  const hadExtras = useRef(false);
+  useEffect(() => {
+    const m = map.current;
+    if (!libs || !m || (extras.length === 0 && !hadExtras.current)) return;
+    hadExtras.current = extras.length > 0;
+    const created = extras.map(x => new libs.Marker({
+      map: m, position: { lat: x.lat, lng: x.lng }, title: x.title, zIndex: 0,
+      label: { text: x.label, color: '#ffffff', fontWeight: '700', fontSize: '11px' },
+      icon: { path: 'M -1 -1 L 1 -1 L 1 1 L -1 1 Z', scale: 9, fillColor: x.color, fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 2 },
+    }));
+    const all = [...points, ...extras];
+    if (all.length > 1) {
+      const b = new libs.LatLngBounds();
+      all.forEach(p => b.extend({ lat: p.lat, lng: p.lng }));
+      m.fitBounds(b, 40);
+    } else if (all[0]) {
+      m.setCenter(all[0]);
+      m.setZoom(15);
+    }
+    return () => created.forEach(mk => mk.setMap(null));
+  }, [libs, points, extras]);
+
   return (
     <div className="it-map">
       <div ref={el} className="it-map-canvas" role="application" aria-label="Google マップ（番号は行程表の地点番号）" />
@@ -213,18 +244,22 @@ export function segmentArrows(pts: readonly Projected[]): { x: number; y: number
  * Fallback without Google: the same numbered points and arrowed route drawn schematically (not a real map).
  * Points are clickable and keyboard operable; selecting one syncs with the itinerary table.
  */
-export function StaticMap({ points, highlighted, onSelectPlace, reason }: {
+export function StaticMap({ points, highlighted, onSelectPlace, reason, markers = NO_MARKERS }: {
   points: MapPoint[];
   highlighted: ReadonlySet<string>;
   onSelectPlace: (placeId: string) => void;
   reason: string;
+  markers?: readonly MapMarker[];
 }) {
-  const pts = projectPoints(points);
+  // Route points and symbols share one projection so their relative positions are kept.
+  const all = projectPoints([...points, ...markers.map(m => ({ placeId: m.id, number: 0, name: m.title, lat: m.lat, lng: m.lng }))]);
+  const pts = all.slice(0, points.length);
+  const marks = all.slice(points.length).map((p, i) => ({ ...p, marker: markers[i]! }));
   const arrows = segmentArrows(pts);
   return (
     <div className="it-map it-map-static" data-testid="map-fallback">
       <p className="it-map-reason"><strong>{reason}</strong> 略図は地点と移動の向きだけを示し、実際の地形・経路ではありません。</p>
-      {pts.length === 0 ? (
+      {all.length === 0 ? (
         <p className="meta">この日は位置の分かる地点がありません。</p>
       ) : (
         <svg className="it-svg" viewBox={`0 0 ${MAP_W} ${MAP_H}`} role="group" aria-label="地点と訪問順の略図（矢印は進む向き）">
@@ -232,6 +267,13 @@ export function StaticMap({ points, highlighted, onSelectPlace, reason }: {
           {arrows.map(a => (
             <polygon key={`${a.from}-${a.to}`} className="it-arrow" data-testid="map-arrow" points="-6,-5 6,0 -6,5"
               transform={`translate(${a.x} ${a.y}) rotate(${a.angle})`}><title>{`${a.from} から ${a.to} へ`}</title></polygon>
+          ))}
+          {marks.map(m => (
+            <g key={m.placeId} className="it-mk" data-testid="map-marker" role="img" aria-label={m.marker.title}>
+              <title>{m.marker.title}</title>
+              <rect x={m.x - 8} y={m.y - 8} width={16} height={16} rx={3} fill={m.marker.color} />
+              <text x={m.x} y={m.y + 4} textAnchor="middle">{m.marker.label}</text>
+            </g>
           ))}
           {pts.map(p => {
             const on = highlighted.has(p.placeId);

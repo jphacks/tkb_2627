@@ -31,6 +31,8 @@
 .it-node-num { fill: #fff; font-size: 12px; font-weight: 700; pointer-events: none; }
 .it-node-name { fill: var(--fg); font-size: 10px; pointer-events: none; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; }
 .it-node:focus-visible { outline: 3px solid #e0a100; outline-offset: 2px; }
+.it-mk rect { stroke: #fff; stroke-width: 1.5; }
+.it-mk text { fill: #fff; font-size: 10px; font-weight: 700; pointer-events: none; }
 
 .it-num { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 26px; padding: 0 6px; margin-right: 6px; border-radius: 13px; background: #2563eb; color: #fff; font-size: 13px; font-weight: 700; flex: none; }
 .it-on .it-num { background: #d97706; }

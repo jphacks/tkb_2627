@@ -3,8 +3,9 @@ import { renderToString as renderRaw } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { domesticTrip } from '@tkb/fixtures';
 import type { GeoLike } from '../travel/geo.ts';
+import { StaticMap } from '../itinerary/MapPanel.tsx';
 import { mapPoints } from '../itinerary/model.ts';
-import { AmenitiesPanel, GuideView, SpotPanel } from './GuideScreen.tsx';
+import { AmenitiesPanel, GuideView, SpotPanel, amenityMarkers } from './GuideScreen.tsx';
 import {
   EMPTY_TEXT, SHELTER_WARNING, UNSUPPORTED_TEXT, amenitiesUrl, bboxAround, chooseArea, classifyAmenities, currentDayIndex,
   displayName, fallbackBbox, type AmenityKind, fetchAmenities, mockAmenities, spotDetail, type AmenitiesLoad, type AmenityResponse,
@@ -148,6 +149,38 @@ describe('guide map (R5: points on the map, no place list)', () => {
     expect(html).not.toContain('it-item');
     expect(html).toContain('data-testid="map-fallback"');
     expect(html).toContain('role="button" tabindex="0"');
+  });
+});
+
+describe('UI review on #35 (comment 6392402653)', () => {
+  const textOf = (html: string) => html.replace(/<[^>]+>/g, '');
+
+  it('puts the numbered itinerary table right under the map, before the amenities section', () => {
+    const html = render(<GuideView trip={trip} mock geo={null} today={day.date} />);
+    const map = html.indexOf('data-testid="map-fallback"');
+    const table = html.indexOf('<table');
+    expect(map).toBeGreaterThan(-1);
+    expect(table).toBeGreaterThan(map);
+    expect(table).toBeLessThan(html.indexOf('近くのトイレ・避難場所'));
+    expect(html).toContain(`aria-label="地図の地点${mapPoints(day, trip.places)[0]!.number}"`);
+  });
+
+  it('does not show the two explanatory texts', () => {
+    const text = textOf(render(<GuideView trip={trip} mock geo={null} today={day.date} />));
+    expect(text).not.toContain('地点を選ぶと解説を表示します');
+    expect(text).not.toContain('ブラウザが位置情報の許可を求めます');
+    expect(render(<SpotPanel detail={null} />)).toBe('');
+  });
+
+  it('draws the enabled amenity kinds on the map as well as in the list', () => {
+    const load = mockAmenities(bboxAround({ lat: 36.56, lng: 136.65 }));
+    expect(amenityMarkers(load, ALL).map(m => m.label)).toEqual(['ト', '緊', '避']);
+    expect(amenityMarkers(load, new Set<AmenityKind>(['toilet'])).map(m => m.title)).toEqual(['トイレ: 【架空】モック公衆トイレ']);
+    expect(amenityMarkers({ state: 'empty', reason: null, dataStatus: 'fixture' }, ALL)).toEqual([]);
+    const pts = mapPoints(day, trip.places);
+    const html = render(<StaticMap points={pts} highlighted={new Set()} onSelectPlace={() => {}} reason="r" markers={amenityMarkers(load, ALL)} />);
+    expect(html.match(/data-testid="map-marker"/g)).toHaveLength(3);
+    expect(html).toContain('aria-label="指定避難所: 【架空】モック避難所"');
   });
 });
 
