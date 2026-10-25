@@ -100,17 +100,21 @@ describe('transit details (R05)', () => {
     const html = render(<ItineraryView trip={trip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} initialExpanded={['leg_u']} />);
     for (const s of ['北鉄バス', '金沢駅東口', '兼六園下', '香林坊', '1回']) expect(html).toContain(s);
   });
-  it('by transit the arrival is a stay-sized row with the stop you get off at (UI review on #33)', () => {
+  it('a stop is not a row of the leg: the leg keeps its arrow, the stop name is in its details (UI review on #34)', () => {
     const trip = tripWithItems([unknownLeg({ transit: { boardingStop: '金沢駅東口', alightingStop: '兼六園下', transferStops: [] } })]);
     const html = render(<ItineraryView trip={trip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
-    const stop = /<tr class="it-stoprow"[^>]*>(.*?)<\/tr>/.exec(html)?.[1] ?? '';
-    expect(stop).toContain('<span class="it-title">兼六園下</span>');
-    expect(html).not.toContain('it-conn-end');
+    expect(html).not.toContain('it-stoprow');
+    expect(html).toContain('it-conn-end');
+    const open = render(<ItineraryView trip={trip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} initialExpanded={['leg_u']} />);
+    expect(open).toContain('<dt>降車</dt><dd>兼六園下</dd>');
   });
-  it('an unknown stop is shown as 不明, never guessed', () => {
-    const html = render(<ItineraryView trip={tripWithItems([unknownLeg({})])} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
-    expect(html).toContain('降車する駅・停留所：<span class="u1-unknown">不明</span>');
-    expect(html).not.toContain('<span class="it-title">兼六園下');
+  it('the sample has the bus stop as a numbered, draggable spot between the dinner and the hotel, joined by legs', () => {
+    const html = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} editor={{ kind: 'local' }} />);
+    expect(html).toContain('aria-label="「武蔵ヶ辻・近江町市場（バス停）」を並べ替える"');
+    const rows = tableRows(domesticTrip.days[0]!, domesticTrip.places);
+    const at = rows.findIndex(r => r.key === 'fx_act_stop_musashi');
+    expect(rows.slice(at - 1, at + 2).map(r => r.key)).toEqual(['fx_leg_k6', 'fx_act_stop_musashi', 'fx_leg_k6b']);
+    expect((rows[at] as { number: number | null }).number).not.toBeNull();
   });
 });
 

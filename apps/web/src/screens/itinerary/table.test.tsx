@@ -34,7 +34,7 @@ describe('the sample trip (H)', () => {
     expect(domesticTrip.title).toContain('fixture');
     expect(domesticTrip.days).toHaveLength(2);
     const titles1 = tableRows(day1, domesticTrip.places).flatMap(r => (r.kind === 'stay' ? [r.item.title] : []));
-    expect(titles1).toEqual(['金沢駅（出発）', '近江町市場エリア', '金沢城公園', '兼六園を散策', '金沢21世紀美術館', '香林坊で夕食', 'ホテルにチェックイン']);
+    expect(titles1).toEqual(['金沢駅（出発）', '近江町市場エリア', '金沢城公園', '兼六園を散策', '金沢21世紀美術館', '香林坊で夕食', '武蔵ヶ辻・近江町市場（バス停）', 'ホテルにチェックイン']);
     const titles2 = tableRows(day2, domesticTrip.places).flatMap(r => (r.kind === 'stay' ? [r.item.title] : []));
     expect(titles2).toEqual(['ひがし茶屋街', '主計町茶屋街を歩く', '尾山神社', '香林坊で昼食', 'にし茶屋街を見学', '妙立寺', '長町武家屋敷跡', '金沢駅（到着）']);
   });
@@ -103,9 +103,8 @@ describe('B: table with one place per row and legs as two rows (R3)', () => {
   });
 
   it('an unknown time is 未取得 (never 0 or a guess), including a leg without arrival', () => {
-    const html = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
-    const end = /<tr class="(?:it-conn it-conn-end|it-stoprow)[^"]*" data-leg-key="fx_leg_k1"[^>]*>(.*?)<\/tr>/.exec(html)?.[1] ?? '';
-    expect(end).toContain('<span class="u1-unknown">未取得</span>');
+    const html = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} initialExpanded={['fx_leg_k1']} />);
+    expect(html).toContain('<dt>到着</dt><dd><span class="u1-unknown">未取得</span>');
     expect(html).not.toMatch(SHOWN_AS_ZERO);
     expect(stayRange(null, null, '2026-11-01')).toBe('未取得〜未取得');
     expect(formatHm({ utc: '2026-11-01T16:00:00Z', timeZone: 'Asia/Tokyo' }, '2026-11-01')).toBe('11/2 1:00');
@@ -154,10 +153,10 @@ describe('C: a stay opens one level with its nested activities by time (R2)', ()
   it('the map numbers top-level stays only: nested activities are not points', () => {
     const points = mapPoints(day1, domesticTrip.places);
     expect(points.map(p => p.placeId)).toEqual([
-      'fx_kanazawa_station', 'fx_omicho', 'fx_kanazawa_castle', 'fx_kenrokuen', 'fx_21c_museum', 'fx_dinner', 'fx_hotel',
+      'fx_kanazawa_station', 'fx_omicho', 'fx_kanazawa_castle', 'fx_kenrokuen', 'fx_21c_museum', 'fx_dinner', 'fx_stop_musashi', 'fx_hotel',
     ]);
     expect(points.some(p => p.placeId === 'fx_sushi')).toBe(false);
-    expect(points.map(p => p.number)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(points.map(p => p.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
 });
 
@@ -204,8 +203,8 @@ describe('E/F: map without a list, with direction arrows', () => {
     expect(html).toContain('<svg');
     expect(html).not.toContain('aria-label="地図上の地点（訪問順）"');
     expect(html).not.toContain('it-points');
-    expect((html.match(/data-testid="map-arrow"/g) ?? []).length).toBe(6);
-    expect((html.match(/role="button" tabindex="0"/g) ?? []).length).toBe(7);
+    expect((html.match(/data-testid="map-arrow"/g) ?? []).length).toBe(7);
+    expect((html.match(/role="button" tabindex="0"/g) ?? []).length).toBe(8);
   });
 
   it('arrows point from each point to the next (angle follows the direction of travel)', () => {
@@ -309,7 +308,7 @@ describe('G: drag-and-drop reordering as K10 move operations (R1)', () => {
 
   it('editable tables have a handle per stay (with an accessible name) and a hint; read-only tables have none', () => {
     const rw = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} editor={{ kind: 'local' }} />);
-    expect((rw.match(/class="it-handle"/g) ?? []).length).toBe(7);
+    expect((rw.match(/class="it-handle"/g) ?? []).length).toBe(8);
     expect(rw).toContain('aria-label="「兼六園を散策」を並べ替える"');
     expect(rw).not.toContain('上へ');
     expect(rw).not.toContain('下へ');

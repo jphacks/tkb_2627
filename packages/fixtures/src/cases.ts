@@ -212,7 +212,7 @@ export function createSamplePlanBatch(): PlanBatch {
     candidates: [
       candidate('candidate_1', '定番を一通り（fixture）', [
         ['fx_act_station', 'fx_leg_k1', 'fx_act_omicho', 'fx_act_omicho_walk', 'fx_act_lunch', 'fx_leg_k2', 'fx_act_castle', 'fx_leg_k3', 'fx_act_kenrokuen',
-          'fx_leg_k4', 'fx_act_museum', 'fx_leg_k5', 'fx_act_dinner', 'fx_leg_k6', 'fx_act_hotel'],
+          'fx_leg_k4', 'fx_act_museum', 'fx_leg_k5', 'fx_act_dinner', 'fx_leg_k6', 'fx_act_stop_musashi', 'fx_leg_k6b', 'fx_act_hotel'],
         ['fx_act_higashi', 'fx_act_higashi_tea', 'fx_act_higashi_sweets', 'fx_leg_k7', 'fx_act_kazue', 'fx_leg_k8', 'fx_act_oyama', 'fx_leg_k9',
           'fx_act_lunch2', 'fx_leg_k11', 'fx_act_nishi', 'fx_leg_k12', 'fx_act_myoryuji', 'fx_leg_k13',
           'fx_act_nagamachi', 'fx_leg_k10', 'fx_act_station_end'],

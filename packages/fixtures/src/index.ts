@@ -119,6 +119,8 @@ const kanazawaExtraPlaces: PlaceInfo[] = [
   place('fx_lunch2', '（fixture）香林坊のランチ店', 'restaurant', 36.5612, 136.6558, JST),
   place('fx_nishi', 'にし茶屋街', 'area', 36.5577, 136.6493, JST),
   place('fx_myoryuji', '妙立寺', 'spot', 36.5562, 136.6507, JST),
+  // The stop the bus to the hotel stops at: a spot of its own between the dinner and the hotel (UI review on #34).
+  place('fx_stop_musashi', '武蔵ヶ辻・近江町市場（バス停）', 'station', 36.5713, 136.6561, JST),
 ];
 export const kanazawaTripPlaces: PlaceInfo[] = [...kanazawaPlaces, ...kanazawaExtraPlaces];
 
@@ -174,11 +176,16 @@ export const domesticTrip: Trip = {
           // Admission unknown in fixture: stays null, never 0.
         }),
         leg('fx_leg_k5', 'fx_21c_museum', 'fx_dinner', 'walk', JST, t(D1, '17:15'), t(D1, '17:25')),
-        activity('fx_act_dinner', '香林坊で夕食', 'meal', JST, t(D1, '17:30'), t(D1, '19:00'), { placeId: 'fx_dinner' }),
-        leg('fx_leg_k6', 'fx_dinner', 'fx_hotel', 'transit', JST, t(D1, '19:00'), t(D1, '19:15'), {
+        // Starts when the 10-minute walk arrives (UI review on #34: the times did not match the walk).
+        activity('fx_act_dinner', '香林坊で夕食', 'meal', JST, t(D1, '17:25'), t(D1, '19:00'), { placeId: 'fx_dinner' }),
+        leg('fx_leg_k6', 'fx_dinner', 'fx_stop_musashi', 'transit', JST, t(D1, '19:00'), t(D1, '19:15'), {
           lineName: '（fixture）路線バス', fare: yen(210),
+          transit: { boardingStop: '（fixture）香林坊', alightingStop: '武蔵ヶ辻・近江町市場', transferStops: [] },
         }),
-        activity('fx_act_hotel', 'ホテルにチェックイン', 'lodging', JST, t(D1, '19:15'), null, { placeId: 'fx_hotel' }),
+        // One minute to get off (a calendar event needs an end); the screens show a station with its start only.
+        activity('fx_act_stop_musashi', '武蔵ヶ辻・近江町市場（バス停）', 'custom', JST, t(D1, '19:15'), t(D1, '19:16'), { placeId: 'fx_stop_musashi' }),
+        leg('fx_leg_k6b', 'fx_stop_musashi', 'fx_hotel', 'walk', JST, t(D1, '19:16'), t(D1, '19:22')),
+        activity('fx_act_hotel', 'ホテルにチェックイン', 'lodging', JST, t(D1, '19:22'), null, { placeId: 'fx_hotel' }),
       ],
     },
     {

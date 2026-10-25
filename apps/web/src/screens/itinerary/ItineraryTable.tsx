@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { UNKNOWN, formatMoney } from '../../lib/format.ts';
-import { KIND_LABEL, VALUE_UNKNOWN, transitDetail } from './model.ts';
+import { KIND_LABEL } from './model.ts';
 import {
   hoverTarget, keyboardTarget, legDetails, previewRows, reorderedOrder, stayDetails,
   type ChildRow, type DetailLine, type LegRow, type StayRow, type TableRow,
@@ -264,19 +264,18 @@ function ChildTableRow({ child }: { child: ChildRow }) {
 /**
  * A travel leg is two thin rows (start and end, R3) with one arrow drawn down through both (UI review on #32). No times:
  * the stays above and below already show when the leg starts and ends (the details keep 出発/到着). The place names are
- * the rows above and below, so they are only read out. By transit the end row is a stay-sized row with the stop you get
- * off at, so the stays after it read as that stop's area.
+ * the rows above and below, so they are only read out. A stop you get off at is a spot of its own in the plan (numbered,
+ * draggable), not part of the leg (UI review on #34); the leg details keep its 乗車/降車 names.
  */
 function LegTableRows({ row, open, selected, dayDate, editable, onToggle }: { row: LegRow; open: boolean; selected: boolean; dayDate: string; editable: boolean; onToggle: () => void }) {
   const detailId = `it-d-${row.key}`;
   const cls = `it-conn${selected ? ' it-on' : ''}${row.stale ? ' it-stale' : ''}`;
-  const stop = transitDetail(row.leg)?.alighting ?? null;
   return (
     <>
       <tr className={`${cls} it-conn-start`} data-leg-key={row.key} data-row-key={`${row.key}:start`}>
         {editable && <td />}
         <td className="it-time" />
-        <td className="it-conncell" rowSpan={stop ? 1 : 2}>
+        <td className="it-conncell" rowSpan={2}>
           <span aria-hidden="true" className="it-arrowline" />
           <button type="button" className="it-connbtn" aria-expanded={open} aria-controls={detailId} onClick={onToggle}
             aria-label={`${row.fromName}から${row.toName}への移動：${row.summary}${row.stale ? '（要再計算）' : ''}`}>
@@ -285,26 +284,10 @@ function LegTableRows({ row, open, selected, dayDate, editable, onToggle }: { ro
           </button>
         </td>
       </tr>
-      {stop ? (
-        // The stop you get off at, as large as a stay (UI review on #33). Never guessed: 不明 when not obtained.
-        <tr className={`it-stoprow${selected ? ' it-on' : ''}`} data-leg-key={row.key} data-row-key={`${row.key}:stop`}>
-          {editable && <td />}
-          <th scope="row" className="it-time"><TimeText text={row.arrival} /></th>
-          <td>
-            <span className="it-rowtext it-stopcell">
-              {stop === VALUE_UNKNOWN
-                ? <span className="it-title">降車する駅・停留所：<span className="u1-unknown">{VALUE_UNKNOWN}</span></span>
-                : <span className="it-title">{stop}</span>}
-              <span className="meta">公共交通で到着</span>
-            </span>
-          </td>
-        </tr>
-      ) : (
-        <tr className={`${cls} it-conn-end`} data-leg-key={row.key} data-row-key={`${row.key}:end`}>
-          {editable && <td />}
-          <td className="it-time" />
-        </tr>
-      )}
+      <tr className={`${cls} it-conn-end`} data-leg-key={row.key} data-row-key={`${row.key}:end`}>
+        {editable && <td />}
+        <td className="it-time" />
+      </tr>
       {open && (
         <tr id={detailId} className="it-detail" data-detail-leg="1" data-row-key={`${row.key}:detail`}>
           <td colSpan={editable ? 3 : 2}><DetailList lines={legDetails(row, dayDate)} label={`${row.fromName}から${row.toName}への移動の詳細`} /></td>

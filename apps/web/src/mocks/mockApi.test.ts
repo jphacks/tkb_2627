@@ -8,7 +8,7 @@ import type { MockApi, MockResult } from './index.ts';
 // Items of the Kanazawa fixture whose cost is unknown. K10 diff lists them on every edit (union of before and after, as main does).
 // Plan order of the dense fixture: every activity without a known cost (lunch, kenrokuen and the legs with a fare are known).
 const KANAZAWA_UNKNOWN = [
-  'fx_act_station', 'fx_act_omicho', 'fx_act_omicho_walk', 'fx_act_castle', 'fx_act_museum', 'fx_act_dinner', 'fx_act_hotel',
+  'fx_act_station', 'fx_act_omicho', 'fx_act_omicho_walk', 'fx_act_castle', 'fx_act_museum', 'fx_act_dinner', 'fx_act_stop_musashi', 'fx_act_hotel',
   'fx_act_higashi', 'fx_act_higashi_tea', 'fx_act_higashi_sweets', 'fx_act_kazue', 'fx_act_oyama',
   'fx_act_lunch2', 'fx_act_nishi', 'fx_act_myoryuji', 'fx_act_nagamachi', 'fx_act_station_end',
 ];

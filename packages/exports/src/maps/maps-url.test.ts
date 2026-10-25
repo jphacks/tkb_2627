@@ -108,12 +108,13 @@ describe('tripMapsLinks', () => {
     const [day1, day2] = r.days;
     // Top-level stops only: the children of 近江町市場エリア (fx_sushi) are not route stops.
     expect(day1!.places.map(l => l.placeIds[0])).toEqual([
-      'fx_kanazawa_station', 'fx_omicho', 'fx_kanazawa_castle', 'fx_kenrokuen', 'fx_21c_museum', 'fx_dinner', 'fx_hotel',
+      'fx_kanazawa_station', 'fx_omicho', 'fx_kanazawa_castle', 'fx_kenrokuen', 'fx_21c_museum', 'fx_dinner', 'fx_stop_musashi', 'fx_hotel',
     ]);
     expect(day1!.routes.map(l => [l.travelMode, l.placeIds])).toEqual([
       ['transit', ['fx_kanazawa_station', 'fx_omicho']],
       ['walking', ['fx_omicho', 'fx_kanazawa_castle', 'fx_kenrokuen', 'fx_21c_museum', 'fx_dinner']],
-      ['transit', ['fx_dinner', 'fx_hotel']],
+      ['transit', ['fx_dinner', 'fx_stop_musashi']],
+      ['walking', ['fx_stop_musashi', 'fx_hotel']],
     ]);
     expect(day2).toMatchObject({ date: '2026-11-02', tooLong: [] });
     expect(day2!.places.map(l => l.placeIds[0])).toEqual(['fx_higashi', 'fx_kazue', 'fx_oyama', 'fx_lunch2', 'fx_nishi', 'fx_myoryuji', 'fx_nagamachi', 'fx_kanazawa_station']);
