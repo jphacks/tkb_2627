@@ -10,9 +10,11 @@ import { VISIBILITY_LABEL } from '../../components/labels.ts';
 import { MOCK_NOTICE } from '../../mocks/index.ts';
 import { formatDay } from '../../lib/format.ts';
 import { createHttpSocialApi, inviteTokenFrom, type DataSource, type FeedScope, type SessionUser, type SocialApi, type SocialResult } from './api.ts';
-import { VISIBILITY_HELP } from './messages.ts';
+import { ImagePicker, type UploadedImage } from './images.tsx';
+import { VISIBILITY_HELP, errorText } from './messages.ts';
 import { createMockSocialApi, type MockSocialScenario } from './mockSocialApi.ts';
 import { initialNav, navReducer, tabOf, type SocialNavAction, type SocialTab } from './nav.ts';
+import { useCardActions } from './useCardActions.ts';
 import {
   CopiedTripView,
   CopyResultView,
@@ -20,6 +22,7 @@ import {
   GroupListView,
   PostDetailView,
   PreviewView,
+  ProfileBar,
   ResultError,
   SCOPE_LABEL,
   SourceLine,
@@ -174,7 +177,7 @@ function SocialScreenView({ api, nav, dispatch, user }: {
   const k = user?.userId ?? 'anon';
   switch (s.name) {
     case 'feed':
-      return <FeedScreen key={k} api={api} loggedIn={user !== null} onOpen={(postId, mine) => dispatch({ type: 'openPost', postId, mine })} />;
+      return <FeedScreen key={k} api={api} user={user} onOpen={(postId, mine) => dispatch({ type: 'openPost', postId, mine })} />;
     case 'post':
       return <PostScreen key={`${k}:${s.postId}`} api={api} postId={s.postId} mine={s.mine} user={user} onBack={back}
         onCopied={result => dispatch({ type: 'copied', result })} onDeleted={() => dispatch({ type: 'tab', tab: 'feed' })} />;
@@ -262,13 +265,24 @@ interface FeedState {
   httpStatus: number;
 }
 
-function FeedScreen({ api, loggedIn, onOpen }: { api: SocialApi; loggedIn: boolean; onOpen: (postId: string, mine: boolean) => void }) {
+function FeedScreen({ api, user, onOpen }: { api: SocialApi; user: SessionUser | null; onOpen: (postId: string, mine: boolean) => void }) {
+  const loggedIn = user !== null;
   const [scope, setScope] = useState<FeedScope>('public');
   const [nonce, setNonce] = useState(0);
   const [feed, setFeed] = useState<FeedState>({ status: 'loading', items: [], nextCursor: null, error: null, httpStatus: 0 });
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState<ApiError | null>(null);
   const needsLogin = scope !== 'public' && !loggedIn;
+  const patch = useCallback((postId: string, change: Partial<PostSummary>) => {
+    setFeed(f => ({ ...f, items: f.items.map(i => (i.postId === postId ? { ...i, ...change } : i)) }));
+  }, []);
+  const remove = useCallback((postId: string) => {
+    setFeed(f => ({ ...f, items: f.items.filter(i => i.postId !== postId) }));
+  }, []);
+  const actions = useCardActions({
+    api, user, patch, remove, withProfile: true,
+    authorIds: feed.items.flatMap(i => (i.author ? [i.author.userId] : [])),
+  });
 
   useEffect(() => {
     if (needsLogin) return;
@@ -305,16 +319,20 @@ function FeedScreen({ api, loggedIn, onOpen }: { api: SocialApi; loggedIn: boole
   return (
     <section aria-label="フィード">
       <ScreenHeader title="フィード" />
+      {actions.profile && <ProfileBar profile={actions.profile} />}
       <div className="tabs" role="group" aria-label="表示する投稿">
         {(Object.keys(SCOPE_LABEL) as FeedScope[]).map(s => (
           <button key={s} type="button" className="tab" aria-pressed={s === scope} onClick={() => setScope(s)}>{SCOPE_LABEL[s]}</button>
         ))}
       </div>
+      {actions.notice && <ResultError title={actions.notice.title} error={actions.notice.error} />}
       {needsLogin ? (
         <LoginRequired what={`「${SCOPE_LABEL[scope]}」の表示`} />
       ) : (
         <FeedView scope={scope} status={feed.status} items={feed.items} nextCursor={feed.nextCursor} error={feed.error}
           loadingMore={loadingMore} moreError={moreError} source={api.source} httpStatus={feed.httpStatus}
+          loggedIn={loggedIn} followed={actions.followed} onLike={actions.onLike} onFollow={actions.onFollow}
+          onSaveStory={actions.onSaveStory} onDelete={actions.onDelete}
           onOpen={postId => onOpen(postId, scope === 'mine')} onMore={() => void more()} onRetry={() => setNonce(n => n + 1)} />
       )}
     </section>
@@ -337,6 +355,13 @@ function PostScreen({ api, postId, mine, user, onBack, onCopied, onDeleted }: {
   useEffect(() => {
     setPost(state.status === 'done' && state.result.ok ? state.result.data : null);
   }, [state]);
+  const patch = useCallback((id: string, change: Partial<PostSummary>) => {
+    setPost(p => (p && p.postId === id ? { ...p, ...change } : p));
+  }, []);
+  const actions = useCardActions({
+    api, user, patch, remove: () => onDeleted(),
+    authorIds: post?.author ? [post.author.userId] : [],
+  });
   return (
     <section aria-label="投稿の詳細">
       <ScreenHeader title="投稿の詳細" {...(onBack ? { onBack } : {})} />
@@ -346,7 +371,9 @@ function PostScreen({ api, postId, mine, user, onBack, onCopied, onDeleted }: {
         <ResultError title="投稿を読み込めませんでした" error={state.result.error} onRetry={reload} />
       ) : post ? (
         <>
-          <PostDetailView post={post} />
+          {actions.notice && <ResultError title={actions.notice.title} error={actions.notice.error} />}
+          <PostDetailView post={post} loggedIn={user !== null} followed={post.author ? actions.followed[post.author.userId] : undefined}
+            onLike={actions.onLike} onFollow={actions.onFollow} onSaveStory={actions.onSaveStory} onDelete={actions.onDelete} />
           <SourceLine source={api.source} status={state.result.status} />
           {mine && user && <OwnerPanel api={api} post={post} onChanged={setPost} onDeleted={onDeleted} />}
           {user ? <CopyForm api={api} post={post} onCopied={onCopied} /> : <LoginRequired what="自分の旅程としてコピーする" />}
@@ -558,6 +585,7 @@ function ComposeForm({ api, onPosted }: { api: SocialApi; onPosted: (postId: str
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ step: 'preview' | 'post'; error: ApiError } | null>(null);
+  const [images, setImages] = useState<UploadedImage[]>([]);
 
   const tripList: TripSummary[] = trips.status === 'done' && trips.result.ok ? trips.result.data.items : [];
   const selected = tripList.find(t => t.tripId === tripId) ?? null;
@@ -574,12 +602,17 @@ function ComposeForm({ api, onPosted }: { api: SocialApi; onPosted: (postId: str
       visibility,
       ...(visibility === 'group' ? { groupId } : {}),
       story,
+      ...(images.length > 0 ? { imageIds: images.map(i => i.imageId) } : {}),
     });
     setBusy(false);
     setConfirmed(false);
     if (r.ok) setPreview(r.data);
     else setError({ step: 'preview', error: r.error });
   }
+  const upload = useCallback(async (file: File) => {
+    const r = await api.uploadPostImage(file);
+    return r.ok ? { ok: true as const, image: r.data } : { ok: false as const, error: errorText(r.error) };
+  }, [api]);
   async function post() {
     if (!preview || !confirmed) return;
     setBusy(true);
@@ -623,6 +656,7 @@ function ComposeForm({ api, onPosted }: { api: SocialApi; onPosted: (postId: str
             <textarea id="s8-story" rows={4} value={story} maxLength={5000} onChange={e => setStory(e.target.value)} aria-describedby="s8-story-count" />
             <span id="s8-story-count" className="meta">{story.length} / 5000</span>
           </div>
+          <ImagePicker value={images} onChange={setImages} upload={upload} disabled={busy} />
           <div className="u1-actions">
             <button type="submit" className="btn u1-primary" disabled={busy || !selected || (visibility === 'group' && groupId === '')}>
               {busy ? '確認を作成中…' : '公開前の確認へ'}
@@ -632,7 +666,7 @@ function ComposeForm({ api, onPosted }: { api: SocialApi; onPosted: (postId: str
         </form>
       ) : (
         <>
-          <PreviewView preview={preview} visibility={visibility} groupName={groupName} story={story} />
+          <PreviewView preview={preview} visibility={visibility} groupName={groupName} story={story} images={images.map(i => ({ imageId: i.imageId, url: i.url, width: null, height: null }))} />
           <label className="u1-choice s8-confirm">
             <input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />
             <span>上の内容が「{VISIBILITY_LABEL[visibility]}」で見られることを確認しました。</span>

@@ -22,3 +22,51 @@
 .s8-invite input[readonly] { font-family: ui-monospace, monospace; font-size: 13px; }
 .s8-note { margin-top: 12px; }
 .u1-field textarea { resize: vertical; }
+
+/* U09 Twitter-like timeline */
+.s9-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.s9-timeline { gap: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--card); }
+.s9-timeline > li + li { border-top: 1px solid var(--line); }
+.s9-post { display: flex; gap: 10px; padding: 12px; background: var(--card); }
+.s9-detail-wrap > .s9-post { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; }
+.s9-mine { box-shadow: inset 3px 0 0 var(--acc); }
+.s9-avatar { flex: none; width: 44px; height: 44px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: 20px; }
+.s9-main { flex: 1 1 auto; min-width: 0; }
+.s9-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-height: 28px; }
+.s9-name { font-weight: 700; margin: 0; overflow-wrap: anywhere; }
+.s9-time { color: var(--mut); font-size: 14px; }
+.s9-me-badge { background: var(--accbg); color: var(--acc); border: 1px solid var(--acc); border-radius: 999px; padding: 0 8px; font-size: 12px; font-weight: 700; }
+.s9-head-end { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.s9-follow { font: inherit; font-size: 14px; font-weight: 700; min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: 999px; cursor: pointer;
+  background: var(--fg); color: var(--bg); border: 1px solid var(--fg); }
+.s9-follow.s9-following { background: transparent; color: var(--fg); border-color: var(--line); }
+.s9-follow:disabled { opacity: .55; cursor: not-allowed; }
+.s9-menu-wrap { position: relative; }
+.s9-icon { font: inherit; font-size: 22px; line-height: 1; min-width: 44px; min-height: 44px; border-radius: 50%; border: 0; background: transparent; color: var(--mut); cursor: pointer; }
+.s9-icon:hover { background: var(--accbg); color: var(--acc); }
+.s9-menu { position: absolute; right: 0; top: 100%; z-index: 20; min-width: 140px; display: flex; flex-direction: column; background: var(--card);
+  border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 4px 16px rgba(0, 0, 0, .18); overflow: hidden; }
+.s9-menu button { font: inherit; text-align: left; min-height: 44px; padding: 0 16px; border: 0; background: transparent; color: var(--fg); cursor: pointer; }
+.s9-menu button:hover, .s9-menu button:focus-visible { background: var(--accbg); }
+.s9-menu .s9-danger { color: #c53030; }
+.s9-open { display: block; width: 100%; text-align: left; font: inherit; color: inherit; background: transparent; border: 0; padding: 4px 0; min-height: 44px; cursor: pointer; }
+.s9-open:hover .s9-title { text-decoration: underline; }
+.s9-title { font-size: 17px; font-weight: 700; margin: 0; overflow-wrap: anywhere; }
+h2.s9-title { padding: 4px 0; }
+.s9-meta { margin: 0 0 4px; }
+.s9-story { font-size: 16px; overflow-wrap: anywhere; }
+.s9-edit textarea { width: 100%; font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--card); color: var(--fg); }
+.s9-actions { display: flex; gap: 8px; margin-top: 2px; }
+.s9-like { font: inherit; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; min-width: 44px; padding: 0 10px; border: 0; border-radius: 999px;
+  background: transparent; color: var(--mut); cursor: pointer; }
+.s9-like:hover:not(:disabled) { background: #fde8ee; color: #d6336c; }
+.s9-like.s9-liked { color: #d6336c; }
+.s9-like:disabled { cursor: not-allowed; opacity: .7; }
+.s9-heart { font-size: 20px; line-height: 1; }
+.s9-count { font-variant-numeric: tabular-nums; }
+.s9-profile { display: flex; gap: 12px; align-items: center; padding: 10px 12px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.s9-counts { display: flex; gap: 16px; margin: 2px 0 0; color: var(--mut); }
+.s9-counts strong { color: var(--fg); }
+.s9-post button:focus-visible, .s9-post textarea:focus-visible { outline: 3px solid #e0a100; outline-offset: 2px; }
+@media (max-width: 420px) { .s9-post { padding: 10px 8px; gap: 8px; } }
