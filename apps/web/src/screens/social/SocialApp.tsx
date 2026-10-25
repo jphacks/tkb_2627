@@ -74,8 +74,33 @@ export interface SocialAppProps {
 const defaultMakeApi = (mode: DataSource, scenario: MockSocialScenario): SocialApi =>
   mode === 'mock' ? createMockSocialApi({ scenario }) : createHttpSocialApi();
 
-export function SocialApp({ initialMode = 'mock', inviteToken = null, makeApi = defaultMakeApi }: SocialAppProps) {
-  const [mode, setMode] = useState<DataSource>(initialMode);
+/** Initial data source: an explicit prop wins; otherwise a logged-in server session means server mode, anything else mock. */
+export function decideInitialMode(explicit: DataSource | undefined, me: SocialResult<SessionUser> | null): DataSource {
+  if (explicit) return explicit;
+  return me !== null && me.ok ? 'server' : 'mock';
+}
+
+export function SocialApp({ initialMode, inviteToken = null, makeApi = defaultMakeApi }: SocialAppProps) {
+  const [mode, setMode] = useState<DataSource | null>(initialMode ?? null);
+  useEffect(() => {
+    if (initialMode) return;
+    let alive = true;
+    makeApi('server', 'normal').me().then(
+      r => { if (alive) setMode(decideInitialMode(undefined, r)); },
+      () => { if (alive) setMode('mock'); },
+    );
+    return () => { alive = false; };
+  }, [initialMode, makeApi]);
+  if (mode === null) return <p role="status" className="u1-root u1-loading">ログイン状態を確認中…</p>;
+  return <SocialAppBody mode={mode} setMode={setMode} inviteToken={inviteToken} makeApi={makeApi} />;
+}
+
+function SocialAppBody({ mode, setMode, inviteToken, makeApi }: {
+  mode: DataSource;
+  setMode: (m: DataSource) => void;
+  inviteToken: string | null;
+  makeApi: NonNullable<SocialAppProps['makeApi']>;
+}) {
   const [scenario, setScenario] = useState<MockSocialScenario>('normal');
   // The invite token is kept in memory and removed from the address bar, so it is not left in history.
   const [token] = useState(inviteToken);

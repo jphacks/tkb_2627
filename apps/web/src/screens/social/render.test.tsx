@@ -5,7 +5,8 @@ import type { ApiError, Post } from '@tkb/contracts';
 import { domesticTrip } from '@tkb/fixtures';
 import { createMockSocialApi, mockSnapshot } from './mockSocialApi.ts';
 import { initialNav, navReducer } from './nav.ts';
-import { SocialApp } from './SocialApp.tsx';
+import { SocialApp, decideInitialMode } from './SocialApp.tsx';
+import type { SessionUser, SocialResult } from './api.ts';
 import {
   CopiedTripView,
   CopyResultView,
@@ -123,7 +124,7 @@ describe('U08 groups view (K17)', () => {
 
 describe('U08 app shell', () => {
   it('mock mode is labelled MOCK; server mode is labelled SERVER', () => {
-    const mock = renderToString(<SocialApp />);
+    const mock = renderToString(<SocialApp initialMode="mock" />);
     expect(mock).toContain('MOCK');
     expect(mock).toContain('フィード');
     expect(mock).toContain('グループ');
@@ -132,8 +133,24 @@ describe('U08 app shell', () => {
     expect(server).not.toContain('>MOCK<');
   });
 
+  it('without initialMode the first render is the loading state, not mock data', () => {
+    const html = renderToString(<SocialApp />);
+    expect(html).toContain('ログイン状態を確認中');
+    expect(html).not.toContain('MOCK');
+  });
+
+  it('decideInitialMode: logged in -> server, 401/error -> mock, prop overrides', () => {
+    const ok = { ok: true, data: { userId: 'u', displayName: 'd' }, status: 200, source: 'server' } as const;
+    const ng = { ok: false, error: { code: 'unauthorized', message: 'x' }, status: 401, source: 'server' } as unknown as SocialResult<SessionUser>;
+    expect(decideInitialMode(undefined, ok)).toBe('server');
+    expect(decideInitialMode(undefined, ng)).toBe('mock');
+    expect(decideInitialMode(undefined, null)).toBe('mock');
+    expect(decideInitialMode('mock', ok)).toBe('mock');
+    expect(decideInitialMode('server', ng)).toBe('server');
+  });
+
   it('an invite link opens the invite screen', () => {
-    const html = renderToString(<SocialApp inviteToken={'A'.repeat(43)} />);
+    const html = renderToString(<SocialApp initialMode="mock" inviteToken={'A'.repeat(43)} />);
     expect(html).toContain('グループへの招待');
   });
 
