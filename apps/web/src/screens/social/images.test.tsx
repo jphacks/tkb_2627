@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { renderToString as renderRaw } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { POST_IMAGE_MAX_BYTES, type PostImage } from '@tkb/contracts';
+import { registerImageSource } from './api.ts';
 import { addImages, checkImageFiles, gridCells, ImagePicker, MAX_POST_IMAGES, PostImages, type UploadedImage } from './images.tsx';
 
 const render = (el: ReactElement): string => renderRaw(el).replace(/<!-- -->/g, '');
@@ -99,5 +100,16 @@ describe('PostImages grid', () => {
     expect(gridCells(3)).toEqual([{ gridColumn: '1', gridRow: '1 / 3' }, { gridColumn: '2', gridRow: '1' }, { gridColumn: '2', gridRow: '2' }]);
     const four = gridCells(4).map(c => `${String(c.gridColumn)}/${String(c.gridRow)}`);
     expect(new Set(four).size).toBe(4);
+  });
+});
+
+describe('image sources in mock mode', () => {
+  it('shows images through imageSrc, so mock images (kept in memory) display in the grid and the picker', () => {
+    registerImageSource('/api/v1/post-images/mock1', 'data:image/png;base64,AAAA');
+    expect(render(<PostImages images={[image('mock1')]} />)).toContain('src="data:image/png;base64,AAAA"');
+    const picker = render(<ImagePicker value={[uploaded('mock1')]} onChange={() => {}} upload={async () => ({ ok: false, error: '' })} />);
+    expect(picker).toContain('src="data:image/png;base64,AAAA"');
+    // With the shared server the url is used as it is.
+    expect(render(<PostImages images={[image('real1')]} />)).toContain('src="/api/v1/post-images/real1"');
   });
 });

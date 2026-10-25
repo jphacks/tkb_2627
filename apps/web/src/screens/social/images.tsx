@@ -5,6 +5,7 @@
  */
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { POST_IMAGE_MAX_BYTES, POST_IMAGE_TYPES, type PostImage } from '@tkb/contracts';
+import { imageSrc } from './api.ts';
 
 /** A picked file after upload: what the compose form keeps and sends as `imageIds` (K12, max 4). */
 export interface UploadedImage { imageId: string; url: string; name: string }
@@ -118,7 +119,7 @@ export function ImagePicker({ value, onChange, upload, disabled = false }: Image
         <ul aria-label="添付した画像" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, listStyle: 'none', padding: 0, margin: '4px 0' }}>
           {value.map(img => (
             <li key={img.imageId} style={thumbStyle}>
-              <img src={img.url} alt={img.name} style={imgFill} />
+              <img src={imageSrc(img.url)} alt={img.name} style={imgFill} />
               <button
                 type="button"
                 disabled={disabled || busy > 0}
@@ -179,7 +180,7 @@ export function PostImages({ images }: { images: readonly PostImage[] | undefine
             onClick={() => setOpen(i)}
             style={{ ...cells[i], padding: 0, border: 0, background: '#eee', cursor: 'zoom-in', minHeight: 0, minWidth: 0 }}
           >
-            <img src={img.url} alt="投稿の画像" loading="lazy" style={imgFill} />
+            <img src={imageSrc(img.url)} alt="投稿の画像" loading="lazy" style={imgFill} />
           </button>
         ))}
       </div>
@@ -192,7 +193,7 @@ export function PostImages({ images }: { images: readonly PostImage[] | undefine
           style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
         >
           <img
-            src={current.url}
+            src={imageSrc(current.url)}
             alt="投稿の画像"
             onClick={e => e.stopPropagation()}
             style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
