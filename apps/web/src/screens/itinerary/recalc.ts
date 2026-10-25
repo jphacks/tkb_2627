@@ -111,7 +111,9 @@ export function recalcDay(trip: Trip, dayIndex: number): RecalcResult {
         end: shift !== null && ce !== null ? msToZ(ce + shift, c.end!.timeZone) : null,
       });
     }
-    cursor = end;
+    // A station is only passed through: with no end time it still lets the day go on from its start (UI review on #34).
+    const station = stay.placeId !== null && places.get(stay.placeId)?.kind === 'station';
+    cursor = end ?? (station ? start : null);
     prev = stay;
   }
   // Orphaned children (parent elsewhere) keep their place at the end, unchanged.

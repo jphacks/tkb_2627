@@ -5,7 +5,7 @@ import { domesticTrip } from '@tkb/fixtures';
 import { applyOperations as applyServer } from '../../../../server/src/trips/operations.ts';
 import { applyOperations as applyClient } from '../edit/ops.ts';
 import { opsToDay, recalcDay } from './recalc.ts';
-import { blockOf, hoverTarget, planMoves, previewRows, tableRows } from './table.ts';
+import { bandTarget, blockOf, hoverTarget, planMoves, previewRows, tableRows } from './table.ts';
 
 const ids = (t: Trip, d = 0) => t.days[d]!.items.map(i => (i.type === 'activity' ? i.activityId : i.legId));
 const act = (t: Trip, id: string) => t.days[0]!.items.find(i => i.type === 'activity' && i.activityId === id) as Activity;
@@ -52,6 +52,31 @@ describe('recalcDay with a stay moved to the top', () => {
     if (!r0.ok) throw new Error(r0.reason);
     const r = recalcDay(r0.trip, 0);
     expect(act(r.trip, 'fx_act_castle').start).toEqual(act(domesticTrip, 'fx_act_station').start);
+  });
+});
+
+describe('recalcDay through a station without an end time (UI review on #34)', () => {
+  it('the day goes on from the station\'s start instead of turning every later time into 未取得', () => {
+    const t = structuredClone(domesticTrip);
+    const stop = t.days[0]!.items.find(i => i.type === 'activity' && i.activityId === 'fx_act_korinbo_stop') as Activity;
+    stop.end = null;
+    const r = recalcDay(t, 0);
+    expect(act(r.trip, 'fx_act_hotel').start).not.toBeNull();
+    expect(act(r.trip, 'fx_act_korinbo_stop').end).toBeNull(); // no end is invented for the station
+  });
+});
+
+describe('bandTarget: entering the next stay is enough (UI review on #34)', () => {
+  const keys = ['a', 'b', 'c', 'd'];
+  const tops = [0, 120, 240, 360];
+  it('moving down into any part of the next band puts it after that stay', () => {
+    expect(bandTarget(keys, tops, 'a', 125)).toBe('c'); // just inside b (upper half): a goes after b
+    expect(bandTarget(keys, tops, 'a', 365)).toBeNull(); // into d: to the end
+  });
+  it('moving up puts it before the stay under the pointer; its own band is no move', () => {
+    expect(bandTarget(keys, tops, 'c', 230)).toBe('b');
+    expect(bandTarget(keys, tops, 'c', 245)).toBeUndefined();
+    expect(bandTarget(keys, tops, 'c', -50)).toBe('a');
   });
 });
 

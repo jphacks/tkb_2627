@@ -8,7 +8,8 @@ import { validateSchedule } from './validate.ts';
 // the sushi lunch next to it are three separate top-level items again, as the review found.
 function flatKanazawaDay1(): TripDay {
   const day = structuredClone(domesticTrip.days[0]!);
-  day.items = day.items.map(i => (i.type === 'activity' && i.parentActivityId ? { ...i, parentActivityId: null } : i));
+  // Only the market area is flattened: the sights' own nested activities (no place) stay where they are.
+  day.items = day.items.map(i => (i.type === 'activity' && i.parentActivityId === 'fx_act_omicho' ? { ...i, parentActivityId: null } : i));
   return day;
 }
 const acts = (d: TripDay) => d.items.filter((i): i is Activity => i.type === 'activity');
