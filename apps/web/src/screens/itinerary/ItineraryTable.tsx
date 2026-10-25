@@ -233,7 +233,7 @@ function LegTableRows({ row, open, selected, dayDate, editable, onToggle }: { ro
         <th scope="row" className="it-time"><span className="it-tm">出発 </span><TimeText text={row.departure} /></th>
         <td>
           <button type="button" className="it-connbtn" aria-expanded={open} aria-controls={detailId} onClick={onToggle}
-            aria-label={`${row.fromName}から${row.toName}への移動：${row.summary}`}>
+            aria-label={`${row.fromName}から${row.toName}への移動：${row.summary}${row.stale ? '（要再計算）' : ''}`}>
             <span aria-hidden="true">↓</span> <span className="it-legmode">{row.summary}</span>
             {row.stale && <span className="it-stale-tag">要再計算</span>}
           </button>
