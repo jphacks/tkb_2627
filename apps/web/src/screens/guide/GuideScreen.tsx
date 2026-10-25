@@ -161,14 +161,15 @@ export function GuideView({ trip, mock, geo, today, initialAmenities = null, ini
             <div className="gd-mapwrap">
               <MapPanel apiKey={readBrowserMapsKey()} points={points} highlighted={new Set(selected ? [selected] : [])} onSelectPlace={pick}
                 extraMarkers={markers} onSelectExtra={id => setPickedAmenity(p => (p === id ? null : id))} selectedExtraId={pickedAmenity} onMapBackground={clearSelection} />
-              {amenityPicked && (
-                <div className="gd-pop" role="status" aria-label="選んだ施設">
-                  <strong>{displayName(amenityPicked)}</strong> <span className="gd-kind">{AMENITY_KIND_LABEL[amenityPicked.kind]}</span>
-                  {warningFor(amenityPicked) && <p className="gd-warn">{warningFor(amenityPicked)}</p>}
-                </div>
-              )}
             </div>
             <button type="button" className="btn gd-here" aria-label="現在地を使う（ブラウザの位置情報の許可を確認します）" title="ブラウザの位置情報の許可を確認します" onClick={() => { void run(true); }}>現在地を使う</button>
+            {/* UI review on #35: the tapped facility is shown under the 現在地を使う button, not over the map. */}
+            {amenityPicked && (
+              <div className="gd-pop" role="status" aria-label="選んだ施設">
+                <strong>{displayName(amenityPicked)}</strong> <span className="gd-kind">{AMENITY_KIND_LABEL[amenityPicked.kind]}</span>
+                {warningFor(amenityPicked) && <p className="gd-warn">{warningFor(amenityPicked)}</p>}
+              </div>
+            )}
             {note && <p className="meta" role="status">{note}</p>}
             <AmenityLegend enabled={enabled} onToggle={toggle} />
             {amen?.state === 'ok' && amen.items.some(isFictional) && <p className="it-fixture" role="note"><strong>【架空】</strong> 地図上の施設は架空のfixtureデータです。実在の施設・公式データではありません。</p>}

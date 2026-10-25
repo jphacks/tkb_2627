@@ -247,7 +247,19 @@ describe('U07 review (M2): map markers, no explanatory texts, itinerary under th
     const t = m.items.find(i => i.kind === 'toilet')!;
     const th = view({ initialPickedAmenity: t.id });
     expect(th).toContain(displayName(t));
-    expect(th.slice(th.indexOf('gd-pop'), th.indexOf('gd-here'))).not.toContain(SHELTER_WARNING);
+    const pop = th.slice(th.indexOf('gd-pop'));
+    expect(pop.slice(0, pop.indexOf('</div>'))).not.toContain(SHELTER_WARNING);
+  });
+  it('shows the tapped facility right under 現在地を使う, not over the map (comment 6393273206)', () => {
+    const html = view({ initialPickedAmenity: m.items[0]!.id });
+    const map = html.indexOf('data-testid="map-fallback"');
+    const button = html.indexOf('gd-here');
+    const pop = html.indexOf('aria-label="選んだ施設"');
+    expect(map).toBeGreaterThan(-1);
+    expect(button).toBeGreaterThan(map);
+    expect(pop).toBeGreaterThan(button);
+    expect(pop).toBeLessThan(html.indexOf('地図の記号'));
+    expect(html.slice(html.indexOf('gd-mapwrap'), button)).not.toContain('選んだ施設');
   });
   it('does not show the two explanatory texts', () => {
     const html = view();
