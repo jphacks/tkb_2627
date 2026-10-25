@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { domesticTrip } from '@tkb/fixtures';
 import type { GeoLike } from '../travel/geo.ts';
 import { mapPoints } from '../itinerary/model.ts';
-import { AmenitiesPanel, SpotPanel } from './GuideScreen.tsx';
+import { AmenitiesPanel, GuideView, SpotPanel } from './GuideScreen.tsx';
 import {
   EMPTY_TEXT, SHELTER_WARNING, UNSUPPORTED_TEXT, amenitiesUrl, bboxAround, chooseArea, classifyAmenities, currentDayIndex,
   displayName, fallbackBbox, type AmenityKind, fetchAmenities, mockAmenities, spotDetail, type AmenitiesLoad, type AmenityResponse,
@@ -138,6 +138,16 @@ describe('spots', () => {
     expect(html).toContain('解説本文');
     expect(html).toContain('撮影者X');
     expect(html).toContain('出典');
+  });
+});
+
+describe('guide map (R5: points on the map, no place list)', () => {
+  it('renders no numbered place chip list; the points are focusable buttons on the sketch map', () => {
+    const html = render(<GuideView trip={trip} mock geo={null} today={day.date} />);
+    expect(html).not.toContain('<ol');
+    expect(html).not.toContain('it-item');
+    expect(html).toContain('data-testid="map-fallback"');
+    expect(html).toContain('role="button" tabindex="0"');
   });
 });
 
