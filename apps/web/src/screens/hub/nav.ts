@@ -1,7 +1,7 @@
 import { parseHubHash } from './route.ts';
 import { screenFor } from './screenBadge.ts';
 
-export type TripTabKey = 'map' | 'edit' | 'travel' | 'guide' | 'print';
+export type TripTabKey = 'map' | 'edit' | 'guide' | 'print';
 export interface NavTab { key: TripTabKey; label: string; href: string; current: boolean }
 export interface NavModel {
   /** false on the home screen: no bar there. */
@@ -13,11 +13,10 @@ export interface NavModel {
 const TABS: ReadonlyArray<{ key: TripTabKey; label: string }> = [
 
   { key: 'edit', label: '地図・編集' },
-  { key: 'travel', label: '旅行中' },
   { key: 'guide', label: 'ガイド' },
 ];
 
-const TRIP_RE = /^#\/(mock\/)?trips\/([^/?]+)\/(map|edit|travel|guide|print)(?:[?/].*)?$/;
+const TRIP_RE = /^#\/(mock\/)?trips\/([^/?]+)\/(map|edit|guide|print)(?:[?/].*)?$/;
 
 /** Tab row for a trip hash, keeping mock/server mode and trip id. Empty for non-trip hashes. */
 export function tripTabs(hash: string): NavTab[] {
