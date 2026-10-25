@@ -47,19 +47,20 @@
 .it-table > thead th, .it-subtable > thead th { font-size: 12px; color: var(--mut); font-weight: 600; padding: 2px 6px; border-bottom: 1px solid var(--line); }
 .it-col-time { width: 7.2em; }
 .it-col-handle, .it-handlecell { width: 48px; }
-.it-handlecell { padding: 2px 2px 2px 0; vertical-align: middle; }
+.it-handlecell { position: relative; padding: 0; }
 /* UI review on #33: the big rows (stays and transit stops) carry the blue edge; the arrow rows carry none. */
 .it-stay > :first-child, .it-stoprow > :first-child { border-left: 4px solid #2563eb; }
 .it-stoprow > th, .it-stoprow > td { border-top: 1px solid var(--line); background: var(--card); }
 .it-stoprow.it-on > th, .it-stoprow.it-on > td { background: var(--warnbg); }
-.it-stopcell { padding: 8px 6px; min-height: 44px; justify-content: center; }
+.it-stopcell { cursor: default; }
+.it-stoprow.it-dragging > th, .it-stoprow.it-dragging > td { background: var(--accbg); }
 /* UI review on #32: one arrow drawn down through the leg's rows, as long as the leg. */
 .it-conncell { position: relative; vertical-align: middle; }
 .it-conncell .it-connbtn { padding-left: 30px; min-height: 40px; }
 .it-arrowline { position: absolute; left: 13px; top: 4px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--mut); pointer-events: none; }
 .it-arrowline::after { content: ''; position: absolute; left: -5px; bottom: -8px; border: 6.5px solid transparent; border-top: 9px solid var(--mut); border-bottom: 0; }
 .it-conn-end > .it-time { height: 14px; padding: 0; }
-.it-dragnote { margin: 0 0 6px; padding: 6px 10px; font-size: 14px; font-weight: 600; border-radius: 6px; background: var(--accbg); border: 1px solid #2563eb; }
+.it-dragnote { position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 20; margin: 0; box-shadow: 0 2px 10px rgba(0, 0, 0, .25); padding: 6px 10px; font-size: 14px; font-weight: 600; border-radius: 6px; background: var(--accbg); border: 1px solid #2563eb; }
 .it-time { width: 7.2em; padding: 8px 6px; vertical-align: middle; font-size: 13px; font-weight: 700; color: var(--mut); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .it-stay > th, .it-stay > td { border-top: 1px solid var(--line); background: var(--card); }
 .it-stay.it-on > th, .it-stay.it-on > td { background: var(--warnbg); box-shadow: inset 0 0 0 0 transparent; }
@@ -67,7 +68,8 @@
 .it-stay.it-dragging > th, .it-stay.it-dragging > td { background: var(--accbg); border-top: 2px solid #2563eb; border-bottom: 2px solid #2563eb; }
 .it-stay.it-dragging { box-shadow: 0 6px 16px rgba(0, 0, 0, .18); position: relative; z-index: 1; }
 .it-cell { display: flex; align-items: stretch; gap: 4px; }
-.it-handle { flex: none; width: 44px; min-height: 44px; font: inherit; font-size: 18px; color: var(--mut); background: transparent; border: 1px dashed var(--line); border-radius: 6px; cursor: grab; touch-action: none; user-select: none; }
+/* UI review on #34: the dashed handle box fills the whole cell, so it is exactly as tall as the row's blue left bar (the cell's border). */
+.it-handle { position: absolute; inset: 0; width: auto; min-height: 44px; margin: 0; padding: 0; font: inherit; font-size: 18px; line-height: 1; color: var(--mut); background: transparent; border: 1px dashed var(--mut); border-left: 0; border-radius: 0; cursor: grab; touch-action: none; user-select: none; }
 .it-handle[aria-pressed="true"] { cursor: grabbing; background: var(--warnbg); border-color: #d97706; }
 .it-rowbtn { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; min-height: 44px; text-align: left; font: inherit; color: inherit; background: transparent; border: 0; padding: 6px 6px; cursor: pointer; }
 .it-rowtext { display: flex; flex-direction: column; min-width: 0; flex: 1; }

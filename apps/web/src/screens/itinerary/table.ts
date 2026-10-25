@@ -9,7 +9,7 @@
  */
 import type { Activity, PlaceInfo, TravelLeg, TripDay, TripOperation, ZonedTime } from '@tkb/contracts';
 import { UNKNOWN, formatDuration, formatMoney } from '../../lib/format.ts';
-import { isChildItem, itemKey, numberPlaces } from '../../lib/places.ts';
+import { alightingStopName, isChildItem, itemKey, numberEntries, stopKey } from '../../lib/places.ts';
 import { KIND_LABEL, LEG_MODE_LABEL, VALUE_UNKNOWN, transitDetail } from './model.ts';
 
 /** Local date (YYYY-MM-DD) of an instant in its own zone. */
@@ -69,7 +69,28 @@ export interface LegRow {
   stale: boolean;
 }
 
-export type TableRow = StayRow | LegRow;
+/**
+ * A derived spot: the stop a transit leg gets off at, when the provider returned its name (never guessed; without a name
+ * there is no row, only the arrow). It is numbered like a stay (same numbering as the map, see numberEntries) and sits
+ * right after its leg. It is not an itinerary item, so it cannot be stored by a K10 `move` of its own: its handle moves
+ * the stay the leg starts from (`ownerKey`), and the leg with this stop goes along with that stay.
+ */
+export interface StopRow {
+  kind: 'stop';
+  /** `${legId}:stop` */
+  key: string;
+  legId: string;
+  name: string;
+  number: number;
+  /** Arrival time of the leg (未取得 when unknown). */
+  time: string;
+  /** Stay whose block this stop belongs to (the stay before its leg); null when the leg is the first row of the day. */
+  ownerKey: string | null;
+  /** 「公共交通」: mode of the arrow that continues from this stop. */
+  modeLabel: string;
+}
+
+export type TableRow = StayRow | LegRow | StopRow;
 
 export function legSummary(leg: TravelLeg): string {
   // An unknown fare is shown in the details only, not on every row (UI review on #33).
@@ -78,7 +99,9 @@ export function legSummary(leg: TravelLeg): string {
 
 /** Rows of one day in display order. Children are attached to their parent; an orphaned child is shown as its own stay. */
 export function tableRows(day: TripDay, places: readonly PlaceInfo[]): TableRow[] {
-  const numbered = new Map(numberPlaces(day, [...places]).map(n => [n.place.placeId, n.number]));
+  const entries = numberEntries(day, places);
+  const numbered = new Map(entries.flatMap(n => (n.kind === 'place' ? [[n.place.placeId, n.number] as const] : [])));
+  const stopNumbers = new Map(entries.flatMap(n => (n.kind === 'stop' ? [[n.legId, n.number] as const] : [])));
   const byPlace = new Map(places.map(p => [p.placeId, p]));
   const activityIds = new Set(day.items.flatMap(i => (i.type === 'activity' ? [i.activityId] : [])));
   const children = new Map<string, ChildRow[]>();
@@ -96,6 +119,12 @@ export function tableRows(day: TripDay, places: readonly PlaceInfo[]): TableRow[
         departure: formatHm(it.departure, day.date), arrival: formatHm(it.arrival, day.date),
         fromName: byPlace.get(it.fromPlaceId)?.name ?? UNKNOWN, toName: byPlace.get(it.toPlaceId)?.name ?? UNKNOWN,
       });
+      const stop = alightingStopName(it, places);
+      const number = stopNumbers.get(it.legId);
+      if (stop && number !== undefined) {
+        const owner = [...rows].reverse().find((r): r is StayRow => r.kind === 'stay');
+        rows.push({ kind: 'stop', key: stopKey(it.legId), legId: it.legId, name: stop, number, time: formatHm(it.arrival, day.date), ownerKey: owner?.key ?? null, modeLabel: LEG_MODE_LABEL[it.mode] });
+      }
       continue;
     }
     if (it.parentActivityId && activityIds.has(it.parentActivityId)) continue;
@@ -109,8 +138,8 @@ export function tableRows(day: TripDay, places: readonly PlaceInfo[]): TableRow[
   }
   rows.forEach((row, i) => {
     if (row.kind !== 'leg') return;
-    const prev = rows[i - 1];
-    const next = rows[i + 1];
+    const prev = rows.slice(0, i).reverse().find(r => r.kind !== 'stop');
+    const next = rows.slice(i + 1).find(r => r.kind !== 'stop');
     const from = prev?.kind === 'stay' ? prev.item.placeId : null;
     const to = next?.kind === 'stay' ? next.item.placeId : null;
     row.stale = (from !== null && from !== row.leg.fromPlaceId) || (to !== null && to !== row.leg.toPlaceId);

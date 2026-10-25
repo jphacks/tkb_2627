@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { UNKNOWN, formatMoney } from '../../lib/format.ts';
-import { KIND_LABEL, VALUE_UNKNOWN, transitDetail } from './model.ts';
+import { KIND_LABEL } from './model.ts';
 import {
   hoverTarget, keyboardTarget, legDetails, previewRows, reorderedOrder, stayDetails,
-  type ChildRow, type DetailLine, type LegRow, type StayRow, type TableRow,
+  type ChildRow, type DetailLine, type LegRow, type StayRow, type StopRow, type TableRow,
 } from './table.ts';
 import './itinerary.css';
 
@@ -148,7 +148,7 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
         <thead><tr>{editable && <th scope="col" className="it-col-handle"><span className="u1-sr">並べ替え</span></th>}<th scope="col" className="it-col-time">時刻</th><th scope="col">内容</th></tr></thead>
         <tbody ref={bodyRef}>
           {rows.length === 0 && <tr><td colSpan={cols} className="u1-empty">この日の予定はありません。</td></tr>}
-          {shown.map(r => (
+          {shown.map((r, i) => (
             <Fragment key={r.key}>
               {r.kind === 'stay' ? (
                 <StayTableRows row={r} open={expanded.has(r.key)} selected={selectedKeys?.has(r.key) ?? false} editable={editable}
@@ -156,6 +156,9 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
                   setRef={el => setRowRef?.(r.key, el)} extra={stayExtra?.(r)} badge={stayBadge?.(r)}
                   onToggle={() => onToggleRow(r.key)}
                   onHandlePointerDown={e => onHandlePointerDown(e, r.key)} onHandleKeyDown={e => onHandleKeyDown(e, r.key)} />
+              ) : r.kind === 'stop' ? (
+                <StopTableRows row={r} editable={editable} dragging={r.ownerKey !== null && drag?.key === r.ownerKey} hasNext={i < shown.length - 1}
+                  onHandlePointerDown={e => r.ownerKey !== null && onHandlePointerDown(e, r.ownerKey)} onHandleKeyDown={e => r.ownerKey !== null && onHandleKeyDown(e, r.ownerKey)} />
               ) : (
                 <LegTableRows row={r} open={expanded.has(r.key)} selected={selectedKeys?.has(r.key) ?? false} dayDate={dayDate} editable={editable} onToggle={() => onToggleRow(r.key)} />
               )}
@@ -262,21 +265,20 @@ function ChildTableRow({ child }: { child: ChildRow }) {
 }
 
 /**
- * A travel leg is two thin rows (start and end, R3) with one arrow drawn down through both (UI review on #32). No times:
- * the stays above and below already show when the leg starts and ends (the details keep 出発/到着). The place names are
- * the rows above and below, so they are only read out. By transit the end row is a stay-sized row with the stop you get
- * off at, so the stays after it read as that stop's area.
+ * A travel leg is one arrow (two thin rows, R3) drawn down between two numbered spots (UI review on #34: no special
+ * adjacent rows). No times: the spots above and below show them (the details keep 出発/到着). The place names are the
+ * rows above and below, so they are only read out. A known alighting stop is its own spot row (StopTableRows) right
+ * after this arrow; an unknown one is not drawn at all: the arrow just says 公共交通.
  */
 function LegTableRows({ row, open, selected, dayDate, editable, onToggle }: { row: LegRow; open: boolean; selected: boolean; dayDate: string; editable: boolean; onToggle: () => void }) {
   const detailId = `it-d-${row.key}`;
   const cls = `it-conn${selected ? ' it-on' : ''}${row.stale ? ' it-stale' : ''}`;
-  const stop = transitDetail(row.leg)?.alighting ?? null;
   return (
     <>
       <tr className={`${cls} it-conn-start`} data-leg-key={row.key} data-row-key={`${row.key}:start`}>
         {editable && <td />}
         <td className="it-time" />
-        <td className="it-conncell" rowSpan={stop ? 1 : 2}>
+        <td className="it-conncell" rowSpan={2}>
           <span aria-hidden="true" className="it-arrowline" />
           <button type="button" className="it-connbtn" aria-expanded={open} aria-controls={detailId} onClick={onToggle}
             aria-label={`${row.fromName}から${row.toName}への移動：${row.summary}${row.stale ? '（要再計算）' : ''}`}>
@@ -285,26 +287,10 @@ function LegTableRows({ row, open, selected, dayDate, editable, onToggle }: { ro
           </button>
         </td>
       </tr>
-      {stop ? (
-        // The stop you get off at, as large as a stay (UI review on #33). Never guessed: 不明 when not obtained.
-        <tr className={`it-stoprow${selected ? ' it-on' : ''}`} data-leg-key={row.key} data-row-key={`${row.key}:stop`}>
-          {editable && <td />}
-          <th scope="row" className="it-time"><TimeText text={row.arrival} /></th>
-          <td>
-            <span className="it-rowtext it-stopcell">
-              {stop === VALUE_UNKNOWN
-                ? <span className="it-title">降車する駅・停留所：<span className="u1-unknown">{VALUE_UNKNOWN}</span></span>
-                : <span className="it-title">{stop}</span>}
-              <span className="meta">公共交通で到着</span>
-            </span>
-          </td>
-        </tr>
-      ) : (
-        <tr className={`${cls} it-conn-end`} data-leg-key={row.key} data-row-key={`${row.key}:end`}>
-          {editable && <td />}
-          <td className="it-time" />
-        </tr>
-      )}
+      <tr className={`${cls} it-conn-end`} data-leg-key={row.key} data-row-key={`${row.key}:end`}>
+        {editable && <td />}
+        <td className="it-time" />
+      </tr>
       {open && (
         <tr id={detailId} className="it-detail" data-detail-leg="1" data-row-key={`${row.key}:detail`}>
           <td colSpan={editable ? 3 : 2}><DetailList lines={legDetails(row, dayDate)} label={`${row.fromName}から${row.toName}への移動の詳細`} /></td>
@@ -314,3 +300,60 @@ function LegTableRows({ row, open, selected, dayDate, editable, onToggle }: { ro
   );
 }
 
+
+/**
+ * The stop a transit leg gets off at, as a numbered spot like a stay (UI review on #34), followed by an arrow to the next
+ * spot. It is derived from the leg, not stored: its handle moves the stay the leg starts from, and the leg with this
+ * stop moves along with it.
+ */
+function StopTableRows({ row, editable, dragging, hasNext, onHandlePointerDown, onHandleKeyDown }: {
+  row: StopRow;
+  editable: boolean;
+  dragging: boolean;
+  hasNext: boolean;
+  onHandlePointerDown: (e: React.PointerEvent) => void;
+  onHandleKeyDown: (e: React.KeyboardEvent) => void;
+}) {
+  return (
+    <>
+      <tr className={`it-stoprow${dragging ? ' it-dragging' : ''}`} data-leg-key={row.legId} data-row-key={row.key}>
+        {editable && (
+          <td className="it-handlecell">
+            {row.ownerKey !== null && (
+              <button type="button" className="it-handle" aria-label={`「${row.name}」（降車する停留所）を並べ替える。前の区間と一緒に動きます`} aria-pressed={dragging}
+                onPointerDown={onHandlePointerDown} onKeyDown={onHandleKeyDown}>⠿</button>
+            )}
+          </td>
+        )}
+        <th scope="row" className="it-time"><TimeText text={row.time} /></th>
+        <td>
+          <div className="it-cell">
+            <span className="it-rowbtn it-stopcell">
+              <span className="it-num" aria-label={`地図の地点${row.number}`}>{row.number}</span>
+              <span className="it-rowtext">
+                <span className="it-title">{row.name}</span>
+                <span className="meta">降車する停留所</span>
+              </span>
+            </span>
+          </div>
+        </td>
+      </tr>
+      {hasNext && (
+        <>
+          <tr className="it-conn it-conn-start" data-leg-key={row.legId} data-row-key={`${row.key}:out-start`}>
+            {editable && <td />}
+            <td className="it-time" />
+            <td className="it-conncell" rowSpan={2}>
+              <span aria-hidden="true" className="it-arrowline" />
+              <span className="it-connbtn"><span className="it-legmode">{row.modeLabel}</span></span>
+            </td>
+          </tr>
+          <tr className="it-conn it-conn-end" data-leg-key={row.legId} data-row-key={`${row.key}:out-end`}>
+            {editable && <td />}
+            <td className="it-time" />
+          </tr>
+        </>
+      )}
+    </>
+  );
+}

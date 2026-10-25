@@ -112,6 +112,8 @@ const kanazawaExtraPlaces: PlaceInfo[] = [
   place('fx_korinbo', '香林坊', 'area', 36.5604, 136.6540, JST),
   place('fx_dinner', '（fixture）香林坊の夕食店', 'restaurant', 36.5606, 136.6547, JST),
   place('fx_hotel', '（fixture）ホテル', 'lodging', 36.5700, 136.6520, JST),
+  // UI review on #34: after dinner you walk to a stop first, then ride (the stop is its own spot).
+  place('fx_korinbo_stop', '香林坊バス停', 'station', 36.5603, 136.6543, JST),
   place('fx_kazue', '主計町茶屋街', 'area', 36.5739, 136.6639, JST),
   place('fx_oyama', '尾山神社', 'spot', 36.5667, 136.6588, JST),
   place('fx_nagamachi', '長町武家屋敷跡', 'spot', 36.5638, 136.6516, JST),
@@ -174,11 +176,14 @@ export const domesticTrip: Trip = {
           // Admission unknown in fixture: stays null, never 0.
         }),
         leg('fx_leg_k5', 'fx_21c_museum', 'fx_dinner', 'walk', JST, t(D1, '17:15'), t(D1, '17:25')),
-        activity('fx_act_dinner', '香林坊で夕食', 'meal', JST, t(D1, '17:30'), t(D1, '19:00'), { placeId: 'fx_dinner' }),
-        leg('fx_leg_k6', 'fx_dinner', 'fx_hotel', 'transit', JST, t(D1, '19:00'), t(D1, '19:15'), {
+        // Times follow the legs: 17:15 + walk 10 min = 17:25 arrival = dinner start.
+        activity('fx_act_dinner', '香林坊で夕食', 'meal', JST, t(D1, '17:25'), t(D1, '19:00'), { placeId: 'fx_dinner' }),
+        leg('fx_leg_k6w', 'fx_dinner', 'fx_korinbo_stop', 'walk', JST, t(D1, '19:00'), t(D1, '19:05')),
+        activity('fx_act_korinbo_stop', '香林坊バス停（乗車）', 'custom', JST, t(D1, '19:05'), t(D1, '19:10'), { placeId: 'fx_korinbo_stop' }),
+        leg('fx_leg_k6', 'fx_korinbo_stop', 'fx_hotel', 'transit', JST, t(D1, '19:10'), t(D1, '19:25'), {
           lineName: '（fixture）路線バス', fare: yen(210),
         }),
-        activity('fx_act_hotel', 'ホテルにチェックイン', 'lodging', JST, t(D1, '19:15'), null, { placeId: 'fx_hotel' }),
+        activity('fx_act_hotel', 'ホテルにチェックイン', 'lodging', JST, t(D1, '19:25'), null, { placeId: 'fx_hotel' }),
       ],
     },
     {
