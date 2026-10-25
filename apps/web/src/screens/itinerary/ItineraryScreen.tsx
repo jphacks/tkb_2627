@@ -104,7 +104,7 @@ export function ItineraryBody({ load, dayIndex, onSelectDay, onRetry, mapsKey, o
   );
 }
 
-export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, mapsKey, onBack, initialSelection = null, initialExpanded = [], editor, hideHeader = false, previewNote }: {
+export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, mapsKey, onBack, initialSelection = null, initialExpanded = [], editor, hideHeader = false, previewNote, barExtra }: {
   trip: Trip;
   source: TripLoad['source'] | 'preview';
   dayIndex: number;
@@ -119,6 +119,8 @@ export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, m
   hideHeader?: boolean;
   /** Shown instead of the saved-data line, e.g. for an unsaved candidate preview. */
   previewNote?: string;
+  /** More buttons next to 「時刻を再計算」 (U05: 「この候補を採用」, UI review on #33). */
+  barExtra?: React.ReactNode;
 }) {
   const [trip, setTrip] = useState(tripProp);
   // Trips before each reorder / re-timing, newest last, for 「元に戻す」 (UI review on #33).
@@ -273,6 +275,7 @@ export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, m
                 <div className="it-editbar">
                   <button type="button" className="btn" disabled={saving || history.length === 0} onClick={() => void undo()}>元に戻す</button>
                   <button type="button" className="btn" disabled={saving} onClick={() => void recalc()}>時刻を再計算</button>
+                  {barExtra}
                 </div>
               )}
             </div>

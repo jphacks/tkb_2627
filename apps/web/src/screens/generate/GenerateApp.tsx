@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { GenerateRequest, JobAccepted, PlanBatch } from '@tkb/contracts';
+import type { GenerateRequest, JobAccepted } from '@tkb/contracts';
 import { MockBanner } from '../../components/MockBanner.tsx';
 import { ScenarioSwitcher } from '../../components/ScenarioSwitcher.tsx';
 import { createMockApi, type MockScenario } from '../../mocks/index.ts';
@@ -7,8 +7,7 @@ import { createLiveConditionsApi, createMockConditionsApi, type DataSource } fro
 import { ConditionsScreen } from '../conditions/ConditionsScreen.tsx';
 import { itineraryHash } from '../itinerary/route.ts';
 import { createLiveGenerateApi, createMockGenerateApi } from './api.ts';
-import { CandidatePreview } from './CandidatePreview.tsx';
-import { CompareScreen, LiveBanner, ModeChip, ProgressScreen } from './GenerateScreens.tsx';
+import { LiveBanner, ModeChip, PreviewAdoptScreen, ProgressScreen } from './GenerateScreens.tsx';
 import { openMap, revealStep, type ModeCapState } from './model.ts';
 import '../../components/u01.css';
 
@@ -19,7 +18,7 @@ type Step =
 
 /**
  * U05 flow (#generate): conditions (U03) stay on the page; below them progress (K02/K21) -> the U04 map + table of the
- * first candidate -> a short candidate compare (K07) -> apply (K08) -> U04 map link. Changing the conditions and generating again
+ * first candidate, switched with tabs, with 「この候補を採用」 next to 「時刻を再計算」 (K07 read, K08 apply) -> U04 map. Changing the conditions and generating again
  * replaces the result below without leaving the page.
  * Mock mode shares ONE in-memory mock API between the screens so the accepted job can be polled.
  */
@@ -43,8 +42,7 @@ export function GenerateApp({ initialSource = 'mock' }: { initialSource?: DataSo
     });
     return () => { alive = false; };
   }, [source, apis]);
-  const [batch, setBatch] = useState<PlanBatch | null>(null);
-  const reset = () => { setStep({ name: 'conditions' }); setBatch(null); };
+  const reset = () => setStep({ name: 'conditions' });
   // Progress and compare open below the long conditions form, so bring them into view (UI review on #33).
   const stepRef = useRef<HTMLDivElement>(null);
   const stepKey = step.name === 'progress' ? step.accepted.jobId : step.name === 'compare' ? step.batchId : null;
@@ -69,7 +67,7 @@ export function GenerateApp({ initialSource = 'mock' }: { initialSource?: DataSo
       </div>
       {source === 'mock' && <ScenarioSwitcher value={scenario} onChange={s => { setScenario(s); reset(); }} />}
       <main className="u1-main">
-        <ConditionsScreen key={`${source}:${scenario}`} api={apis.cond} onStarted={(accepted, request) => { setBatch(null); setStep({ name: 'progress', accepted, request }); }} />
+        <ConditionsScreen key={`${source}:${scenario}`} api={apis.cond} onStarted={(accepted, request) => setStep({ name: 'progress', accepted, request })} />
         <div ref={stepRef} tabIndex={-1} className="u5-step">
         {source === 'live' && step.name !== 'conditions' && <ModeChip state={modeCap} />}
         {step.name === 'progress' && (
@@ -81,15 +79,12 @@ export function GenerateApp({ initialSource = 'mock' }: { initialSource?: DataSo
           />
         )}
         {step.name === 'compare' && (
-          <>
-            {/* The map comes first so it is in view right after generating; the short compare list follows (UI review on #33). */}
-            {batch && batch.batchId === step.batchId && <CandidatePreview batch={batch} constraints={step.request.constraints} />}
-            <CompareScreen
-              key={step.batchId} api={apis.flow} batchId={step.batchId} onBack={reset} onBatchLoaded={setBatch}
-              mapHrefFor={tripId => itineraryHash({ mode: source === 'mock' ? 'mock' : 'server', tripId, dayIndex: 0 })}
-              onApplied={href => openMap(href, window)}
-            />
-          </>
+          // The map and table with 「この候補を採用」 next to 「時刻を再計算」; no compare list (UI review on #33).
+          <PreviewAdoptScreen
+            key={step.batchId} api={apis.flow} batchId={step.batchId} constraints={step.request.constraints} onBack={reset}
+            mapHrefFor={tripId => itineraryHash({ mode: source === 'mock' ? 'mock' : 'server', tripId, dayIndex: 0 })}
+            onApplied={href => openMap(href, window)}
+          />
         )}
         </div>
       </main>

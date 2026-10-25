@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { PlanBatch, PlanCandidate, TripConstraints, Trip } from '@tkb/contracts';
 import { ItineraryView } from '../itinerary/ItineraryScreen.tsx';
+import { VALIDATION_LABEL } from '../../components/labels.ts';
 import { readBrowserMapsKey } from '../itinerary/mapsKey.ts';
+import { summarizeCandidate } from './model.ts';
 import '../itinerary/itinerary.css';
 
 /**
@@ -30,10 +32,13 @@ export function candidateAsTrip(batch: PlanBatch, candidate: PlanCandidate, cons
  * start) are shown directly below the condition form, so the user can look at the result, change the conditions and
  * generate again without leaving the page. Reordering here only changes the preview; adopting a candidate saves it (K08).
  */
-export function CandidatePreview({ batch, constraints, mapsKey = readBrowserMapsKey() }: {
+export function CandidatePreview({ batch, constraints, mapsKey = readBrowserMapsKey(), onAdopt, adoptBusy = false }: {
   batch: PlanBatch;
   constraints: TripConstraints;
   mapsKey?: string | null;
+  /** 「この候補を採用」 next to 「時刻を再計算」 (UI review on #33: the compare list is gone). Saves the shown candidate (K08). */
+  onAdopt?: (candidateId: string) => void;
+  adoptBusy?: boolean;
 }) {
   const [candidateId, setCandidateId] = useState<string | null>(null);
   const [dayIndex, setDayIndex] = useState(0);
@@ -42,6 +47,13 @@ export function CandidatePreview({ batch, constraints, mapsKey = readBrowserMaps
   const trip = useMemo(() => (current ? candidateAsTrip(batch, current, constraints) : null), [batch, current, constraints]);
 
   if (!current || !trip) return null;
+  const adoptable = summarizeCandidate(current, batch.places).adoptable;
+  const adopt = onAdopt && (
+    <button type="button" className="btn u1-primary" disabled={adoptBusy || !adoptable} onClick={() => onAdopt(current.candidateId)}
+      title={adoptable ? undefined : `状態が「${VALIDATION_LABEL[current.validationState]}」の候補は採用できません`}>
+      {!adoptable ? '採用できません' : adoptBusy ? '処理中…' : 'この候補を採用'}
+    </button>
+  );
   return (
     <section aria-label="生成された旅程（地図と行程表）" className="u5-preview">
       <h2 className="u1-cand-title">生成された旅程：地図と行程表</h2>
@@ -57,7 +69,7 @@ export function CandidatePreview({ batch, constraints, mapsKey = readBrowserMaps
         </div>
       )}
       <ItineraryView key={trip.tripId} trip={trip} source="preview" previewNote="候補の表示（まだ保存していません。「この候補を採用」で保存します）"
-        dayIndex={dayIndex} onSelectDay={setDayIndex} mapsKey={mapsKey} editor={{ kind: 'local' }} hideHeader />
+        dayIndex={dayIndex} onSelectDay={setDayIndex} mapsKey={mapsKey} editor={{ kind: 'local' }} hideHeader barExtra={adopt} />
     </section>
   );
 }

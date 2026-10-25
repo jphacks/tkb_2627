@@ -117,3 +117,16 @@ describe('LiveBanner / ModeChip', () => {
     expect(html(<ModeChip state={done('mixed')} />)).toContain('場所はfixture、経路は実データ');
   });
 });
+
+describe('U05 adopt next to 時刻を再計算 (UI review on #33)', () => {
+  it('the preview has 「この候補を採用」 in the bar after 「時刻を再計算」, and the app no longer renders the compare list', async () => {
+    const { CandidatePreview } = await import('./CandidatePreview.tsx');
+    const { createSamplePlanBatch, domesticTrip } = await import('@tkb/fixtures');
+    const out = html(<CandidatePreview batch={createSamplePlanBatch()} constraints={domesticTrip.constraints} mapsKey={null} onAdopt={noop} />);
+    const bar = /<div class="it-editbar">(.*?)<\/div>/.exec(out)?.[1] ?? '';
+    expect(bar.indexOf('時刻を再計算')).toBeGreaterThan(-1);
+    expect(bar.indexOf('この候補を採用')).toBeGreaterThan(bar.indexOf('時刻を再計算'));
+    const src = (await import('node:fs')).readFileSync(new URL('./GenerateApp.tsx', import.meta.url), 'utf8');
+    expect(src).not.toContain('<CompareScreen');
+  });
+});
