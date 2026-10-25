@@ -16,8 +16,8 @@ const tiny = () => ({ owners: ['M1'], tasks: ['B01','B02'].map((id,i) => ({
 })) });
 const req = [{id:'R01', title:'Example'}];
 
-test('real plan has 59 tasks, 30 requirements and validates', () => {
-  assert.equal(plan.tasks.length,59); assert.equal(requirements.length,30);
+test('real plan has 60 tasks, 30 requirements and validates', () => {
+  assert.equal(plan.tasks.length,60); assert.equal(requirements.length,30);
   assert.deepEqual(validatePlan(plan, requirements), []);
 });
 test('all dependencies precede children in topological order', () => {
@@ -90,7 +90,7 @@ test('unchanged generated section is idempotent', () => {
 test('plan-only GitHub initialization does not require network or credentials', () => {
   const r=spawnSync(process.execPath,['scripts/github-sync.mjs','init','--repo','example/travel'],{cwd:ROOT,encoding:'utf8',timeout:10000});
   assert.equal(r.status,0,r.stderr); const data=JSON.parse(r.stdout);
-  assert.equal(data.mode,'PLAN_ONLY_NO_NETWORK'); assert.equal(data.tasks.length,59);
+  assert.equal(data.mode,'PLAN_ONLY_NO_NETWORK'); assert.equal(data.tasks.length,60);
 });
 test('six agent files are supplied with role headers', () => {
   const names=fs.readdirSync(path.join(ROOT,'.claude/agents')).filter(n=>n.endsWith('.md'));
@@ -103,7 +103,7 @@ test('dashboard builds standalone HTML and includes all tasks', () => {
   fs.rmSync(out,{recursive:true,force:true});
   assert.ok(!html.includes('__DATA__')); assert.ok(!/<script[^>]+src=/i.test(html));
   const raw=html.match(/<script type="application\/json" id="design-data">([\s\S]*?)<\/script>/)?.[1];
-  assert.equal(JSON.parse(raw).tasks.length,59);
+  assert.equal(JSON.parse(raw).tasks.length,60);
 });
 test('--publish embeds the snapshot into tracked HTML on purpose (npm run progress)', () => {
   const out=fs.mkdtempSync(path.join(os.tmpdir(),'tkb-dash-'));
