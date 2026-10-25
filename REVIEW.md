@@ -14,9 +14,9 @@
 |---|---|---|
 | U13 | ホーム | https://github.com/jphacks/tkb_2627/issues/218 |
 | U03 | 条件入力 | https://github.com/jphacks/tkb_2627/issues/31 |
-| U04 | 地図と旅程 | https://github.com/jphacks/tkb_2627/issues/32 |
+| U04 | 地図・編集（U06 と統合） | https://github.com/jphacks/tkb_2627/issues/32 |
 | U05 | 計画の進捗と候補 | https://github.com/jphacks/tkb_2627/issues/33 |
-| U06 | 編集・旅行中 | https://github.com/jphacks/tkb_2627/issues/34 |
+| U06 | 地図・編集（U04 と統合。旅行中のタブは削除） | https://github.com/jphacks/tkb_2627/issues/34 |
 | U07 | ガイド | https://github.com/jphacks/tkb_2627/issues/35 |
 | U08 | SNS・グループ | https://github.com/jphacks/tkb_2627/issues/36 |
 
