@@ -43,7 +43,7 @@ function loadMaps(key: string): Promise<MapsLibs> {
     const s = document.createElement('script');
     s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&language=ja&loading=async&callback=${CALLBACK}`;
     s.async = true;
-    s.onerror = () => { loading = null; reject(new Error('Google Maps を読み込めませんでした')); };
+    s.onerror = () => { loading = null; s.remove(); reject(new Error('Google Maps を読み込めませんでした')); };
     document.head.appendChild(s);
   });
   return loading;
@@ -56,6 +56,25 @@ function icon(highlighted: boolean) {
   return { path: 0, scale: highlighted ? 15 : 11, fillColor: highlighted ? HIGHLIGHT_COLOR : NORMAL_COLOR, fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 2 };
 }
 
+/**
+ * Origins on which the browser key may be used. Mirrors the HTTP-referrer restriction of PUBLIC_MAPS_BROWSER_KEY
+ * (http://127.0.0.1:5173/* and http://localhost:5173/*); on any other host/port Google answers RefererNotAllowedMapError,
+ * so the schematic map is drawn instead. Update both together.
+ */
+export const MAPS_ALLOWED_ORIGINS: readonly string[] = ['http://127.0.0.1:5173', 'http://localhost:5173'];
+
+export const ORIGIN_NOT_ALLOWED_REASON = 'このURLでは地図キーが使えないため、略図を表示しています（PCで http://127.0.0.1:5173/ を開くと地図が出ます）';
+
+export type MapMode = { kind: 'google'; apiKey: string } | { kind: 'sketch'; reason: string };
+
+/** Pure decision: Google only with a key, an allowed origin and no runtime failure; otherwise the sketch with the reason. */
+export function chooseMapMode(apiKey: string | null, origin: string | null, failure: string | null): MapMode {
+  if (!apiKey) return { kind: 'sketch', reason: '地図キー未設定' };
+  if (origin === null || !MAPS_ALLOWED_ORIGINS.includes(origin)) return { kind: 'sketch', reason: ORIGIN_NOT_ALLOWED_REASON };
+  if (failure) return { kind: 'sketch', reason: `地図を表示できないため、略図を表示しています（${failure}）` };
+  return { kind: 'google', apiKey };
+}
+
 export function MapPanel({ apiKey, points, highlighted, onSelectPlace }: {
   apiKey: string | null;
   points: MapPoint[];
@@ -63,11 +82,9 @@ export function MapPanel({ apiKey, points, highlighted, onSelectPlace }: {
   onSelectPlace: (placeId: string) => void;
 }) {
   const [failed, setFailed] = useState<string | null>(null);
-  if (!apiKey || failed) {
-    return <StaticMap points={points} highlighted={highlighted} onSelectPlace={onSelectPlace}
-      reason={apiKey ? `地図を表示できません（${failed}）` : '地図キー未設定'} />;
-  }
-  return <LiveMap apiKey={apiKey} points={points} highlighted={highlighted} onSelectPlace={onSelectPlace} onError={setFailed} />;
+  const mode = chooseMapMode(apiKey, typeof location !== 'undefined' ? location.origin : null, failed);
+  if (mode.kind === 'sketch') return <StaticMap points={points} highlighted={highlighted} onSelectPlace={onSelectPlace} reason={mode.reason} />;
+  return <LiveMap apiKey={mode.apiKey} points={points} highlighted={highlighted} onSelectPlace={onSelectPlace} onError={setFailed} />;
 }
 
 function LiveMap({ apiKey, points, highlighted, onSelectPlace, onError }: {
@@ -86,8 +103,12 @@ function LiveMap({ apiKey, points, highlighted, onSelectPlace, onError }: {
 
   useEffect(() => {
     let alive = true;
+    // Google's documented auth-failure hook (bad key, referrer not allowed, ...): switch to the sketch instead of its grey error box.
+    const w = window as unknown as Record<string, unknown>;
+    const hook = () => { if (alive) onError('地図キーの認証に失敗'); };
+    w.gm_authFailure = hook;
     loadMaps(apiKey).then(l => { if (alive) setLibs(l); }, (e: unknown) => { if (alive) onError(e instanceof Error ? e.message : '読み込み失敗'); });
-    return () => { alive = false; };
+    return () => { alive = false; if (w.gm_authFailure === hook) delete w.gm_authFailure; };
   }, [apiKey, onError]);
 
   // (Re)draw markers and the visiting-order line when the day's points change.
@@ -202,7 +223,7 @@ export function StaticMap({ points, highlighted, onSelectPlace, reason }: {
   const arrows = segmentArrows(pts);
   return (
     <div className="it-map it-map-static" data-testid="map-fallback">
-      <p className="it-map-reason"><strong>{reason}</strong>：地図の代わりに、地点と移動の向きを略図で表示しています（実際の地形・経路ではありません）。</p>
+      <p className="it-map-reason"><strong>{reason}</strong> 略図は地点と移動の向きだけを示し、実際の地形・経路ではありません。</p>
       {pts.length === 0 ? (
         <p className="meta">この日は位置の分かる地点がありません。</p>
       ) : (

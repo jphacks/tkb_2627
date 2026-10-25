@@ -6,7 +6,7 @@ import { domesticTrip, overseasTrip } from '@tkb/fixtures';
 import { createMockApi } from '../../mocks/index.ts';
 import { fetchTrip, fetchTripFromMock, tripUrl } from './api.ts';
 import { AttributionBlock, ItineraryBody, ItineraryView } from './ItineraryScreen.tsx';
-import { StaticMap } from './MapPanel.tsx';
+import { MAPS_ALLOWED_ORIGINS, ORIGIN_NOT_ALLOWED_REASON, StaticMap, chooseMapMode } from './MapPanel.tsx';
 import { readBrowserMapsKey } from './mapsKey.ts';
 import {
   attributionFor, dayTransportMode, formatLocalTime, mapPoints, syncSelection, toggleSelection, transitDetail, unlocatedPlaces,
@@ -155,6 +155,23 @@ describe('map without a key, attribution', () => {
     expect(fb).toContain('金沢駅');
     expect(fb).toContain('data-testid="map-arrow"');
     expect(fb).not.toContain('<ol');
+  });
+
+  it('chooseMapMode: Google only on the key-allowed origins; LAN IP, other ports, no key and runtime failure give the sketch', () => {
+    expect(MAPS_ALLOWED_ORIGINS).toEqual(['http://127.0.0.1:5173', 'http://localhost:5173']);
+    expect(chooseMapMode('k', 'http://127.0.0.1:5173', null)).toEqual({ kind: 'google', apiKey: 'k' });
+    expect(chooseMapMode('k', 'http://localhost:5173', null)).toEqual({ kind: 'google', apiKey: 'k' });
+    for (const o of ['http://10.105.4.111:5174', 'http://10.105.4.111:5173', 'http://127.0.0.1:5197', 'https://127.0.0.1:5173', null]) {
+      expect(chooseMapMode('k', o, null)).toEqual({ kind: 'sketch', reason: ORIGIN_NOT_ALLOWED_REASON });
+    }
+    expect(ORIGIN_NOT_ALLOWED_REASON).toContain('このURLでは地図キーが使えないため、略図を表示しています');
+    expect(chooseMapMode(null, 'http://127.0.0.1:5173', null)).toEqual({ kind: 'sketch', reason: '地図キー未設定' });
+  });
+
+  it('chooseMapMode: gm_authFailure / script error (failure set) switches an allowed origin to the sketch', () => {
+    const m = chooseMapMode('k', 'http://127.0.0.1:5173', '地図キーの認証に失敗');
+    expect(m.kind).toBe('sketch');
+    expect(m.kind === 'sketch' && m.reason).toContain('地図キーの認証に失敗');
   });
 
   it('attribution is shown: fixture data, provider credits, photo authors, Google when Google data is used', () => {

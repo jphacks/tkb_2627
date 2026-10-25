@@ -113,15 +113,6 @@ export function GuideView({ trip, mock, geo, today }: { trip: Trip; mock: boolea
         {!day || points.length === 0 ? <p className="u1-empty">この日に位置のある地点はありません。</p> : (
           <>
             <MapPanel apiKey={readBrowserMapsKey()} points={points} highlighted={new Set(selected ? [selected] : [])} onSelectPlace={pick} />
-            <ol className="gd-list">
-              {points.map(p => (
-                <li key={p.placeId}>
-                  <button type="button" className={`it-item${selected === p.placeId ? ' it-on' : ''}`} aria-pressed={selected === p.placeId} onClick={() => pick(p.placeId)}>
-                    <span className="it-num">{p.number}</span> {p.name}
-                  </button>
-                </li>
-              ))}
-            </ol>
             {day && unlocatedPlaces(day, trip.places).length > 0 && <p className="meta">位置不明: {unlocatedPlaces(day, trip.places).map(u => u.name).join('、')}</p>}
           </>
         )}
