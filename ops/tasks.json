@@ -2644,6 +2644,90 @@
       "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
       "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
       "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "U11",
+      "owner": "M1",
+      "title": "U04とU06の統合：地図と対応づいた1つの編集画面（並べ替え必達）",
+      "dependsOn": [
+        "U04",
+        "U06"
+      ],
+      "uiDependency": "approval",
+      "writePaths": [
+        "apps/web/src/screens/itinerary/",
+        "apps/web/src/screens/edit/",
+        "apps/web/src/App.tsx",
+        "apps/web/src/screens/hub/"
+      ],
+      "requirements": [
+        "R08",
+        "R09",
+        "R10"
+      ],
+      "estimateMinutes": {
+        "low": 60,
+        "high": 120
+      },
+      "acceptance": "地図と行程表が1つのタブで対応づき、そのまま編集できる。ドラッグで順番が実際に入れ替わり保存される（3回目の指摘のため実ブラウザ操作で確認）。行の時刻が点線と重ならない、番号は縦中央、削除ボタンは横に置く、子の予定（内訳）を展開して表示する。",
+      "verification": "#34 のレビュー項目をすべて満たす。実ブラウザ（headless Chrome の操作）で並べ替えを確認。人の「UI承認：OK」。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K09",
+        "K10"
+      ],
+      "components": [
+        "web-shared"
+      ],
+      "branch": "feat/m1/u11",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "Issue #34 のUIレビュー（2026-10-25、M4）",
+        "docs/ui/reviews/ の R1〜R7"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "U12",
+      "owner": "M3",
+      "title": "予定の間に追加するUI（先頭・末尾を含む、煩雑にしない）",
+      "dependsOn": [
+        "U06"
+      ],
+      "uiDependency": "approval",
+      "writePaths": [
+        "apps/web/src/screens/itinerary/InsertSlot.tsx",
+        "apps/web/src/screens/itinerary/InsertSlot.test.tsx"
+      ],
+      "requirements": [
+        "R09"
+      ],
+      "estimateMinutes": {
+        "low": 40,
+        "high": 80
+      },
+      "acceptance": "行程表の各予定の間（先頭の前と末尾の後も）に、目立ちすぎない追加の入口を置き、そこから行きたい予定を追加できる（K10 の add 操作）。UIを煩雑にしない。",
+      "verification": "#34 のレビューの追加の要望を満たす。人の「UI承認：OK」。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K10"
+      ],
+      "components": [
+        "web-shared"
+      ],
+      "branch": "feat/m3/u12",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "Issue #34 のUIレビュー（2026-10-25、M4）",
+        "docs/ui/reviews/ の R1〜R7"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
     }
   ],
   "version": "4.0"
