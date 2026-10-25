@@ -257,6 +257,40 @@ export function projectPoints(points: readonly MapPoint[], w = MAP_W, h = MAP_H,
   }));
 }
 
+export interface LabelBox { x: number; y: number; w: number; h: number }
+export interface PlacedLabel { id: string; text: string; anchor: 'start' | 'end' | 'middle'; x: number; y: number; box: LabelBox }
+const LABEL_FONT = 10;
+const LABEL_H = 12;
+const boxesHit = (a: LabelBox, b: LabelBox) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+/**
+ * Deterministic label placement for the sketch map: per label try right, left, above, below and take the first box
+ * that stays inside the frame and overlaps neither a marker nor an already placed label. null = hide the text.
+ */
+export function placeLabels(items: readonly { id: string; text: string; x: number; y: number; r: number }[], w = MAP_W, h = MAP_H): (PlacedLabel | null)[] {
+  const markers: LabelBox[] = items.map(i => ({ x: i.x - i.r, y: i.y - i.r, w: 2 * i.r, h: 2 * i.r }));
+  const placed: LabelBox[] = [];
+  return items.map(it => {
+    if (it.text === '') return null;
+    const tw = [...it.text].length * LABEL_FONT;
+    const gap = it.r + 3;
+    const cands: PlacedLabel[] = [
+      { id: it.id, text: it.text, anchor: 'start', x: it.x + gap, y: it.y + 4, box: { x: it.x + gap, y: it.y - LABEL_H / 2 - 1, w: tw, h: LABEL_H } },
+      { id: it.id, text: it.text, anchor: 'end', x: it.x - gap, y: it.y + 4, box: { x: it.x - gap - tw, y: it.y - LABEL_H / 2 - 1, w: tw, h: LABEL_H } },
+      { id: it.id, text: it.text, anchor: 'middle', x: it.x, y: it.y - gap - 2, box: { x: it.x - tw / 2, y: it.y - gap - LABEL_H, w: tw, h: LABEL_H } },
+      { id: it.id, text: it.text, anchor: 'middle', x: it.x, y: it.y + gap + 9, box: { x: it.x - tw / 2, y: it.y + gap, w: tw, h: LABEL_H } },
+    ];
+    for (const c of cands) {
+      const b = c.box;
+      if (b.x < 0 || b.y < 0 || b.x + b.w > w || b.y + b.h > h) continue;
+      if (markers.some(m => boxesHit(b, m)) || placed.some(p => boxesHit(b, p))) continue;
+      placed.push(b);
+      return c;
+    }
+    return null;
+  });
+}
+
 /** Arrowhead at the middle of each segment: position and angle in degrees (pointing from a to b). */
 export function segmentArrows(pts: readonly Projected[]): { x: number; y: number; angle: number; from: number; to: number }[] {
   const out: { x: number; y: number; angle: number; from: number; to: number }[] = [];
@@ -288,6 +322,10 @@ export function StaticMap({ points, highlighted, onSelectPlace, reason, extraMar
   const pts = all.slice(0, points.length);
   const extraPts = all.slice(points.length);
   const arrows = segmentArrows(pts);
+  const labels = placeLabels([
+    ...pts.map(p => ({ id: p.placeId, text: p.name.length > 9 ? `${p.name.slice(0, 8)}…` : p.name, x: p.x, y: p.y, r: highlighted.has(p.placeId) ? 14 : 11 })),
+    ...extraPts.map((p, i) => ({ id: extras[i]!.id, text: '', x: p.x, y: p.y, r: 12 })),
+  ]);
   return (
     <div className="it-map it-map-static" data-testid="map-fallback">
       <p className="it-map-reason"><strong>{reason}</strong> 略図は地点と移動の向きだけを示し、実際の地形・経路ではありません。</p>
@@ -300,8 +338,9 @@ export function StaticMap({ points, highlighted, onSelectPlace, reason, extraMar
             <polygon key={`${a.from}-${a.to}`} className="it-arrow" data-testid="map-arrow" points="-6,-5 6,0 -6,5"
               transform={`translate(${a.x} ${a.y}) rotate(${a.angle})`}><title>{`${a.from} から ${a.to} へ`}</title></polygon>
           ))}
-          {pts.map(p => {
+          {pts.map((p, idx) => {
             const on = highlighted.has(p.placeId);
+            const lb = labels[idx];
             return (
               <g key={p.placeId} className={`it-node${on ? ' it-on' : ''}`} role="button" tabIndex={0} aria-pressed={on}
                 aria-label={`${p.number}. ${p.name}${on ? '（選択中）' : ''}`}
@@ -309,7 +348,8 @@ export function StaticMap({ points, highlighted, onSelectPlace, reason, extraMar
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectPlace(p.placeId); } }}>
                 <circle cx={p.x} cy={p.y} r={on ? 14 : 11} />
                 <text x={p.x} y={p.y + 4} textAnchor="middle" className="it-node-num">{p.number}</text>
-                <text x={p.x} y={p.y - 17} textAnchor="middle" className="it-node-name">{p.name.length > 9 ? `${p.name.slice(0, 8)}…` : p.name}</text>
+                <title>{`${p.number}. ${p.name}`}</title>
+                {lb && <text x={lb.x} y={lb.y} textAnchor={lb.anchor} className="it-node-name">{lb.text}</text>}
               </g>
             );
           })}
