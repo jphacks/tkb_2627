@@ -45,6 +45,16 @@ describe('recalcDay', () => {
   });
 });
 
+describe('recalcDay with a stay moved to the top', () => {
+  it('the day still starts when it started (not at the moved stay\'s old time)', () => {
+    const day = domesticTrip.days[0]!;
+    const r0 = applyClient(domesticTrip, planMoves(ids(domesticTrip), blockOf(day, 'fx_act_castle'), 'fx_act_station', 0));
+    if (!r0.ok) throw new Error(r0.reason);
+    const r = recalcDay(r0.trip, 0);
+    expect(act(r.trip, 'fx_act_castle').start).toEqual(act(domesticTrip, 'fx_act_station').start);
+  });
+});
+
 describe('opsToDay (saving undo / re-timing through K10)', () => {
   it('the server turns the reordered day back into the original (undo)', () => {
     const m = moved();

@@ -59,7 +59,9 @@ export function recalcDay(trip: Trip, dayIndex: number): RecalcResult {
   const mode = dayTransportMode(trip, day.date);
 
   const items: ItineraryItem[] = [];
-  let cursor = ms(stays[0]?.start ?? null);
+  // The day starts when it started before the reorder: the earliest known start, not the start of whichever stay is first now.
+  const starts = stays.flatMap(a => (ms(a.start) === null ? [] : [ms(a.start)!]));
+  let cursor = starts.length > 0 ? Math.min(...starts) : null;
   let reused = 0, unknown = 0;
   let prev: Activity | null = null;
   const taken = new Set<string>();
