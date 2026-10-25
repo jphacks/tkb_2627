@@ -1,6 +1,6 @@
 {
   "repository": "jphacks/tkb_2627",
-  "fetchedAt": "2026-10-25T04:02:14.472Z",
+  "fetchedAt": "2026-10-25T04:18:12.652Z",
   "warnings": [],
   "tasks": {
     "B01": {
@@ -343,7 +343,7 @@
       }
     },
     "U07": {
-      "status": "doing",
+      "status": "review",
       "issue": {
         "number": 35,
         "url": "https://github.com/jphacks/tkb_2627/issues/35",
@@ -601,12 +601,22 @@
       }
     },
     "U12": {
-      "status": "todo",
+      "status": "review",
       "issue": {
         "number": 214,
         "url": "https://github.com/jphacks/tkb_2627/issues/214",
         "assignees": [
           "ryoumatimati"
+        ]
+      }
+    },
+    "U13": {
+      "status": "review",
+      "issue": {
+        "number": 218,
+        "url": "https://github.com/jphacks/tkb_2627/issues/218",
+        "assignees": [
+          "KatTanaka"
         ]
       }
     }
