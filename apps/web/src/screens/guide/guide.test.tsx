@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { domesticTrip } from '@tkb/fixtures';
 import type { GeoLike } from '../travel/geo.ts';
 import { mapPoints } from '../itinerary/model.ts';
-import { AmenitiesPanel, GuideView, SpotPanel, amenityMarkers } from './GuideScreen.tsx';
+import { AmenitiesPanel, GuideView, SpotPanel, amenityMarkers, clearsSelection } from './GuideScreen.tsx';
 import {
   EMPTY_TEXT, SHELTER_WARNING, UNSUPPORTED_TEXT, amenitiesUrl, bboxAround, chooseArea, classifyAmenities, currentDayIndex,
   displayName, fallbackBbox, type AmenityKind, fetchAmenities, mockAmenities, spotDetail, type AmenityResponse,
@@ -273,5 +273,22 @@ describe('U07 review (M2): map markers, no explanatory texts, itinerary under th
     expect(html).toContain(`aria-label="${p.number}. ${p.name}（選択中）"`);
     expect(html).toContain(`aria-label="地点${p.number}の解説"`);
     expect(html).toMatch(/<tr[^>]*class="it-stay it-on/);
+  });
+});
+
+describe('U07 review (comment 6393157003): tapping elsewhere brings the highlight back', () => {
+  // Minimal stand-in for Element.closest: the element matches when one of its ancestors' selectors is in the list.
+  const el = (...ancestors: string[]) => ({ closest: (sel: string) => (sel.split(',').map(s => s.trim()).some(s => ancestors.includes(s)) ? {} : null) });
+
+  it('clears on blank screen or sketch-map background taps', () => {
+    expect(clearsSelection(el('main'))).toBe(true);
+    expect(clearsSelection(el('.it-map', 'svg'))).toBe(true);
+    expect(clearsSelection(el('h2'))).toBe(true);
+  });
+  it('keeps it on markers, controls, rows and the detail texts; Google map taps are left to the map itself', () => {
+    for (const keep of ['[role="button"]', 'button', 'label', 'input', '[role="tab"]', '.it-map-canvas', '.gd-pop', '.gd-detail', '.it-detail', '.it-stay', 'a']) {
+      expect(clearsSelection(el('main', keep))).toBe(false);
+    }
+    expect(clearsSelection(null)).toBe(false);
   });
 });

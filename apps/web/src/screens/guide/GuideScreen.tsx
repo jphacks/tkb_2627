@@ -69,6 +69,15 @@ export function GuideScreen({ route, geo, today, onBack }: { route: GuideRoute; 
   );
 }
 
+/**
+ * Taps that keep the current highlight: controls, markers, table rows and the detail texts. Taps inside the Google map
+ * canvas are left to its own click event, which fires only off the markers. Everything else clears (UI review on #35).
+ */
+const KEEP_SELECTION = 'button, a, input, label, select, textarea, summary, [role="button"], [role="tab"], .it-map-canvas, .gd-pop, .gd-detail, .it-detail, .it-stay';
+export function clearsSelection(target: { closest(selector: string): unknown } | null): boolean {
+  return target !== null && !target.closest(KEEP_SELECTION);
+}
+
 export function GuideView({ trip, mock, geo, today, initialAmenities = null, initialSelected = null, initialPickedAmenity = null, initialEnabled }: { trip: Trip; mock: boolean; geo: GeoLike | null; today: string; initialAmenities?: AmenitiesLoad | null; initialSelected?: string | null; initialPickedAmenity?: string | null; initialEnabled?: ReadonlySet<AmenityKind> }) {
   const [dayIndex, setDayIndex] = useState(() => currentDayIndex(trip, today));
   const day = trip.days[Math.min(dayIndex, Math.max(trip.days.length - 1, 0))];
@@ -121,6 +130,18 @@ export function GuideView({ trip, mock, geo, today, initialAmenities = null, ini
   const markers = useMemo(() => (amen?.state === 'ok' ? amenityMarkers(amen.items, enabled) : []), [amen, enabled]);
   const amenityPicked = markers.some(m => m.id === pickedAmenity) && amen?.state === 'ok' ? amen.items.find(i => i.id === pickedAmenity) ?? null : null;
 
+  // Tapping anywhere else on the screen or the map (or Escape) brings the highlight back to normal.
+  const clearSelection = useCallback(() => { setSelected(null); setPickedAmenity(null); }, []);
+  const hasSelection = selected !== null || pickedAmenity !== null;
+  useEffect(() => {
+    if (!hasSelection) return undefined;
+    const onClick = (e: MouseEvent) => { if (clearsSelection(e.target instanceof Element ? e.target : null)) clearSelection(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') clearSelection(); };
+    document.addEventListener('click', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('click', onClick); document.removeEventListener('keydown', onKey); };
+  }, [hasSelection, clearSelection]);
+
   return (
     <>
       {trip.places.some(p => p.dataStatus === 'fixture') && <p className="it-fixture" role="note"><strong>FIXTURE</strong> {FIXTURE_NOTICE}</p>}
@@ -139,7 +160,7 @@ export function GuideView({ trip, mock, geo, today, initialAmenities = null, ini
           <>
             <div className="gd-mapwrap">
               <MapPanel apiKey={readBrowserMapsKey()} points={points} highlighted={new Set(selected ? [selected] : [])} onSelectPlace={pick}
-                extraMarkers={markers} onSelectExtra={id => setPickedAmenity(p => (p === id ? null : id))} selectedExtraId={pickedAmenity} />
+                extraMarkers={markers} onSelectExtra={id => setPickedAmenity(p => (p === id ? null : id))} selectedExtraId={pickedAmenity} onMapBackground={clearSelection} />
               {amenityPicked && (
                 <div className="gd-pop" role="status" aria-label="選んだ施設">
                   <strong>{displayName(amenityPicked)}</strong> <span className="gd-kind">{AMENITY_KIND_LABEL[amenityPicked.kind]}</span>
