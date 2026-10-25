@@ -172,14 +172,15 @@ function TimeText({ text }: { text: string }) {
   return text.includes(UNKNOWN) ? <>{text.split(UNKNOWN).flatMap((part, i, a) => (i < a.length - 1 ? [part, <span key={i} className="u1-unknown">{UNKNOWN}</span>] : [part]))}</> : <>{text}</>;
 }
 
+/** Label/value pairs side by side, wrapping on narrow screens (compact, UI review on #32). */
 function DetailList({ lines, label }: { lines: DetailLine[]; label: string }) {
   return (
     <dl className="it-dl" aria-label={label}>
       {lines.map(l => (
-        <Fragment key={l.label}>
+        <div key={l.label} className="it-dlpair">
           <dt>{l.label}</dt>
           <dd>{l.unknown ? <span className="u1-unknown">{l.value}</span> : l.value}</dd>
-        </Fragment>
+        </div>
       ))}
     </dl>
   );
@@ -261,9 +262,10 @@ function ChildTableRow({ child }: { child: ChildRow }) {
 }
 
 /**
- * A travel leg is two thin rows: the start row (departure time + how) and the end row (arrival time). The place names are
- * the rows above and below, so they are only read out, not shown again. By transit the end row is a stay-sized row with
- * the stop you get off at, so the stays after it read as that stop's area. The time column needs no 出発/到着 words.
+ * A travel leg is two thin rows (start and end, R3) with one arrow drawn down through both (UI review on #32). No times:
+ * the stays above and below already show when the leg starts and ends (the details keep 出発/到着). The place names are
+ * the rows above and below, so they are only read out. By transit the end row is a stay-sized row with the stop you get
+ * off at, so the stays after it read as that stop's area.
  */
 function LegTableRows({ row, open, selected, dayDate, editable, onToggle }: { row: LegRow; open: boolean; selected: boolean; dayDate: string; editable: boolean; onToggle: () => void }) {
   const detailId = `it-d-${row.key}`;
@@ -273,11 +275,12 @@ function LegTableRows({ row, open, selected, dayDate, editable, onToggle }: { ro
     <>
       <tr className={`${cls} it-conn-start`} data-leg-key={row.key} data-row-key={`${row.key}:start`}>
         {editable && <td />}
-        <th scope="row" className="it-time"><TimeText text={row.departure} /></th>
-        <td>
+        <td className="it-time" />
+        <td className="it-conncell" rowSpan={stop ? 1 : 2}>
+          <span aria-hidden="true" className="it-arrowline" />
           <button type="button" className="it-connbtn" aria-expanded={open} aria-controls={detailId} onClick={onToggle}
             aria-label={`${row.fromName}から${row.toName}への移動：${row.summary}${row.stale ? '（要再計算）' : ''}`}>
-            <span aria-hidden="true" className="it-arrowbig">↓</span><span className="it-legmode">{row.summary}</span>
+            <span className="it-legmode">{row.summary}</span>
             {row.stale && <span className="it-stale-tag">要再計算</span>}
           </button>
         </td>
@@ -299,8 +302,7 @@ function LegTableRows({ row, open, selected, dayDate, editable, onToggle }: { ro
       ) : (
         <tr className={`${cls} it-conn-end`} data-leg-key={row.key} data-row-key={`${row.key}:end`}>
           {editable && <td />}
-          <th scope="row" className="it-time"><TimeText text={row.arrival} /></th>
-          <td />
+          <td className="it-time" />
         </tr>
       )}
       {open && (

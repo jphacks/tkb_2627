@@ -84,22 +84,19 @@ describe('B: table with one place per row and legs as two rows (R3)', () => {
     expect(rows.some(r => r.key === 'fx_act_lunch')).toBe(false);
   });
 
-  it('a leg is rendered as a start row (departure only) and an end row (arrival only), not as one "A → B" card', () => {
+  it('a leg is a start row and an end row with one arrow through both and no times (UI review on #32), not one "A → B" card', () => {
     const html = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
     expect(html).toContain('<table class="it-table"');
     expect(html).toContain('<th scope="col" class="it-col-time">時刻</th><th scope="col">内容</th>');
     const start = /<tr class="it-conn it-conn-start" data-leg-key="fx_leg_k2"[^>]*>(.*?)<\/tr>/.exec(html)?.[1] ?? '';
     const end = /<tr class="it-conn it-conn-end" data-leg-key="fx_leg_k2"[^>]*>(.*?)<\/tr>/.exec(html)?.[1] ?? '';
-    expect(text(start)).toContain('12:30');
-    expect(text(start)).not.toContain('出発');
+    expect(start).toContain('<td class="it-conncell" rowSpan="2"><span aria-hidden="true" class="it-arrowline"></span>');
     expect(text(start)).toContain('徒歩・15分');
     // The names are the rows above and below: read out, not repeated on screen (UI review on #33).
     expect(text(start)).not.toContain('近江町市場から');
     expect(start).toContain('aria-label="近江町市場から金沢城公園への移動：徒歩・15分"');
     expect(text(start)).not.toContain('→');
-    expect(text(end)).toContain('12:45');
-    expect(text(end)).not.toContain('到着');
-    expect(text(end)).not.toContain('金沢城公園へ');
+    expect(text(end)).toBe('');
     expect(text(start)).not.toContain('12:45');
     expect(text(end)).not.toContain('12:30');
     expect(html).not.toContain('近江町市場 → 金沢城公園');
@@ -147,21 +144,18 @@ describe('C: a stay opens one level with its nested activities by time (R2)', ()
 });
 
 describe('D: clicking shows details (description, time, cost, source)', () => {
-  it('stay details list time, kind, place, description, hours, cost and where each came from', () => {
+  it('stay details are compact: place, hours and cost only (UI review on #32: no time/kind again, no description or sources)', () => {
     const row = tableRows(day1, domesticTrip.places).find(r => r.kind === 'stay' && r.key === 'fx_act_kenrokuen') as StayRow;
     const d = Object.fromEntries(stayDetails(row).map(l => [l.label, l.value]));
-    expect(d['時間']).toBe('14:10〜15:30');
-    expect(d['説明']).toContain('日本三名園');
+    expect(Object.keys(d)).toEqual(['場所', '営業時間', '費用']);
     expect(d['営業時間']).toContain('7:00-18:00');
     expect(d['費用']).toContain('320');
-    expect(d['費用の出典']).toBe('サンプル（fixture）');
-    expect(d['地点の出典']).toContain('fixture');
   });
 
-  it('unknown description / cost are 未取得, not blank and not 0', () => {
+  it('unknown hours / cost are 未取得, not blank and not 0', () => {
     const row = tableRows(day1, domesticTrip.places).find(r => r.kind === 'stay' && r.key === 'fx_act_museum') as StayRow;
     const lines = stayDetails(row);
-    for (const label of ['説明', '営業時間', '費用']) {
+    for (const label of ['営業時間', '費用']) {
       const l = lines.find(x => x.label === label)!;
       expect(l.value).toBe('未取得');
       expect(l.unknown).toBe(true);

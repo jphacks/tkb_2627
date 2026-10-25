@@ -157,24 +157,27 @@ export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, m
     setExpanded(s => new Set([...s, ...keys]));
   }, [rows]);
 
+  // After a reorder the times are re-computed at once, so no stay keeps a time from its old place (UI review on #32).
   const commitMove = async (key: string, before: string | null) => {
     if (!day || !editor) return;
     const order = day.items.map(i => (i.type === 'activity' ? i.activityId : i.legId));
     const ops = planMoves(order, blockOf(day, key), before, idx);
     if (ops.length === 0) return;
     setNotice(null);
+    const moved = applyOperations(trip, ops);
+    if (!moved.ok) { setNotice({ kind: 'error', text: `並べ替えできませんでした（${moved.reason}）。` }); return; }
+    const r = recalcDay(moved.trip, idx);
+    const unknownNote = r.unknown > 0 ? `新しい組み合わせの移動 ${r.unknown}件は所要時間が不明のため、それ以降の時刻は未取得です。` : '';
     if (editor.kind === 'local') {
-      const r = applyOperations(trip, ops);
-      if (!r.ok) { setNotice({ kind: 'error', text: `並べ替えできませんでした（${r.reason}）。` }); return; }
       setHistory(h => [...h, { trip, dayIndex: idx }]);
-      setTrip({ ...r.trip, validationState: 'needs_revalidation' });
-      setNotice({ kind: 'info', text: '並べ替えました（候補の表示のみ・まだ保存していません）。「時刻を再計算」で時刻を合わせられます。' });
+      setTrip(r.trip);
+      setNotice({ kind: 'info', text: `並べ替えて時刻を計算し直しました（候補の表示のみ・まだ保存していません）。${unknownNote}` });
       return;
     }
-    const saved = await save(ops);
+    const saved = await save(opsToDay(day, r.trip.days[idx]!, idx));
     if (!saved) return;
     setHistory(h => [...h, { trip, dayIndex: idx }]);
-    setNotice({ kind: 'info', text: `並べ替えを保存しました（版 ${saved.revision}）。「時刻を再計算」で時刻を合わせられます。` });
+    setNotice({ kind: 'info', text: `並べ替えて時刻を計算し直し、保存しました（版 ${saved.revision}）。${unknownNote}` });
   };
 
   /** Saves K10 operations (server editor). Returns the saved trip, or null after showing the error. */

@@ -35,11 +35,13 @@ function tripWithItems(items: Trip['days'][number]['items']): Trip {
 }
 
 describe('unknown values are never shown as 0', () => {
-  it('a leg with null fare/duration/times renders 未取得 in its two rows and details, never 0', () => {
+  it('a leg with null fare/duration/times renders 未取得 in its row and details, never 0', () => {
     const trip = tripWithItems([unknownLeg()]);
     const html = render(<ItineraryView trip={trip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} initialExpanded={['leg_u']} />);
-    // Departure and arrival: the time column alone, no 出発/到着 words (UI review on #33).
-    expect((html.match(/<th scope="row" class="it-time"><span class="u1-unknown">未取得<\/span><\/th>/g) ?? []).length).toBe(2);
+    // No times on the leg rows (UI review on #32); the unknown duration shows in the row, the times in the details.
+    expect(html).toContain('<span class="it-legmode">公共交通・未取得</span>');
+    expect(html).toContain('<dt>出発</dt><dd><span class="u1-unknown">未取得</span>');
+    expect(html).toContain('<dt>到着</dt><dd><span class="u1-unknown">未取得</span>');
     expect(html).toContain('<dt>運賃</dt><dd><span class="u1-unknown">未取得</span>');
     expect(html).toContain('<dt>ホーム</dt><dd><span class="u1-unknown">未取得</span>');
     expect(html).not.toMatch(SHOWN_AS_ZERO);
@@ -136,7 +138,7 @@ describe('selection sync (R08)', () => {
       initialSelection={{ kind: 'place', placeId: 'fx_kenrokuen' }} initialExpanded={['fx_act_kenrokuen']} />);
     expect(html).toContain('aria-label="3. 兼六園（選択中）"'.replace('3.', String(mapPoints(domesticTrip.days[0]!, domesticTrip.places).find(p => p.placeId === 'fx_kenrokuen')!.number) + '.'));
     expect(html).toContain('class="it-stay it-on"');
-    expect(html).toContain('<dt>説明</dt><dd>（fixture）日本三名園の一つとされる庭園。');
+    expect(html).toContain('<dt>営業時間</dt><dd>（fixture）7:00-18:00');
   });
   it('places without a location are not put on the map (never at 0,0)', () => {
     const t = clone(domesticTrip);
