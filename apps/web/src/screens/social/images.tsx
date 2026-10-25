@@ -179,7 +179,7 @@ export function PostImages({ images }: { images: readonly PostImage[] | undefine
             onClick={() => setOpen(i)}
             style={{ ...cells[i], padding: 0, border: 0, background: '#eee', cursor: 'zoom-in', minHeight: 0, minWidth: 0 }}
           >
-            <img src={img.url} alt={`投稿の画像 ${i + 1}`} loading="lazy" style={imgFill} />
+            <img src={img.url} alt="投稿の画像" loading="lazy" style={imgFill} />
           </button>
         ))}
       </div>
@@ -193,7 +193,7 @@ export function PostImages({ images }: { images: readonly PostImage[] | undefine
         >
           <img
             src={current.url}
-            alt={`投稿の画像 ${open + 1}`}
+            alt="投稿の画像"
             onClick={e => e.stopPropagation()}
             style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
           />
