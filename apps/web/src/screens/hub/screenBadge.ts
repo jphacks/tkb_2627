@@ -21,5 +21,5 @@ export function screenFor(hash: string, pathname = '/'): ScreenInfo {
   if (hash === '#social') return { code: 'U08', name: 'SNS・グループ', issue: 36 };
   if (hash === '#u01') return { code: 'U01', name: '最初の試作（確認不要）', issue: null };
   if (hash === '#dev-shell') return { code: '開発用', name: '骨格（確認不要）', issue: null };
-  return { code: 'ホーム', name: '入口（確認不要）', issue: null };
+  return { code: 'U13', name: 'ホーム', issue: 218 };
 }

@@ -7,6 +7,7 @@ const MOCK_TRIP = 'fx_trip_kanazawa';
 const row = (code: string, name: string, href: string, issue: number): ReviewLink => ({ code, name, href, issueUrl: `${ISSUE_BASE}${issue}` });
 
 export const REVIEW_LINKS: ReviewLink[] = [
+  row('U13', 'ホーム', '#home', 218),
   row('U03', '条件入力', '#conditions', 31),
   row('U04', '地図と旅程', `#/mock/trips/${MOCK_TRIP}/map`, 32),
   row('U05', '旅行の計画（進捗・候補の比較・採用）', '#generate', 33),
