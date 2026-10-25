@@ -176,17 +176,6 @@ export function ConditionsView(props: ConditionsViewProps) {
         )}
       </div>
 
-      <div className="u1-checklist" role="group" aria-label="必須項目の入力状況">
-        <strong>必須項目</strong>
-        <ul>
-          {REQUIRED_FIELDS.map(k => (
-            <li key={k} className={result.missing.includes(k) ? 'u1-miss' : 'u1-done'}>
-              {result.missing.includes(k) ? '未入力' : '入力済み'}：{CONDITIONS_LABEL[k]}
-            </li>
-          ))}
-        </ul>
-      </div>
-
       {errorKeys.length > 0 && (
         <div role="alert" className="u1-error" tabIndex={-1}>
           <strong>入力内容を確認してください（{errorKeys.length}件）</strong>
@@ -385,6 +374,18 @@ export function ConditionsView(props: ConditionsViewProps) {
         </div>
       )}
 
+      {/* Next to the submit button, so what is still missing is seen where it is pressed (UI review on #33). */}
+      <div className="u1-checklist" role="group" aria-label="必須項目の入力状況">
+        <strong>必須項目</strong>
+        <ul>
+          {REQUIRED_FIELDS.map(k => (
+            <li key={k} className={result.missing.includes(k) ? 'u1-miss' : 'u1-done'}>
+              {result.missing.includes(k) ? '未入力' : '入力済み'}：{CONDITIONS_LABEL[k]}
+            </li>
+          ))}
+        </ul>
+      </div>
+
       <div className="u1-actions">
         <button type="submit" className="btn u1-primary" disabled={busy || aiUnavailable || accepted !== null}>
           {busy ? '送信中…' : aiUnavailable ? '候補を生成する（現在利用不可）' : '候補を生成する'}
@@ -395,6 +396,16 @@ export function ConditionsView(props: ConditionsViewProps) {
       <p className="meta">送信前の要求内容は契約K01（GenerateRequest）で検証します。食事の希望: 「{MEAL_PREFERENCE}」、散策の希望: 「{FREE_WALK_PREFERENCE}」として送ります。</p>
     </form>
   );
+}
+
+/** Scrolls to the first field showing an error and puts the cursor in its input (or the error summary if none). */
+export function focusFirstError(root: HTMLElement | null) {
+  const err = root?.querySelector('.u1-fielderr');
+  const field = err?.closest('.u1-field') ?? root?.querySelector<HTMLElement>('.u1-error');
+  if (!field) return;
+  const target = field.querySelector<HTMLElement>('input:not([type=hidden]), select, textarea') ?? (field as HTMLElement);
+  field.scrollIntoView?.({ block: 'center' });
+  target.focus?.({ preventScroll: true });
 }
 
 /** Stateful U03 screen. onStarted hands the accepted job to the next screen (U05 progress). */
@@ -410,6 +421,7 @@ export function ConditionsScreen({ api, onStarted, initialForm = defaultConditio
   const [capability, setCapability] = useState<CapabilityState>({ status: 'loading' });
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
+  const sectionRef = useRef<HTMLElement>(null);
   const [submitError, setSubmitError] = useState<ErrorInfo | null>(null);
   const [accepted, setAccepted] = useState<JobAccepted | null>(null);
   const keyFor = useRef<{ body: string; key: string } | null>(null);
@@ -449,7 +461,11 @@ export function ConditionsScreen({ api, onStarted, initialForm = defaultConditio
     setSubmitted(true);
     setSubmitError(null);
     const { request } = buildConditionsRequest(form, now);
-    if (!request) return;
+    if (!request) {
+      // Go back to the first field with an error (UI review on #33); the errors render on this same click.
+      requestAnimationFrame(() => focusFirstError(sectionRef.current));
+      return;
+    }
     if (capability.status === 'done' && !capability.data.aiGeneration.available) return;
     const body = JSON.stringify(request);
     // Same body -> same Idempotency-Key, so a retry after a network error never starts a second job.
@@ -470,7 +486,7 @@ export function ConditionsScreen({ api, onStarted, initialForm = defaultConditio
   };
 
   return (
-    <section aria-label="条件入力">
+    <section aria-label="条件入力" ref={sectionRef}>
       <ScreenHeader title="旅の条件を入力" />
       <ConditionsView form={form} onChange={f => { setForm(f); setAccepted(null); }} onSubmit={() => void submit()}
         onSearch={() => void runSearch()} searchArea={searchArea} onSearchAreaChange={setSearchArea} search={search}

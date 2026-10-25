@@ -18,8 +18,8 @@ type Step =
   | { name: 'compare'; batchId: string; request: GenerateRequest };
 
 /**
- * U05 flow (#generate): conditions (U03) stay on the page; below them progress (K02/K21) -> candidate compare (K07) ->
- * the U04 table + map of the first candidate -> apply (K08) -> U04 map link. Changing the conditions and generating again
+ * U05 flow (#generate): conditions (U03) stay on the page; below them progress (K02/K21) -> the U04 map + table of the
+ * first candidate -> a short candidate compare (K07) -> apply (K08) -> U04 map link. Changing the conditions and generating again
  * replaces the result below without leaving the page.
  * Mock mode shares ONE in-memory mock API between the screens so the accepted job can be polled.
  */
@@ -82,12 +82,13 @@ export function GenerateApp({ initialSource = 'mock' }: { initialSource?: DataSo
         )}
         {step.name === 'compare' && (
           <>
+            {/* The map comes first so it is in view right after generating; the short compare list follows (UI review on #33). */}
+            {batch && batch.batchId === step.batchId && <CandidatePreview batch={batch} constraints={step.request.constraints} />}
             <CompareScreen
               key={step.batchId} api={apis.flow} batchId={step.batchId} onBack={reset} onBatchLoaded={setBatch}
               mapHrefFor={tripId => itineraryHash({ mode: source === 'mock' ? 'mock' : 'server', tripId, dayIndex: 0 })}
               onApplied={href => openMap(href, window)}
             />
-            {batch && batch.batchId === step.batchId && <CandidatePreview batch={batch} constraints={step.request.constraints} />}
           </>
         )}
         </div>

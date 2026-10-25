@@ -212,7 +212,7 @@ export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, m
               <AttributionBlock attribution={attribution} mapShown={mapsKey !== null} />
             </div>
             <div className="it-tablecol">
-              {editable && <p className="meta it-hint">左の「⠿」をドラッグ（またはEnterで持ち上げて↑↓キー、Enterで置く）で並べ替えられます。行を押すと詳細が開きます。</p>}
+              {editable && <p className="meta it-hint">左端の「⠿」をドラッグで並べ替え（キーボードは Enter→↑↓→Enter）。行を押すと詳細。</p>}
               {saving && <p role="status" className="u1-loading">並べ替えを保存中…</p>}
               {notice && <p role={notice.kind === 'error' ? 'alert' : 'status'} className={notice.kind === 'error' ? 'it-notice it-error' : 'it-notice'}>{notice.text}</p>}
               <ItineraryTable key={idx} rows={rows} dayDate={day.date} expanded={expanded} selectedKeys={sync?.itemKeys}
