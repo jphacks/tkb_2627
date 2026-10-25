@@ -49,6 +49,28 @@ function loadMaps(key: string): Promise<MapsLibs> {
   return loading;
 }
 
+/**
+ * Optional extra markers (e.g. U07 amenities: toilets, evacuation sites). Not numbered and not part of the route line.
+ * `shape` + `glyph` + `color` make kinds distinguishable without relying on colour alone.
+ */
+export interface ExtraMarker {
+  id: string;
+  lat: number;
+  lng: number;
+  title: string;
+  shape: 'square' | 'triangle' | 'diamond';
+  glyph: string;
+  color: string;
+}
+const SHAPE_PATH: Record<ExtraMarker['shape'], string> = {
+  square: 'M-8,-8 L8,-8 L8,8 L-8,8 z',
+  triangle: 'M0,-10 L10,8 L-10,8 z',
+  diamond: 'M0,-11 L11,0 L0,11 L-11,0 z',
+};
+function extraIcon(m: ExtraMarker, selected: boolean) {
+  return { path: SHAPE_PATH[m.shape], scale: selected ? 1.4 : 1, fillColor: m.color, fillOpacity: 1, strokeColor: selected ? '#111827' : '#ffffff', strokeWeight: 2 };
+}
+
 const NORMAL_COLOR = '#2563eb';
 const HIGHLIGHT_COLOR = '#d97706';
 function icon(highlighted: boolean) {
@@ -75,25 +97,35 @@ export function chooseMapMode(apiKey: string | null, origin: string | null, fail
   return { kind: 'google', apiKey };
 }
 
-export function MapPanel({ apiKey, points, highlighted, onSelectPlace }: {
+export function MapPanel({ apiKey, points, highlighted, onSelectPlace, extraMarkers, onSelectExtra, selectedExtraId }: {
   apiKey: string | null;
   points: MapPoint[];
   highlighted: ReadonlySet<string>;
   onSelectPlace: (placeId: string) => void;
+  extraMarkers?: readonly ExtraMarker[];
+  onSelectExtra?: (id: string) => void;
+  selectedExtraId?: string | null;
 }) {
+  const extra = { ...(extraMarkers ? { extraMarkers } : {}), ...(onSelectExtra ? { onSelectExtra } : {}), selectedExtraId: selectedExtraId ?? null };
   const [failed, setFailed] = useState<string | null>(null);
   const mode = chooseMapMode(apiKey, typeof location !== 'undefined' ? location.origin : null, failed);
-  if (mode.kind === 'sketch') return <StaticMap points={points} highlighted={highlighted} onSelectPlace={onSelectPlace} reason={mode.reason} />;
-  return <LiveMap apiKey={mode.apiKey} points={points} highlighted={highlighted} onSelectPlace={onSelectPlace} onError={setFailed} />;
+  if (mode.kind === 'sketch') return <StaticMap points={points} highlighted={highlighted} onSelectPlace={onSelectPlace} reason={mode.reason} {...extra} />;
+  return <LiveMap apiKey={mode.apiKey} points={points} highlighted={highlighted} onSelectPlace={onSelectPlace} onError={setFailed} {...extra} />;
 }
 
-function LiveMap({ apiKey, points, highlighted, onSelectPlace, onError }: {
+function LiveMap({ apiKey, points, highlighted, onSelectPlace, onError, extraMarkers, onSelectExtra, selectedExtraId }: {
   apiKey: string;
   points: MapPoint[];
   highlighted: ReadonlySet<string>;
   onSelectPlace: (placeId: string) => void;
   onError: (msg: string) => void;
+  extraMarkers?: readonly ExtraMarker[];
+  onSelectExtra?: (id: string) => void;
+  selectedExtraId: string | null;
 }) {
+  const extraRefs = useRef(new Map<string, GMarker>());
+  const selectExtra = useRef(onSelectExtra);
+  selectExtra.current = onSelectExtra;
   const el = useRef<HTMLDivElement>(null);
   const [libs, setLibs] = useState<MapsLibs | null>(null);
   const map = useRef<GMap | null>(null);
@@ -145,6 +177,27 @@ function LiveMap({ apiKey, points, highlighted, onSelectPlace, onError }: {
       line?.setMap(null);
     };
   }, [libs, points]);
+
+  // Extra markers (amenities): distinct shape, glyph and colour per kind; clicking shows their detail.
+  useEffect(() => {
+    if (!libs || !map.current || !extraMarkers) return undefined;
+    const m = map.current;
+    const created = new Map<string, GMarker>();
+    for (const x of extraMarkers) {
+      const mk = new libs.Marker({ map: m, position: { lat: x.lat, lng: x.lng }, label: { text: x.glyph, color: '#ffffff', fontWeight: '700', fontSize: '11px' }, title: x.title, icon: extraIcon(x, false), zIndex: 1 });
+      mk.addListener('click', () => selectExtra.current?.(x.id));
+      created.set(x.id, mk);
+    }
+    extraRefs.current = created;
+    return () => { created.forEach(mk => mk.setMap(null)); };
+  }, [libs, points, extraMarkers]);
+  useEffect(() => {
+    for (const x of extraMarkers ?? []) {
+      const mk = extraRefs.current.get(x.id);
+      mk?.setIcon(extraIcon(x, x.id === selectedExtraId));
+      mk?.setZIndex(x.id === selectedExtraId ? 900 : 1);
+    }
+  }, [libs, points, extraMarkers, selectedExtraId]);
 
   // Selection sync: restyle markers and pan to the first highlighted one.
   useEffect(() => {
@@ -213,13 +266,20 @@ export function segmentArrows(pts: readonly Projected[]): { x: number; y: number
  * Fallback without Google: the same numbered points and arrowed route drawn schematically (not a real map).
  * Points are clickable and keyboard operable; selecting one syncs with the itinerary table.
  */
-export function StaticMap({ points, highlighted, onSelectPlace, reason }: {
+export function StaticMap({ points, highlighted, onSelectPlace, reason, extraMarkers, onSelectExtra, selectedExtraId }: {
   points: MapPoint[];
   highlighted: ReadonlySet<string>;
   onSelectPlace: (placeId: string) => void;
   reason: string;
+  extraMarkers?: readonly ExtraMarker[];
+  onSelectExtra?: (id: string) => void;
+  selectedExtraId?: string | null;
 }) {
-  const pts = projectPoints(points);
+  // Extras are projected together with the points so they share one frame; without extras this is the plain projection.
+  const extras = extraMarkers ?? [];
+  const all = projectPoints([...points, ...extras.map((x, i): MapPoint => ({ placeId: x.id, number: -(i + 1), name: x.title, lat: x.lat, lng: x.lng }))]);
+  const pts = all.slice(0, points.length);
+  const extraPts = all.slice(points.length);
   const arrows = segmentArrows(pts);
   return (
     <div className="it-map it-map-static" data-testid="map-fallback">
@@ -243,6 +303,20 @@ export function StaticMap({ points, highlighted, onSelectPlace, reason }: {
                 <circle cx={p.x} cy={p.y} r={on ? 14 : 11} />
                 <text x={p.x} y={p.y + 4} textAnchor="middle" className="it-node-num">{p.number}</text>
                 <text x={p.x} y={p.y - 17} textAnchor="middle" className="it-node-name">{p.name.length > 9 ? `${p.name.slice(0, 8)}…` : p.name}</text>
+              </g>
+            );
+          })}
+          {extras.map((x, i) => {
+            const p = extraPts[i]!;
+            const on = x.id === selectedExtraId;
+            const k = on ? 1.35 : 1;
+            return (
+              <g key={x.id} className={`it-extra${on ? ' it-on' : ''}`} data-testid="extra-marker" data-extra-kind={x.glyph} role="button" tabIndex={0} aria-pressed={on}
+                aria-label={`${x.title}${on ? '（選択中）' : ''}`}
+                onClick={() => onSelectExtra?.(x.id)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectExtra?.(x.id); } }}>
+                <path d={SHAPE_PATH[x.shape]} transform={`translate(${p.x} ${p.y}) scale(${k})`} fill={x.color} />
+                <text x={p.x} y={p.y + 4} textAnchor="middle" className="it-node-num" style={{ fontSize: 10 }}>{x.glyph}</text>
               </g>
             );
           })}
