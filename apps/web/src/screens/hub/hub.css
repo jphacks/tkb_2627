@@ -27,3 +27,14 @@
 .hub-review-list li{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
 .hub-review-open{min-height:44px;display:inline-flex;align-items:center;padding:0 12px;border-radius:8px;background:#eaf0f4;color:inherit;text-decoration:none}
 .hub-review-issue{font-size:13px}
+
+/* Global navigation bar (above every screen except home) */
+.nav-bar { position: sticky; top: 0; z-index: 50; background: var(--card); border-bottom: 1px solid var(--line); }
+.nav-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; max-width: 960px; margin: 0 auto; }
+.nav-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: 22px; border: 1px solid var(--line); color: var(--fg); text-decoration: none; font-weight: 700; background: var(--card); }
+.nav-title { flex: 1; text-align: center; font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-tabs { display: flex; max-width: 960px; margin: 0 auto; padding: 0 8px 6px; gap: 4px; }
+.nav-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 4px; border-radius: 8px; border: 1px solid var(--line); color: var(--fg); text-decoration: none; font-size: 14px; }
+.nav-tab-cur { background: var(--acc); color: #fff; border-color: var(--acc); font-weight: 700; }
+.nav-btn:focus-visible, .nav-tab:focus-visible { outline: 3px solid #e0a100; outline-offset: 2px; }
+@media print { .nav-bar { display: none; } }
