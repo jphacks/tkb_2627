@@ -285,6 +285,22 @@ export function hoverTarget(stayKeys: readonly string[], shown: readonly string[
   return result.every((k, j) => k === stayKeys[j]) ? undefined : before;
 }
 
+/**
+ * The stay to insert before for a pointer at page height `y`, decided on the rows as they were when the drag started
+ * (`tops`: the page top of each stay, in `stayKeys` order) and on the direction of the move (UI review on #34). Entering
+ * any part of the next stay's band (its row, its details or the leg after it) is enough: moving down puts the dragged
+ * stay after the stay under the pointer, moving up puts it before. undefined: back over its own band (no move).
+ * Reading the start-of-drag rows (not the rows on screen, which already move) keeps the result from flipping back.
+ */
+export function bandTarget(stayKeys: readonly string[], tops: readonly number[], dragged: string, y: number): string | null | undefined {
+  const d = stayKeys.indexOf(dragged);
+  if (d < 0 || tops.length !== stayKeys.length) return undefined;
+  let j = 0;
+  for (let i = 0; i < tops.length; i++) if (tops[i]! <= y) j = i;
+  if (j === d) return undefined;
+  return j > d ? stayKeys[j + 1] ?? null : stayKeys[j]!;
+}
+
 /** Rows in a new stay order: each stay keeps the legs that follow it (legs before the first stay stay first). */
 export function previewRows(rows: readonly TableRow[], order: readonly string[]): TableRow[] {
   const lead: TableRow[] = [];

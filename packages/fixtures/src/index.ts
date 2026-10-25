@@ -166,15 +166,24 @@ export const domesticTrip: Trip = {
         }),
         leg('fx_leg_k2', 'fx_omicho', 'fx_kanazawa_castle', 'walk', JST, t(D1, '12:30'), t(D1, '12:45')),
         activity('fx_act_castle', '金沢城公園', 'visit', JST, t(D1, '12:45'), t(D1, '14:00'), { placeId: 'fx_kanazawa_castle' }),
+        // What is done inside a sight, as nested activities (UI review on #34). Sample only: no source gives these.
+        activity('fx_act_castle_gate', '石川門から入る', 'visit', JST, t(D1, '12:45'), t(D1, '13:05'), { parentActivityId: 'fx_act_castle' }),
+        activity('fx_act_castle_yagura', '菱櫓・五十間長屋を見学', 'visit', JST, t(D1, '13:05'), t(D1, '13:40'), { parentActivityId: 'fx_act_castle' }),
+        activity('fx_act_castle_garden', '玉泉院丸庭園を歩く', 'visit', JST, t(D1, '13:40'), t(D1, '14:00'), { parentActivityId: 'fx_act_castle' }),
         leg('fx_leg_k3', 'fx_kanazawa_castle', 'fx_kenrokuen', 'walk', JST, t(D1, '14:00'), t(D1, '14:10')),
         activity('fx_act_kenrokuen', '兼六園を散策', 'visit', JST, t(D1, '14:10'), t(D1, '15:30'), {
           placeId: 'fx_kenrokuen', cost: yen(320),
         }),
+        activity('fx_act_kenrokuen_pond', '霞ヶ池と徽軫灯籠を見る', 'visit', JST, t(D1, '14:10'), t(D1, '14:40'), { parentActivityId: 'fx_act_kenrokuen' }),
+        activity('fx_act_kenrokuen_pine', '根上松と花見橋を歩く', 'visit', JST, t(D1, '14:40'), t(D1, '15:05'), { parentActivityId: 'fx_act_kenrokuen' }),
+        activity('fx_act_kenrokuen_rest', '時雨亭で休憩', 'custom', JST, t(D1, '15:05'), t(D1, '15:30'), { parentActivityId: 'fx_act_kenrokuen' }),
         leg('fx_leg_k4', 'fx_kenrokuen', 'fx_21c_museum', 'walk', JST, t(D1, '15:30'), t(D1, '15:45')),
         activity('fx_act_museum', '金沢21世紀美術館', 'visit', JST, t(D1, '15:45'), t(D1, '17:15'), {
           placeId: 'fx_21c_museum',
           // Admission unknown in fixture: stays null, never 0.
         }),
+        activity('fx_act_museum_free', '無料ゾーンの作品を見る', 'visit', JST, t(D1, '15:45'), t(D1, '16:30'), { parentActivityId: 'fx_act_museum' }),
+        activity('fx_act_museum_exhibit', '展覧会ゾーンを見る', 'visit', JST, t(D1, '16:30'), t(D1, '17:15'), { parentActivityId: 'fx_act_museum' }),
         leg('fx_leg_k5', 'fx_21c_museum', 'fx_dinner', 'walk', JST, t(D1, '17:15'), t(D1, '17:25')),
         // Times follow the legs: 17:15 + walk 10 min = 17:25 arrival = dinner start.
         activity('fx_act_dinner', '香林坊で夕食', 'meal', JST, t(D1, '17:25'), t(D1, '19:00'), { placeId: 'fx_dinner' }),

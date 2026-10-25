@@ -45,7 +45,7 @@
 /* UI review on #32: the time and the handle sit in the middle of their row (more specific than the rule above). */
 .it-table .it-time, .it-table .it-handlecell, .it-subtable .it-time { vertical-align: middle; }
 .it-table > thead th, .it-subtable > thead th { font-size: 12px; color: var(--mut); font-weight: 600; padding: 2px 6px; border-bottom: 1px solid var(--line); }
-.it-col-time { width: 7.2em; }
+.it-col-time { width: 8em; }
 .it-col-handle, .it-handlecell { width: 48px; }
 .it-handlecell { position: relative; padding: 0; }
 /* UI review on #33: the big rows (stays and transit stops) carry the blue edge; the arrow rows carry none. */
@@ -61,13 +61,13 @@
 .it-arrowline::after { content: ''; position: absolute; left: -5px; bottom: -8px; border: 6.5px solid transparent; border-top: 9px solid var(--mut); border-bottom: 0; }
 .it-conn-end > .it-time { height: 14px; padding: 0; }
 .it-dragnote { position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 20; margin: 0; box-shadow: 0 2px 10px rgba(0, 0, 0, .25); padding: 6px 10px; font-size: 14px; font-weight: 600; border-radius: 6px; background: var(--accbg); border: 1px solid #2563eb; }
-.it-time { width: 7.2em; padding: 8px 6px; vertical-align: middle; font-size: 13px; font-weight: 700; color: var(--mut); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.it-time { width: 8em; padding: 8px 6px 8px 12px; vertical-align: middle; font-size: 13px; font-weight: 700; color: var(--mut); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .it-stay > th, .it-stay > td { border-top: 1px solid var(--line); background: var(--card); }
 .it-stay.it-on > th, .it-stay.it-on > td { background: var(--warnbg); box-shadow: inset 0 0 0 0 transparent; }
 .it-stay.it-on > td { outline: 3px solid #d97706; outline-offset: -3px; }
 .it-stay.it-dragging > th, .it-stay.it-dragging > td { background: var(--accbg); border-top: 2px solid #2563eb; border-bottom: 2px solid #2563eb; }
 .it-stay.it-dragging { box-shadow: 0 6px 16px rgba(0, 0, 0, .18); position: relative; z-index: 1; }
-.it-cell { display: flex; align-items: stretch; gap: 4px; }
+.it-cell { display: flex; align-items: center; gap: 4px; }
 /* UI review on #34: the dashed handle box fills the whole cell, so it is exactly as tall as the row's blue left bar (the cell's border). */
 .it-handle { position: absolute; inset: 0; width: auto; min-height: 44px; margin: 0; padding: 0; font: inherit; font-size: 18px; line-height: 1; color: var(--mut); background: transparent; border: 1px dashed var(--mut); border-left: 0; border-radius: 0; cursor: grab; touch-action: none; user-select: none; }
 .it-handle[aria-pressed="true"] { cursor: grabbing; background: var(--warnbg); border-color: #d97706; }
@@ -98,8 +98,9 @@
 .it-attr p { margin: 2px 0; }
 .it-google { color: var(--fg); }
 
-.it-extra { padding: 4px 0 8px 36px; }
-.it-extra .ed-actions { margin: 0; }
+/* Row controls (delete, completed...) sit beside the name (UI review on #34); they wrap on narrow screens. */
+.it-rowextra { flex: none; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 50%; padding-right: 4px; }
+.it-rowextra .ed-actions { margin: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
 .it-editbar { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
 .it-editbar .btn { min-height: 44px; }
 
