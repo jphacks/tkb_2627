@@ -8,12 +8,12 @@ const render = (hash: string, pathname = '/') => renderRaw(<NavBar hash={hash} p
 
 describe('trip tabs', () => {
   it('keeps mode and trip id, in order', () => {
-    expect(tripTabs('#/trips/t1/map').map((t) => t.href)).toEqual(['#/trips/t1/map', '#/trips/t1/edit', '#/trips/t1/travel', '#/trips/t1/guide', '#/trips/t1/print']);
+    expect(tripTabs('#/trips/t1/map').map((t) => t.href)).toEqual(['#/trips/t1/map', '#/trips/t1/edit', '#/trips/t1/travel', '#/trips/t1/guide']);
     expect(tripTabs('#/mock/trips/fx_trip_kanazawa/guide').map((t) => t.href)[0]).toBe('#/mock/trips/fx_trip_kanazawa/map');
-    expect(tripTabs('#/mock/trips/x/edit').map((t) => t.label)).toEqual(['地図', '編集', '旅行中', 'ガイド', 'しおり']);
+    expect(tripTabs('#/mock/trips/x/edit').map((t) => t.label)).toEqual(['地図', '編集', '旅行中', 'ガイド']);
   });
   it('marks exactly the current tab', () => {
-    for (const k of ['map', 'edit', 'travel', 'guide', 'print']) {
+    for (const k of ['map', 'edit', 'travel', 'guide']) {
       const cur = tripTabs(`#/trips/t1/${k}`).filter((t) => t.current);
       expect(cur.map((t) => t.key)).toEqual([k]);
     }
@@ -50,5 +50,13 @@ describe('back', () => {
     expect(nextDepth(-1, undefined)).toBe(0);
     expect(nextDepth(0, undefined)).toBe(1);
     expect(nextDepth(3, 1)).toBe(1);
+  });
+});
+
+describe('しおり is not offered (user decision on #37)', () => {
+  it('no trip tab and no hub link point to the print screen', async () => {
+    const { REVIEW_LINKS } = await import('./reviewLinks.ts');
+    expect(tripTabs('#/trips/t1/map').some((t) => t.href.endsWith('/print') || t.label.includes('しおり'))).toBe(false);
+    expect(REVIEW_LINKS.some((l) => l.href.endsWith('/print'))).toBe(false);
   });
 });

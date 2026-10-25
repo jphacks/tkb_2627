@@ -15,6 +15,5 @@ export function tripLinks(tripId: string) {
     { key: 'edit', label: '編集', href: `${base}/edit` },
     { key: 'travel', label: '旅行中', href: `${base}/travel` },
     { key: 'guide', label: 'ガイド', href: `${base}/guide` },
-    { key: 'print', label: 'しおり印刷', href: `${base}/print` },
   ] as const;
 }

@@ -43,7 +43,7 @@ describe('trip list', () => {
   it('links every trip to its screens with correct hashes', () => {
     const html = render(<TripsView state={ready([trip('t_1'), trip('t_2')], 'c')} onMore={noop} onRetry={noop} />);
     for (const id of ['t_1', 't_2']) {
-      for (const s of ['map', 'edit', 'travel', 'guide', 'print']) expect(html).toContain(`href="#/trips/${id}/${s}"`);
+      for (const s of ['map', 'edit', 'travel', 'guide']) expect(html).toContain(`href="#/trips/${id}/${s}"`);
     }
     expect(html).toContain('もっと見る');
     expect(html).toContain('旅t_1');

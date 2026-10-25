@@ -15,7 +15,6 @@ const TABS: ReadonlyArray<{ key: TripTabKey; label: string }> = [
   { key: 'edit', label: '編集' },
   { key: 'travel', label: '旅行中' },
   { key: 'guide', label: 'ガイド' },
-  { key: 'print', label: 'しおり' },
 ];
 
 const TRIP_RE = /^#\/(mock\/)?trips\/([^/?]+)\/(map|edit|travel|guide|print)(?:[?/].*)?$/;
