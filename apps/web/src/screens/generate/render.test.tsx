@@ -63,7 +63,7 @@ describe('candidate rendering', () => {
     const out = html(<SummaryCard summary={summarizeCandidate(cand(), [])} index={0} busy={false} onAdopt={noop} />);
     expect(out).toContain('既知の費用');
     expect(out).toContain('不明');
-    expect(out).toContain('不明あり');
+    expect(out).toContain('不明の項目あり・0円ではありません');
     expect(out).not.toMatch(/[￥¥]\s?0\b/);
     expect(out).toContain('理由1');
     expect(out).toContain('注意1');

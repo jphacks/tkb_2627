@@ -3,7 +3,7 @@ import { renderToString as renderRaw } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { Capabilities } from '@tkb/contracts';
 import { kanazawaPlaces } from '@tkb/fixtures';
-import { ConditionsView, PlaceCard, type ConditionsViewProps } from './ConditionsScreen.tsx';
+import { ConditionsView, PlaceCard, focusFirstError, type ConditionsViewProps } from './ConditionsScreen.tsx';
 import { ConditionsApp } from './ConditionsApp.tsx';
 import { addMustVisit, emptyConditions, sampleConditions, setModeForDate } from './model.ts';
 
@@ -36,6 +36,23 @@ const render = (p: Partial<ConditionsViewProps>) => renderToString(<ConditionsVi
 const kenrokuen = kanazawaPlaces.find(p => p.placeId === 'fx_kenrokuen')!;
 
 describe('U03 screen rendering', () => {
+  it('puts the required-field checklist just above the generate button, after the fields (UI review on #33)', () => {
+    const html = render({ form: emptyConditions });
+    const list = html.indexOf('aria-label="必須項目の入力状況"');
+    expect(list).toBeGreaterThan(html.indexOf('id="u3-area"'));
+    expect(list).toBeLessThan(html.indexOf('type="submit"'));
+  });
+
+  it('after a failed submit, scrolls to the first field with an error and puts the cursor in it', () => {
+    const calls: string[] = [];
+    const input = { focus: () => calls.push('focus') };
+    const field = { scrollIntoView: () => calls.push('scroll'), querySelector: () => input };
+    const root = { querySelector: (sel: string) => (sel === '.u1-fielderr' ? { closest: () => field } : null) };
+    focusFirstError(root as unknown as HTMLElement);
+    expect(calls).toEqual(['scroll', 'focus']);
+    expect(() => focusFirstError(null)).not.toThrow();
+  });
+
   it('shows missing fields and, after submit, the error summary', () => {
     const html = render({ form: emptyConditions, submitted: true });
     expect(html).toContain('未入力');

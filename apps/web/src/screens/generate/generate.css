@@ -1,10 +1,11 @@
-/* U05: candidates stacked on mobile, side by side from 720px. */
-.u5-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
-@media (min-width: 720px) { .u5-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
+/* U05: candidates stacked one per row on every width (UI review on #33). */
+.u5-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.u5-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.u5-card-head .u1-cand-title { margin: 0; }
 .u5-card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .u5-card p { margin: 2px 0; }
 .u5-card .note ul, .u5-card ul { margin: 4px 0 0; padding-left: 18px; }
-.u5-card button.btn { margin-top: auto; }
+.u5-card button.btn { align-self: flex-start; }
 .u5-progress progress { width: 100%; max-width: 480px; }
 .u5-done a.btn { display: inline-block; text-decoration: none; margin-top: 6px; }
 

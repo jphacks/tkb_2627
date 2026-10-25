@@ -72,7 +72,8 @@ export interface LegRow {
 export type TableRow = StayRow | LegRow;
 
 export function legSummary(leg: TravelLeg): string {
-  return `${LEG_MODE_LABEL[leg.mode]}・${formatDuration(leg.durationSeconds)}・運賃 ${formatMoney(leg.fare)}`;
+  // An unknown fare is shown in the details only, not on every row (UI review on #33).
+  return `${LEG_MODE_LABEL[leg.mode]}・${formatDuration(leg.durationSeconds)}${leg.fare === null ? '' : `・運賃 ${formatMoney(leg.fare)}`}`;
 }
 
 /** Rows of one day in display order. Children are attached to their parent; an orphaned child is shown as its own stay. */

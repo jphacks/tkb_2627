@@ -44,6 +44,11 @@
 .it-table th, .it-table td, .it-subtable th, .it-subtable td { text-align: left; vertical-align: top; padding: 0; }
 .it-table > thead th, .it-subtable > thead th { font-size: 12px; color: var(--mut); font-weight: 600; padding: 2px 6px; border-bottom: 1px solid var(--line); }
 .it-col-time { width: 7.2em; }
+.it-col-handle, .it-handlecell { width: 48px; }
+.it-handlecell { padding: 2px 2px 2px 0; }
+.it-conn-area td { padding: 4px 6px; }
+.it-stop { display: inline-block; font-weight: 700; padding: 2px 8px; border-left: 4px solid #2563eb; background: var(--accbg); border-radius: 4px; }
+.it-stop .meta { font-weight: 400; margin-left: 4px; }
 .it-time { width: 7.2em; padding: 8px 6px; font-size: 13px; font-weight: 700; color: var(--mut); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .it-tm { font-weight: 400; font-size: 12px; }
 .it-stay > th, .it-stay > td { border-top: 1px solid var(--line); background: var(--card); }

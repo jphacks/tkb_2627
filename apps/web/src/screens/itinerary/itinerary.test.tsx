@@ -98,6 +98,17 @@ describe('transit details (R05)', () => {
     const html = render(<ItineraryView trip={trip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} initialExpanded={['leg_u']} />);
     for (const s of ['北鉄バス', '金沢駅東口', '兼六園下', '香林坊', '1回']) expect(html).toContain(s);
   });
+  it('by transit the end row names the stop you get off at, as the head of the stays after it (UI review on #33)', () => {
+    const trip = tripWithItems([unknownLeg({ transit: { boardingStop: '金沢駅東口', alightingStop: '兼六園下', transferStops: [] } })]);
+    const html = render(<ItineraryView trip={trip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
+    const end = /<tr class="it-conn it-conn-end it-conn-area"[^>]*>(.*?)<\/tr>/.exec(html)?.[1] ?? '';
+    expect(end).toContain('<span class="it-stop">兼六園下<span class="meta">で降車</span></span>');
+  });
+  it('an unknown stop is shown as 不明, never guessed', () => {
+    const html = render(<ItineraryView trip={tripWithItems([unknownLeg({})])} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
+    expect(html).toContain('降車する駅・停留所：<span class="u1-unknown">不明</span>');
+    expect(html).not.toContain('class="it-stop"');
+  });
 });
 
 describe('selection sync (R08)', () => {

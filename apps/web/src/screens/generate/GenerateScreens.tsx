@@ -183,27 +183,27 @@ export function SummaryCard({ summary, index, busy, onAdopt }: {
   onAdopt: (candidateId: string) => void;
 }) {
   const s = summary;
+  const details = s.warnings.length + s.reasons.length + s.excluded.length;
   return (
     <article className="u5-card" aria-labelledby={`u5-${s.candidateId}`}>
-      <p className="meta">候補 {index + 1}</p>
-      <h2 id={`u5-${s.candidateId}`} className="u1-cand-title">{s.title}</h2>
-      <p><span className={`u1-state u1-state-${s.validationState}`}>{VALIDATION_LABEL[s.validationState]}</span></p>
-      <p className="meta">{s.days}日 / 予定 {s.activityCount}件</p>
+      <div className="u5-card-head">
+        <h2 id={`u5-${s.candidateId}`} className="u1-cand-title">候補 {index + 1}：{s.title}</h2>
+        <span className={`u1-state u1-state-${s.validationState}`}>{VALIDATION_LABEL[s.validationState]}</span>
+      </div>
       <p className="meta">
-        移動時間（既知の合計）: {s.durationSeconds === null ? UNKNOWN_LABEL : formatDuration(s.durationSeconds)}
+        {s.days}日・予定 {s.activityCount}件・移動 {s.durationSeconds === null ? UNKNOWN_LABEL : formatDuration(s.durationSeconds)}
         {s.durationSeconds !== null && s.durationPartial ? '（一部不明）' : ''}
+        ・既知の費用 <MoneyTotals totals={s.totals} />{s.hasUnknownCost ? `（${UNKNOWN_LABEL}の項目あり・0円ではありません）` : ''}
       </p>
-      <p className="u1-costline">既知の費用: <strong><MoneyTotals totals={s.totals} /></strong></p>
-      {s.hasUnknownCost && <p className="meta">費用が{UNKNOWN_LABEL}の項目を含みます（不明あり）。上の金額には含まれておらず、0円ではありません。</p>}
-      {s.warnings.length > 0 && (
-        <div className="note" aria-label="警告"><strong>警告</strong><ul>{s.warnings.map(w => <li key={w}>{w}</li>)}</ul></div>
-      )}
-      {s.reasons.length > 0 && (
-        <details className="u1-details" open><summary>この候補の理由（{s.reasons.length}件）</summary><ul>{s.reasons.map(r => <li key={r}>{r}</li>)}</ul></details>
-      )}
-      {s.excluded.length > 0 && (
-        <details className="u1-details"><summary>除外された場所（{s.excluded.length}件）</summary>
-          <ul>{s.excluded.map(x => <li key={x.placeId}>{x.name ?? `${UNKNOWN_LABEL}の場所（${x.placeId}）`}<br /><span className="meta">理由: {x.reason ?? `${UNKNOWN_LABEL}（記録なし）`}</span></li>)}</ul>
+      {details > 0 && (
+        <details className="u1-details">
+          <summary>詳しく（警告 {s.warnings.length}件・理由 {s.reasons.length}件・除外 {s.excluded.length}件）</summary>
+          {s.warnings.length > 0 && <div className="note" aria-label="警告"><strong>警告</strong><ul>{s.warnings.map(w => <li key={w}>{w}</li>)}</ul></div>}
+          {s.reasons.length > 0 && <><strong>この候補の理由</strong><ul>{s.reasons.map(r => <li key={r}>{r}</li>)}</ul></>}
+          {s.excluded.length > 0 && (
+            <><strong>除外された場所</strong>
+              <ul>{s.excluded.map(x => <li key={x.placeId}>{x.name ?? `${UNKNOWN_LABEL}の場所（${x.placeId}）`}<br /><span className="meta">理由: {x.reason ?? `${UNKNOWN_LABEL}（記録なし）`}</span></li>)}</ul></>
+          )}
         </details>
       )}
       <button type="button" className="btn u1-primary" disabled={busy || !s.adoptable} onClick={() => onAdopt(s.candidateId)}>
@@ -228,7 +228,7 @@ export interface CompareViewProps {
   onBack: () => void;
 }
 
-/** Presentational: candidates side by side on wide screens, stacked on mobile. */
+/** Presentational: candidates stacked one per row, short, with the details folded (UI review on #33). */
 export function CompareView(p: CompareViewProps) {
   return (
     <section aria-label="候補の比較">
