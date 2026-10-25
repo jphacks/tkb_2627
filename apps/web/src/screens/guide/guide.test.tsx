@@ -233,6 +233,16 @@ describe('U07 review (M2): map markers, no explanatory texts, itinerary under th
     expect(html).not.toContain('ブラウザが位置情報の許可を求めます');
     expect(html).toContain('aria-label="現在地を使う');
   });
+  it('places 現在地を使う right under the map: map, button, itinerary (comment 6392903175)', () => {
+    const html = view();
+    const mapAt = html.indexOf('data-testid="map-fallback"');
+    const buttonAt = html.indexOf('aria-label="現在地を使う');
+    expect(mapAt).toBeGreaterThan(-1);
+    expect(buttonAt).toBeGreaterThan(mapAt);
+    expect(html.indexOf('<table')).toBeGreaterThan(-1);
+    expect(buttonAt).toBeLessThan(html.indexOf('<table'));
+    expect(html.match(/aria-label="現在地を使う/g)).toHaveLength(1);
+  });
   it('renders the numbered itinerary table right under the map, numbers matching the map', () => {
     const html = view();
     const mapAt = html.indexOf('data-testid="map-fallback"');

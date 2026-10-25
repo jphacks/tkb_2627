@@ -136,9 +136,14 @@ export function GuideView({ trip, mock, geo, today, initialAmenities = null, ini
       <section aria-label="今日の地点" className="gd-sec">
         <h2>今日の地点</h2>
         {!day || points.length === 0 ? <p className="u1-empty">この日に位置のある地点はありません。</p> : (
+          <MapPanel apiKey={readBrowserMapsKey()} points={points} highlighted={new Set(selected ? [selected] : [])} onSelectPlace={pick}
+            extraMarkers={markers} onSelectExtra={id => setPickedAmenity(p => (p === id ? null : id))} selectedExtraId={pickedAmenity} />
+        )}
+        {/* UI review on #35: map, then this button, then the itinerary. */}
+        <button type="button" className="btn gd-locate" aria-label="現在地を使う（ブラウザの位置情報の許可を確認します）" title="ブラウザの位置情報の許可を確認します" onClick={() => { void run(true); }}>現在地を使う</button>
+        {note && <p className="meta" role="status">{note}</p>}
+        {day && points.length > 0 && (
           <>
-            <MapPanel apiKey={readBrowserMapsKey()} points={points} highlighted={new Set(selected ? [selected] : [])} onSelectPlace={pick}
-              extraMarkers={markers} onSelectExtra={id => setPickedAmenity(p => (p === id ? null : id))} selectedExtraId={pickedAmenity} />
             {markers.length > 0 && <AmenityLegend kinds={ALL_KINDS.filter(k => markers.some(m => m.glyph === MARKER_STYLE[k].glyph))} />}
             {amenityPicked && <ul className="gd-list" aria-label="選んだ施設"><AmenityRow item={amenityPicked} /></ul>}
             {markers.length > 0 && amen?.state === 'ok' && amen.items.some(isFictional) && <p className="it-fixture" role="note"><strong>【架空】</strong> 地図上の施設は架空のfixtureデータです。</p>}
@@ -152,14 +157,12 @@ export function GuideView({ trip, mock, geo, today, initialAmenities = null, ini
 
       <section aria-label="近くのトイレ・避難場所" className="gd-sec">
         <h2>近くのトイレ・避難場所</h2>
-        <button type="button" className="btn" aria-label="現在地を使う（ブラウザの位置情報の許可を確認します）" title="ブラウザの位置情報の許可を確認します" onClick={() => { void run(true); }}>現在地を使う</button>
         <fieldset className="gd-layers">
           <legend>表示する種類</legend>
           {ALL_KINDS.map(k => (
             <label key={k}><input type="checkbox" checked={enabled.has(k)} onChange={() => toggle(k)} /> {AMENITY_KIND_LABEL[k]}</label>
           ))}
         </fieldset>
-        {note && <p className="meta" role="status">{note}</p>}
         <AmenitiesPanel load={amen} enabled={enabled} onRetry={() => { void run(false); }} />
       </section>
     </>
