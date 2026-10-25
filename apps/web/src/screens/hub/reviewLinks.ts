@@ -14,5 +14,4 @@ export const REVIEW_LINKS: ReviewLink[] = [
   row('U06', '旅行中（再計画）', `#/mock/trips/${MOCK_TRIP}/travel`, 34),
   row('U07', '現在地とガイド', `#/mock/trips/${MOCK_TRIP}/guide`, 35),
   row('U08', 'SNS・グループ', '#social', 36),
-  row('E01', 'しおり印刷・PDF', `#/mock/trips/${MOCK_TRIP}/print`, 37),
 ];

@@ -18,7 +18,6 @@
 | U06 | 編集・旅行中 | https://github.com/jphacks/tkb_2627/issues/34 |
 | U07 | ガイド | https://github.com/jphacks/tkb_2627/issues/35 |
 | U08 | SNS・グループ | https://github.com/jphacks/tkb_2627/issues/36 |
-| E01 | しおり印刷 | https://github.com/jphacks/tkb_2627/issues/37 |
 
 画面の一覧はホーム画面の一番下「UI確認用：全画面の一覧」にもある。
 
