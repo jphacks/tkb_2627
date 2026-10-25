@@ -16,15 +16,15 @@
 
 | 判定 | 件数 | 要件 |
 |---|---|---|
-| 合格 | 4 | R06, R07, R21, R26 |
-| 一部合格 | 11 | R02, R03, R05, R18, R19, R20, R22, R25, R27, R29, R30 |
+| 合格 | 5 | R06, R07, R19, R21, R26 |
+| 一部合格 | 10 | R02, R03, R05, R18, R20, R22, R25, R27, R29, R30 |
 | fixtureのみ | 8 | R04, R10, R12, R13, R15, R17, R23, R24 |
 | 人間のUI承認待ち | 7 | R01, R08, R09, R11, R14, R16, R28 |
 | 未実施 | 0 | — |
 | 対象外 | 0 | — |
 | 計 | 30 | |
 
-承認の記録がある UI 画面は 0 件。`docs/ui/reviews/2026-10-24_U01_review.md` は U01 への指摘 7 件（要修正5、保留2）で、「承認に当たる指摘はない」と明記されている。U03〜U08 の画面はレビュー記録がない。
+承認の記録がある UI 画面は 0 件（2026-10-25 時点で、U03 #31・U05 #33・U07 #35 は要修正の指摘を受けて修正済みで、再確認待ち）。`docs/ui/reviews/2026-10-24_U01_review.md` は U01 への指摘 7 件（要修正5、保留2）で、「承認に当たる指摘はない」と明記されている。U03〜U08 の画面はレビュー記録がない。
 
 ## 要件ごとの判定
 
@@ -50,7 +50,7 @@
 | R16 デジタルパンフレット（エリア地図→詳細→戻る、モバイル） | 人間のUI承認待ち | ガイド画面 U07（#145） | 実機表示と承認の記録なし |
 | R17 PDFの旅行しおり（文字と許諾済み写真） | fixtureのみ | E02（#128）、`tests/security/exports.test.ts`・`tests/access/exports.test.ts`（#138）、実サーバーで `application/pdf` と `%PDF` を確認、他ユーザーは 404（e2e/guide-export、#148）。印刷画面 E01（#142） | 旅程は fixture。許諾済み写真は credit 行のみ。実在の写真入り PDF を人が読んだ確認なし。Google 由来の内容は `mayExport=false` で除外 |
 | R18 Googleマップ連携（公式URL、自動登録と区別） | 一部合格 | E03（#78、#85）。URL 生成は未知地点を報告、`mayExport=false` と自宅を除外（e2e/guide-export、#148）。所有者だけの Maps リンク route と印刷画面のボタン（#163、`apps/server/test/exports-ics-maps.test.ts`、`apps/web/src/screens/print/calendar-maps.test.tsx`） | URL を実際の Google マップで開いた確認の記録なし。保存済みリストへの自動登録は未提供（偽装しない方針）。解釈は `docs/10_OPEN_ITEMS.md` で要確認 |
-| R19 時差を保持した予定出力（ICS） | 一部合格 | E03（#78）。TZID／UTC を項目ごとに出力、夏時間の重複時刻は UTC、未定・転載不可は除外（e2e/guide-export、#148）。所有者だけの ICS route と印刷画面のボタン（#163、`apps/server/test/exports-ics-maps.test.ts`、`apps/web/src/screens/print/calendar-maps.test.tsx`） | 実際のカレンダーアプリで別タイムゾーンから取り込んだ確認の記録なし。アカウントへの自動登録は未確認 |
+| R19 時差を保持した予定出力（ICS） | 合格 | **実際のカレンダーアプリでの確認（M3、2026-10-25、#39）：Google カレンダーと Outlook で、金沢（Asia/Tokyo）とパリ（Europe/Paris、夏時間の終わりをまたぐ）の ICS が現地時間どおりに読み込まれた。** E03（#78）。TZID／UTC を項目ごとに出力、夏時間の重複時刻は UTC、未定・転載不可は除外（e2e/guide-export、#148）。所有者だけの ICS route と印刷画面のボタン（#163、`apps/server/test/exports-ics-maps.test.ts`、`apps/web/src/screens/print/calendar-maps.test.tsx`） | 実際のカレンダーアプリで別タイムゾーンから取り込んだ確認の記録なし。アカウントへの自動登録は未確認 |
 | R20 SNSへの旅行記録と旅程投稿（別ユーザーのブラウザで閲覧） | 一部合格 | 実サーバーで2ユーザー（別 cookie jar）。公開/非公開の投稿、公開投稿だけが B と匿名に見える、取り下げ・削除、古い revision は 409（e2e/social、#134）。S05（#65）、U08（#129） | 「ブラウザ」はテスト内の cookie jar。実際の2台のブラウザでの操作と画面承認の記録なし |
 | R21 公開範囲とグループ共有（権限のない人は直接 URL でも不可） | 合格 | アクセス行列 `tests/access/matrix.test.ts`（#70）。非公開投稿は B に 404（存在しない ID と同じ）、グループ投稿は退会後 404（e2e/social、#134）。S03（#61） | 画面上のグループ操作は承認待ちだが、受入条件の判定（サーバー側）は実サーバーで確認済み |
 | R22 他人の旅程の複製と再利用（日付変更後の再検証） | 一部合格 | 公開投稿を複製すると 201、所有者は B、非公開データなし、`needs_revalidation`（e2e/social、#134）。S06（#66） | 日付を変えた後に時間と交通を実際に再検証した記録なし（フラグのみ確認） |
