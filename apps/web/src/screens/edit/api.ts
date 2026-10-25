@@ -136,6 +136,16 @@ export function mockDiff(before: Trip, after: Trip): TripDiff {
   };
 }
 
+let sharedMock: MockApi | null = null;
+/**
+ * One in-memory mock for the page (U11): what the 地図・編集 tab saved is still there after switching tabs and back.
+ * A page reload starts from the fixtures again (mock mode only; the server mode reads K09).
+ */
+export function sharedMockApi(): MockApi {
+  sharedMock ??= createMockApi();
+  return sharedMock;
+}
+
 export function createMockTripEditApi(mock: MockApi = createMockApi()): TripEditApi {
   const fromMock = <T>(r: { ok: true; data: T } | { ok: false; error: ApiError }): ApiResult<T> => (r.ok ? { ok: true, data: r.data } : { ok: false, error: r.error });
 

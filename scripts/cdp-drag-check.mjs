@@ -4,7 +4,7 @@
  * Drives headless Chrome through the DevTools Protocol (no extra npm packages: Node's global WebSocket).
  *
  *   npx vite apps/web --port 5202 --strictPort --host 127.0.0.1 &
- *   node apps/web/scripts/cdp-drag-check.mjs [url] [--screenshot out.png]
+ *   node scripts/cdp-drag-check.mjs [url] [--screenshot out.png]
  *
  * Steps (each asserts the stay order on screen changed as expected):
  *   1. mouse: drag row 1 below row 2      2. mouse: drag row 2 above row 1
@@ -154,19 +154,36 @@ try {
     check(`${how}: row ${from + 1} dragged to row ${to + 1} (shown while dragging: ${preview.join(' / ')})`, before, after, move(before, from, to));
   }
 
-  // 8. save through the K10 flow (mock: in-memory server) and check the saved order.
+  // 8. persistence. The unified screen (U11) saves a drag at once (K10 PATCH, mock: the in-memory server): leave the
+  // tab and come back, the order must still be the dragged one. The older edit screen kept drags pending: save there.
   const expectedSaved = after;
-  const clicked = await evaluate(`(() => { const b = [...document.querySelectorAll('button')].find(b => b.textContent.includes('候補と差分を確認')); if (!b || b.disabled) return false; b.click(); return true; })()`);
-  if (clicked) {
-    await waitFor(`[...document.querySelectorAll('button')].some(b => b.textContent.includes('この案を保存する') && !b.disabled)`);
-    await evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent.includes('この案を保存する') && !b.disabled).click()`);
-    await waitFor(`document.body.textContent.includes('保存しました')`);
+  if (await evaluate(`document.body.textContent.includes('並べ替えを保存しました')`)) {
+    const back = await evaluate('location.hash');
+    await evaluate(`location.hash = location.hash.replace(/\\/(edit|map)$/, '/travel')`);
+    await sleep(600);
+    await evaluate(`location.hash = ${JSON.stringify('__BACK__')}`.replace('"__BACK__"', JSON.stringify(back)));
+    await waitFor(`document.querySelectorAll(${JSON.stringify(HANDLE)}).length >= 2`);
     await sleep(300);
-    const saved = await evaluate(ORDER);
-    check('save: saved order equals the dragged order', expectedSaved, saved, expectedSaved);
+    check('persist: after leaving the tab and coming back, the saved order is the dragged order', expectedSaved, await evaluate(ORDER), expectedSaved);
   } else {
-    results.push({ name: 'save', ok: false }); console.log('FAIL save: 候補と差分を確認 not available');
+    const clicked = await evaluate(`(() => { const b = [...document.querySelectorAll('button')].find(b => b.textContent.includes('候補と差分を確認')); if (!b || b.disabled) return false; b.click(); return true; })()`);
+    if (clicked) {
+      await waitFor(`[...document.querySelectorAll('button')].some(b => b.textContent.includes('この案を保存する') && !b.disabled)`);
+      await evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent.includes('この案を保存する') && !b.disabled).click()`);
+      await waitFor(`document.body.textContent.includes('保存しました')`);
+      await sleep(300);
+      check('save: saved order equals the dragged order', expectedSaved, await evaluate(ORDER), expectedSaved);
+    } else {
+      results.push({ name: 'save', ok: false }); console.log('FAIL save: neither saved at once nor 候補と差分を確認 available');
+    }
   }
+
+  // 9. a stay with children (近江町市場エリア) opens and lists them (time + name).
+  const kids = await evaluate(`(() => { const r = [...document.querySelectorAll('tr.it-stay')].find(r => r.textContent.includes('近江町市場')); if (!r) return null; r.querySelector('.it-rowbtn').click(); return true; })()`);
+  await sleep(300);
+  const childRows = kids ? await evaluate(`[...document.querySelectorAll('.it-subtable tr.it-child')].map(r => r.textContent)`) : [];
+  results.push({ name: 'children', ok: childRows.length > 0 });
+  console.log(`${childRows.length > 0 ? 'PASS' : 'FAIL'} children of 近江町市場エリア shown when opened: ${childRows.join(' / ')}`);
 
   if (shotPath) {
     await evaluate('window.scrollTo(0, 0)'); await sleep(200);

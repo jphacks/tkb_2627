@@ -17,7 +17,9 @@ type Drag = { key: string; before: string | null | undefined; mode: 'pointer' | 
  * unless reduced motion is set) so it is clear where the stay will go. Rows keep only what tells stays apart; unknown
  * values stay in the details.
  */
-export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggleRow, onReorder, saving = false, setRowRef, stayExtra, stayBadge }: {
+export type InsertPosition = 'before-first' | 'between' | 'after-last';
+
+export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggleRow, onReorder, saving = false, setRowRef, stayExtra, stayBadge, insertSlot }: {
   rows: TableRow[];
   dayDate: string;
   expanded: ReadonlySet<string>;
@@ -31,11 +33,17 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
   stayExtra?: (row: StayRow) => React.ReactNode;
   /** Extra text before the stay title (e.g. 未保存, 完了). */
   stayBadge?: (row: StayRow) => React.ReactNode;
+  /** Edit mode: a slot before the first stay, between stays and after the last one (M3's InsertSlot, U11). `beforeKey`: the stay it sits before (null: the end). */
+  insertSlot?: (position: InsertPosition, beforeKey: string | null) => React.ReactNode;
 }) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const editable = onReorder !== undefined;
   const cols = editable ? 3 : 2;
   const stayKeys = rows.flatMap(r => (r.kind === 'stay' ? [r.key] : []));
+  const firstStay = stayKeys[0];
+  const slot = (position: InsertPosition, beforeKey: string | null) => (insertSlot && !drag
+    ? <tr className="it-slot" data-insert-slot={position}><td colSpan={cols}>{insertSlot(position, beforeKey)}</td></tr>
+    : null);
   const commitMove = (key: string, before: string | null) => onReorder?.(key, before);
   const commitMoveRef = useRef(commitMove);
   commitMoveRef.current = commitMove;
@@ -159,8 +167,10 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
         <thead><tr>{editable && <th scope="col" className="it-col-handle"><span className="u1-sr">並べ替え</span></th>}<th scope="col" className="it-col-time">時刻</th><th scope="col">内容</th></tr></thead>
         <tbody ref={bodyRef}>
           {rows.length === 0 && <tr><td colSpan={cols} className="u1-empty">この日の予定はありません。</td></tr>}
+          {rows.length > 0 && slot(firstStay === undefined ? 'after-last' : 'before-first', firstStay ?? null)}
           {shown.map((r, i) => (
             <Fragment key={r.key}>
+              {r.kind === 'stay' && r.key !== firstStay && slot('between', r.key)}
               {r.kind === 'stay' ? (
                 <StayTableRows row={r} open={expanded.has(r.key)} selected={selectedKeys?.has(r.key) ?? false} editable={editable}
                   dragging={drag?.key === r.key}
@@ -175,6 +185,7 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
               )}
             </Fragment>
           ))}
+          {firstStay !== undefined && slot('after-last', null)}
         </tbody>
       </table>
     </>
@@ -241,8 +252,9 @@ function StayTableRows({ row, open, selected, editable, dragging, extra, badge, 
               </span>
               <span className="it-chev" aria-hidden="true">{open ? '▲' : '▼'}</span>
             </button>
+            {/* U11: compact controls (e.g. 削除) on the right of the row, not under the name. */}
+            {extra && <div className="it-extra">{extra}</div>}
           </div>
-          {extra && <div className="it-extra">{extra}</div>}
         </td>
       </tr>
       {open && (

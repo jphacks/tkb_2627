@@ -8,9 +8,8 @@ const row = (code: string, name: string, href: string, issue: number): ReviewLin
 
 export const REVIEW_LINKS: ReviewLink[] = [
   row('U03', '条件入力', '#conditions', 31),
-  row('U04', '地図と旅程', `#/mock/trips/${MOCK_TRIP}/map`, 32),
   row('U05', '旅行の計画（進捗・候補の比較・採用）', '#generate', 33),
-  row('U06', '旅程の編集', `#/mock/trips/${MOCK_TRIP}/edit`, 34),
+  row('U04/U06', '地図と旅程の編集', `#/mock/trips/${MOCK_TRIP}/edit`, 34),
   row('U06', '旅行中（再計画）', `#/mock/trips/${MOCK_TRIP}/travel`, 34),
   row('U07', '現在地とガイド', `#/mock/trips/${MOCK_TRIP}/guide`, 35),
   row('U08', 'SNS・グループ', '#social', 36),
