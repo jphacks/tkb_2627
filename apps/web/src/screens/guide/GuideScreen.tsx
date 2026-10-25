@@ -144,7 +144,8 @@ export function GuideView({ trip, mock, geo, today, initialAmenities = null, ini
         {note && <p className="meta" role="status">{note}</p>}
         {day && points.length > 0 && (
           <>
-            {markers.length > 0 && <AmenityLegend kinds={ALL_KINDS.filter(k => markers.some(m => m.glyph === MARKER_STYLE[k].glyph))} />}
+            {amen?.state === 'ok' && <AmenityLayers enabled={enabled} onToggle={toggle} />}
+            <AmenitiesPanel load={amen} onRetry={() => { void run(false); }} />
             {amenityPicked && <ul className="gd-list" aria-label="選んだ施設"><AmenityRow item={amenityPicked} /></ul>}
             {markers.length > 0 && amen?.state === 'ok' && amen.items.some(isFictional) && <p className="it-fixture" role="note"><strong>【架空】</strong> 地図上の施設は架空のfixtureデータです。</p>}
             {markers.some(m => m.glyph !== MARKER_STYLE.toilet.glyph) && <p className="gd-warn" role="note">{SHELTER_NOTE}</p>}
@@ -153,17 +154,6 @@ export function GuideView({ trip, mock, geo, today, initialAmenities = null, ini
           </>
         )}
         <SpotPanel detail={detail} guide={guide && guide.placeId === selected ? guide.load : null} />
-      </section>
-
-      <section aria-label="近くのトイレ・避難場所" className="gd-sec">
-        <h2>近くのトイレ・避難場所</h2>
-        <fieldset className="gd-layers">
-          <legend>表示する種類</legend>
-          {ALL_KINDS.map(k => (
-            <label key={k}><input type="checkbox" checked={enabled.has(k)} onChange={() => toggle(k)} /> {AMENITY_KIND_LABEL[k]}</label>
-          ))}
-        </fieldset>
-        <AmenitiesPanel load={amen} enabled={enabled} onRetry={() => { void run(false); }} />
       </section>
     </>
   );
@@ -195,8 +185,11 @@ export function SpotPanel({ detail, guide = null }: { detail: SpotDetail | null;
 }
 
 
-/** Four distinct outcomes: error (retry), unsupported region, empty (covered, nothing found), and the list. */
-export function AmenitiesPanel({ load, enabled, onRetry }: { load: AmenitiesLoad | null; enabled: ReadonlySet<AmenityKind>; onRetry: () => void }) {
+/**
+ * Distinct outcomes: error (retry), unsupported region, empty (covered, nothing found). The found items are shown only
+ * on the map (UI review on #35); tapping one shows its name and details under the map.
+ */
+export function AmenitiesPanel({ load, onRetry }: { load: AmenitiesLoad | null; onRetry: () => void }) {
   if (load === null) return <p className="u1-loading" role="status">近くのトイレ・避難場所を探しています…</p>;
   if (load.state === 'error') {
     return <ErrorBox title="トイレ・避難場所を取得できませんでした" error={{ message: load.message, ...(load.code ? { code: load.code } : {}), ...(load.requestId ? { requestId: load.requestId } : {}) }} onRetry={onRetry} />;
@@ -205,27 +198,20 @@ export function AmenitiesPanel({ load, enabled, onRetry }: { load: AmenitiesLoad
     return <div className="u1-empty" role="status"><p><strong>{UNSUPPORTED_TEXT}</strong></p>{load.reason && <p className="meta">{load.reason}</p>}<p className="meta">対応範囲: {load.supportedRegion}</p></div>;
   }
   if (load.state === 'empty') return <div className="u1-empty" role="status"><p>{EMPTY_TEXT}</p>{load.reason && <p className="meta">{load.reason}</p>}</div>;
-  const shown = filterKinds(load.items, enabled);
-  const hasShelter = load.items.some(i => i.kind !== 'toilet');
-  return (
-    <>
-      {hasShelter && <p className="gd-warn" role="note">{SHELTER_NOTE}</p>}
-      {load.items.some(isFictional) && <p className="it-fixture" role="note"><strong>【架空】</strong> 架空のfixtureデータです。実在の施設・公式データではありません。</p>}
-      {shown.length === 0 ? <p className="u1-empty">選んだ種類に該当なし</p> : (
-        <ul className="gd-list" aria-label="トイレ・避難場所">
-          {shown.map(i => <AmenityRow key={i.id} item={i} />)}
-        </ul>
-      )}
-      {load.fetchedAt && <p className="meta">取得日: {load.fetchedAt}</p>}
-    </>
-  );
+  return null;
 }
 
-function AmenityLegend({ kinds }: { kinds: readonly AmenityKind[] }) {
+/** Map legend and layer switch in one (UI review on #35): each kind's map symbol with its checkbox. */
+function AmenityLayers({ enabled, onToggle }: { enabled: ReadonlySet<AmenityKind>; onToggle: (k: AmenityKind) => void }) {
   return (
-    <p className="meta gd-legend" aria-label="地図の記号">
-      {kinds.map(k => <span key={k} style={{ marginRight: 12 }}><strong style={{ color: MARKER_STYLE[k].color }}>{MARKER_STYLE[k].glyph}</strong> {AMENITY_KIND_LABEL[k]}</span>)}
-    </p>
+    <fieldset className="gd-layers gd-legend" aria-label="地図の記号（チェックで表示）">
+      {ALL_KINDS.map(k => (
+        <label key={k}>
+          <input type="checkbox" checked={enabled.has(k)} onChange={() => onToggle(k)} />
+          <strong style={{ color: MARKER_STYLE[k].color }}>{MARKER_STYLE[k].glyph}</strong> {AMENITY_KIND_LABEL[k]}
+        </label>
+      ))}
+    </fieldset>
   );
 }
 

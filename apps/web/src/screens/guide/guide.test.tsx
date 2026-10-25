@@ -6,7 +6,7 @@ import type { GeoLike } from '../travel/geo.ts';
 import { mapPoints } from '../itinerary/model.ts';
 import { AmenitiesPanel, GuideView, SpotPanel, amenityMarkers } from './GuideScreen.tsx';
 import {
-  EMPTY_TEXT, SHELTER_WARNING, UNSUPPORTED_TEXT, amenitiesUrl, bboxAround, chooseArea, classifyAmenities, currentDayIndex,
+  AMENITY_KIND_LABEL, EMPTY_TEXT, SHELTER_WARNING, UNSUPPORTED_TEXT, amenitiesUrl, bboxAround, chooseArea, classifyAmenities, currentDayIndex,
   displayName, fallbackBbox, type AmenityKind, fetchAmenities, mockAmenities, spotDetail, type AmenitiesLoad, type AmenityResponse,
   fetchGuide, guidesUrl, mergeGuide, type GuideLoad,
 } from './model.ts';
@@ -90,9 +90,9 @@ describe('empty vs unsupported vs failure are distinct', () => {
   });
   it('renders three different screens', () => {
     const noop = () => {};
-    const empty = render(<AmenitiesPanel load={{ state: 'empty', reason: null, dataStatus: 'fixture' }} enabled={ALL} onRetry={noop} />);
-    const unsup = render(<AmenitiesPanel load={{ state: 'unsupported', reason: null, supportedRegion: '金沢' }} enabled={ALL} onRetry={noop} />);
-    const fail = render(<AmenitiesPanel load={{ state: 'error', message: '503' }} enabled={ALL} onRetry={noop} />);
+    const empty = render(<AmenitiesPanel load={{ state: 'empty', reason: null, dataStatus: 'fixture' }} onRetry={noop} />);
+    const unsup = render(<AmenitiesPanel load={{ state: 'unsupported', reason: null, supportedRegion: '金沢' }} onRetry={noop} />);
+    const fail = render(<AmenitiesPanel load={{ state: 'error', message: '503' }} onRetry={noop} />);
     expect(empty).toContain(EMPTY_TEXT);
     expect(unsup).toContain(UNSUPPORTED_TEXT);
     expect(unsup).not.toContain(EMPTY_TEXT);
@@ -103,23 +103,15 @@ describe('empty vs unsupported vs failure are distinct', () => {
 });
 
 describe('shelter warning and fixture labelling', () => {
-  it('shelter warning is always shown even if the provider sent an empty warning', () => {
+  it('shelter warning is shown under the map even if the provider sent an empty warning', () => {
     const load: AmenitiesLoad = { state: 'ok', items: [shelter], dataStatus: 'fixture', fetchedAt: null };
-    const html = render(<AmenitiesPanel load={load} enabled={ALL} onRetry={() => {}} />);
-    expect(html).toContain(SHELTER_WARNING);
-    expect(html).toContain('指定避難所');
-    // hiding the layer does not drop the list-level notice
-    expect(render(<AmenitiesPanel load={load} enabled={new Set<AmenityKind>(['toilet'])} onRetry={() => {}} />)).toContain(SHELTER_WARNING);
+    expect(render(<GuideView trip={trip} mock geo={null} today={day.date} initialAmenities={load} />)).toContain(SHELTER_WARNING);
   });
   it('fixture amenities carry 【架空】 and sites/shelters are separate kinds', () => {
     const m = mockAmenities(bboxAround({ lat: 36.56, lng: 136.65 }));
     if (m.state !== 'ok') throw new Error();
     expect(m.items.every(i => displayName(i).startsWith('【架空】'))).toBe(true);
     expect(new Set(m.items.map(i => i.kind)).size).toBe(3);
-    const html = render(<AmenitiesPanel load={m} enabled={ALL} onRetry={() => {}} />);
-    expect(html).toContain('指定緊急避難場所');
-    expect(html).toContain('指定避難所');
-    expect(html).toContain(SHELTER_WARNING);
     expect(m.items.every(i => i.openNow === null)).toBe(true);
   });
 });
@@ -233,6 +225,19 @@ describe('U07 review (M2): map markers, no explanatory texts, itinerary under th
     expect(html).not.toContain('ブラウザが位置情報の許可を求めます');
     expect(html).toContain('aria-label="現在地を使う');
   });
+  it('shows found items on the map only, with the kind checkboxes as the map legend (comment 6392977146)', () => {
+    const html = view();
+    expect(html).not.toContain('aria-label="トイレ・避難場所"');
+    expect(html).not.toContain('近くのトイレ・避難場所</h2>');
+    expect(html).not.toContain('表示する種類');
+    const legendAt = html.indexOf('aria-label="地図の記号（チェックで表示）"');
+    expect(legendAt).toBeGreaterThan(html.indexOf('data-testid="map-fallback"'));
+    expect(legendAt).toBeLessThan(html.indexOf('<table'));
+    const legend = html.slice(legendAt, html.indexOf('</fieldset>', legendAt));
+    expect(legend.match(/type="checkbox"/g)).toHaveLength(3);
+    for (const k of ['toilet', 'evacuation_site', 'evacuation_shelter'] as const) expect(legend).toContain(AMENITY_KIND_LABEL[k]);
+    expect(render(<AmenitiesPanel load={m} onRetry={() => {}} />)).toBe('');
+  });
   it('places 現在地を使う right under the map: map, button, itinerary (comment 6392903175)', () => {
     const html = view();
     const mapAt = html.indexOf('data-testid="map-fallback"');
@@ -249,7 +254,6 @@ describe('U07 review (M2): map markers, no explanatory texts, itinerary under th
     const tableAt = html.indexOf('<table');
     expect(mapAt).toBeGreaterThan(-1);
     expect(tableAt).toBeGreaterThan(mapAt);
-    expect(tableAt).toBeLessThan(html.indexOf('近くのトイレ・避難場所'));
     expect(html).not.toContain('it-drag');
     for (const p of mapPoints(day, trip.places)) {
       expect(html).toContain(`aria-label="${p.number}. ${p.name}"`);
