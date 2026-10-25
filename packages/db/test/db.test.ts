@@ -4,16 +4,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { migrate, openDatabase } from '../src/index.ts';
 
-const TABLES = ['users','sessions','trips','trip_versions','plan_batches','groups','group_members','group_invites','posts','post_snapshots','exports','operation_keys','post_previews'];
+const TABLES = ['users','sessions','trips','trip_versions','plan_batches','groups','group_members','group_invites','posts','post_snapshots','exports','operation_keys','post_previews','follows','post_likes','post_images'];
 
 describe('db', () => {
-  it('migrates idempotently and creates 13 tables', () => {
+  it('migrates idempotently and creates 16 tables', () => {
     const db = openDatabase(':memory:');
-    expect(migrate(db)).toEqual(['001_init.sql', '002_post_previews.sql']);
+    expect(migrate(db)).toEqual(['001_init.sql', '002_post_previews.sql', '003_social_follow_like_images.sql']);
     expect(migrate(db)).toEqual([]);
     const names = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]).map((r) => r.name);
     for (const t of TABLES) expect(names).toContain(t);
-    expect(names.filter((n) => !n.startsWith('sqlite_') && n !== 'schema_migrations')).toHaveLength(13);
+    expect(names.filter((n) => !n.startsWith('sqlite_') && n !== 'schema_migrations')).toHaveLength(16);
   });
   it('enables WAL and foreign keys on a file db', () => {
     const db = openDatabase(join(mkdtempSync(join(tmpdir(), 'tkb-')), 'sub', 't.sqlite'));
