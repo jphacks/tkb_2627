@@ -153,6 +153,8 @@ export const domesticTrip: Trip = {
         // The arrival time of the bus is not known (fixture): null, never guessed.
         leg('fx_leg_k1', 'fx_kanazawa_station', 'fx_omicho', 'transit', JST, t(D1, '09:10'), null, {
           lineName: '（fixture）路線バス', fare: yen(210), dataStatus: 'unknown', provenance: null,
+          // The stop you get off at shows as its own numbered spot (UI review on #34).
+          transit: { boardingStop: '金沢駅', alightingStop: '武蔵ヶ辻・近江町市場', transferStops: [] },
         }),
         activity('fx_act_omicho', '近江町市場エリア', 'free_walk', JST, t(D1, '09:30'), t(D1, '12:30'), {
           areaName: '近江町市場周辺', placeId: 'fx_omicho',
@@ -191,6 +193,7 @@ export const domesticTrip: Trip = {
         activity('fx_act_korinbo_stop', '香林坊バス停（乗車）', 'custom', JST, t(D1, '19:05'), t(D1, '19:10'), { placeId: 'fx_korinbo_stop' }),
         leg('fx_leg_k6', 'fx_korinbo_stop', 'fx_hotel', 'transit', JST, t(D1, '19:10'), t(D1, '19:25'), {
           lineName: '（fixture）路線バス', fare: yen(210),
+          transit: { boardingStop: '香林坊', alightingStop: '武蔵ヶ辻・近江町市場', transferStops: [] },
         }),
         activity('fx_act_hotel', 'ホテルにチェックイン', 'lodging', JST, t(D1, '19:25'), null, { placeId: 'fx_hotel' }),
       ],
