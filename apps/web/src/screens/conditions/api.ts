@@ -104,7 +104,15 @@ export function createLiveConditionsApi(fetchFn: FetchFn = (...a) => fetch(...a)
 
   return {
     source,
-    capabilities: () => call('/local/v1/capabilities', Capabilities),
+    // When the personal entry (4311) is not reachable from this page (review/LAN mode, or not running), fall back to the
+    // shared capabilities, which explain why AI generation is unavailable (e.g. SHARED_ENTRY_NO_PERSONAL_CLAUDE) instead of
+    // showing a raw contract error. Generation itself still only ever goes to the personal entry.
+    capabilities: async () => {
+      const personal = await call('/local/v1/capabilities', Capabilities);
+      if (personal.ok) return personal;
+      const shared = await call('/api/v1/capabilities', Capabilities);
+      return shared.ok ? shared : personal;
+    },
     async planningContext(request, signal) {
       const body = PlanningContextRequest.safeParse(request);
       if (!body.success) return { ok: false, error: clientError('VALIDATION_FAILED', '検索条件が契約(K05)に適合しません。'), source };
