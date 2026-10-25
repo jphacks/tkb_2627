@@ -13,7 +13,6 @@ export interface NavModel {
 const TABS: ReadonlyArray<{ key: TripTabKey; label: string }> = [
 
   { key: 'edit', label: '地図・編集' },
-  { key: 'travel', label: '旅行中' },
   { key: 'guide', label: 'ガイド' },
 ];
 
