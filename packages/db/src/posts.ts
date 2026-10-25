@@ -4,7 +4,7 @@ import type { Db } from './index.ts';
 import { transaction } from './repo.ts';
 
 export type PostVisibility = 'private' | 'group' | 'public';
-export type PostScope = 'public' | 'groups' | 'mine';
+export type PostScope = 'public' | 'groups' | 'mine' | 'following';
 
 export const PREVIEW_TTL_MS = 10 * 60 * 1000;
 export const hashPreviewToken = (token: string): string => createHash('sha256').update(token).digest('hex');
@@ -20,6 +20,37 @@ export interface PostSummaryRecord {
   area: string;
   startDate: string;
   createdAt: string;
+  author?: PostAuthorRecord;
+  isMine?: boolean;
+  likeCount?: number;
+  likedByMe?: boolean;
+  images?: PostImageRecord[];
+  updatedAt?: string | null;
+}
+
+export interface PostAuthorRecord {
+  userId: string;
+  displayName: string;
+  avatarInitial: string;
+  avatarColor: string;
+}
+export interface PostImageRecord {
+  imageId: string;
+  url: string;
+  width: number | null;
+  height: number | null;
+}
+
+/** Fixed palette; the colour is a stable function of the user id (never stored, never user-chosen). */
+export const AVATAR_PALETTE = ['#e57373', '#f06292', '#ba68c8', '#7986cb', '#4fc3f7', '#4db6ac', '#81c784', '#dce775', '#ffb74d', '#a1887f'] as const;
+export function authorOf(userId: string, displayName: string): PostAuthorRecord {
+  const h = createHash('sha256').update(userId).digest();
+  return {
+    userId,
+    displayName,
+    avatarInitial: Array.from(displayName.trim())[0] ?? '?',
+    avatarColor: AVATAR_PALETTE[h.readUInt32BE(0) % AVATAR_PALETTE.length]!,
+  };
 }
 
 export interface PostRecord extends PostSummaryRecord {
@@ -36,6 +67,7 @@ export interface NewPreview {
   story: string;
   snapshotJson: string;
   expiresAt: string;
+  imageIds?: string[];
 }
 
 /** At most this many unconsumed, unexpired previews per user. */
@@ -54,9 +86,9 @@ export function insertPreview(db: Db, p: NewPreview, now: string): boolean {
       .get(p.ownerId, now) as { n: number };
     if (live.n >= MAX_ACTIVE_PREVIEWS) return false;
     db.prepare(
-      `INSERT INTO post_previews (token_hash, owner_id, trip_id, source_revision, visibility, group_id, story, snapshot_json, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(p.tokenHash, p.ownerId, p.tripId, p.sourceRevision, p.visibility, p.groupId, p.story, p.snapshotJson, p.expiresAt);
+      `INSERT INTO post_previews (token_hash, owner_id, trip_id, source_revision, visibility, group_id, story, snapshot_json, expires_at, image_ids)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(p.tokenHash, p.ownerId, p.tripId, p.sourceRevision, p.visibility, p.groupId, p.story, p.snapshotJson, p.expiresAt, JSON.stringify(p.imageIds ?? []));
     return true;
   });
 }
@@ -71,6 +103,7 @@ interface PostRow {
   visibility: PostVisibility;
   group_id: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 interface SummaryRow extends Omit<PostRow, 'document_json'> {
@@ -82,14 +115,62 @@ interface SummaryRow extends Omit<PostRow, 'document_json'> {
 // The feed reads three scalar fields of the snapshot in SQL instead of parsing every document,
 // so one corrupt snapshot cannot break a whole page.
 const J = (path: string) => `CASE WHEN json_valid(s.document_json) THEN json_extract(s.document_json, '${path}') END`;
-const SELECT_SUMMARY = `SELECT p.id, p.owner_id, p.revision, u.display_name, p.story, p.visibility, p.group_id, p.created_at,
+const SELECT_SUMMARY = `SELECT p.id, p.owner_id, p.revision, u.display_name, p.story, p.visibility, p.group_id, p.created_at, p.updated_at,
   ${J('$.title')} AS title, ${J('$.constraints.area')} AS area, ${J('$.constraints.startDate')} AS start_date
   FROM posts p JOIN users u ON u.id = p.owner_id JOIN post_snapshots s ON s.id = p.snapshot_id`;
 
-const SELECT = `SELECT p.id, p.owner_id, p.revision, u.display_name, s.document_json, p.story, p.visibility, p.group_id, p.created_at
+const SELECT = `SELECT p.id, p.owner_id, p.revision, u.display_name, s.document_json, p.story, p.visibility, p.group_id, p.created_at, p.updated_at
   FROM posts p JOIN users u ON u.id = p.owner_id JOIN post_snapshots s ON s.id = p.snapshot_id`;
 
-function toRecord(r: PostRow): PostRecord {
+interface Extras {
+  author: PostAuthorRecord;
+  isMine: boolean;
+  likeCount: number;
+  likedByMe: boolean;
+  images: PostImageRecord[];
+  updatedAt: string | null;
+}
+
+/** Batch-loads author, like and image data for a page of rows (a few queries per page, not per post). */
+function extrasFor(
+  db: Db,
+  rows: { id: string; owner_id: string; display_name: string; revision: number; updated_at: string }[],
+  viewerId: string | null,
+): Map<string, Extras> {
+  const out = new Map<string, Extras>();
+  if (rows.length === 0) return out;
+  const ids = rows.map((r) => r.id);
+  const marks = ids.map(() => '?').join(',');
+  const likes = new Map<string, { n: number; mine: number }>();
+  for (const l of db
+    .prepare(`SELECT post_id, COUNT(*) AS n, SUM(CASE WHEN user_id = ? THEN 1 ELSE 0 END) AS mine FROM post_likes WHERE post_id IN (${marks}) GROUP BY post_id`)
+    .all(viewerId, ...ids) as { post_id: string; n: number; mine: number }[]) {
+    likes.set(l.post_id, { n: Number(l.n), mine: Number(l.mine) });
+  }
+  const images = new Map<string, PostImageRecord[]>();
+  for (const i of db
+    .prepare(`SELECT id, post_id, width, height FROM post_images WHERE post_id IN (${marks}) ORDER BY position, id`)
+    .all(...ids) as { id: string; post_id: string; width: number | null; height: number | null }[]) {
+    const list = images.get(i.post_id) ?? [];
+    list.push({ imageId: i.id, url: `/api/v1/post-images/${i.id}`, width: i.width, height: i.height });
+    images.set(i.post_id, list);
+  }
+  for (const r of rows) {
+    const l = likes.get(r.id);
+    out.set(r.id, {
+      author: authorOf(r.owner_id, r.display_name),
+      isMine: viewerId !== null && r.owner_id === viewerId,
+      likeCount: l?.n ?? 0,
+      likedByMe: (l?.mine ?? 0) > 0,
+      images: images.get(r.id) ?? [],
+      // Only an edited post carries updatedAt (creation also writes updated_at, which is not an edit).
+      updatedAt: r.revision > 1 ? r.updated_at : null,
+    });
+  }
+  return out;
+}
+
+function toRecord(r: PostRow, x: Extras): PostRecord {
   const snapshot = PostSnapshot.parse(JSON.parse(r.document_json));
   return {
     postId: r.id,
@@ -102,11 +183,12 @@ function toRecord(r: PostRow): PostRecord {
     area: snapshot.constraints.area,
     startDate: snapshot.constraints.startDate,
     createdAt: r.created_at,
+    ...x,
     snapshot,
   };
 }
 
-function toSummary(r: SummaryRow): PostSummaryRecord {
+function toSummary(r: SummaryRow, x: Extras): PostSummaryRecord {
   return {
     postId: r.id,
     postRevision: r.revision,
@@ -118,14 +200,23 @@ function toSummary(r: SummaryRow): PostSummaryRecord {
     area: r.area ?? '',
     startDate: r.start_date ?? '',
     createdAt: r.created_at,
+    ...x,
   };
 }
 
 const MEMBER = 'EXISTS (SELECT 1 FROM group_members m WHERE m.group_id = p.group_id AND m.user_id = ?)';
 
+/** True when every id is a distinct image uploaded by `ownerId` and not yet attached to a post (max 4). */
+export function ownUnattachedImages(db: Db, ownerId: string, ids: string[]): boolean {
+  if (ids.length > 4 || new Set(ids).size !== ids.length) return false;
+  return ids.every(
+    (id) => db.prepare('SELECT 1 FROM post_images WHERE id = ? AND owner_id = ? AND post_id IS NULL').get(id, ownerId) !== undefined,
+  );
+}
+
 export type CreatePostResult =
   | { ok: true; post: PostRecord }
-  | { ok: false; code: 'NOT_FOUND' | 'EXPIRED' | 'ALREADY_COMMITTED' | 'REVISION_CONFLICT' };
+  | { ok: false; code: 'NOT_FOUND' | 'EXPIRED' | 'ALREADY_COMMITTED' | 'REVISION_CONFLICT' | 'IMAGES_INVALID' };
 
 /**
  * K13: re-checks owner, expiry, single use, the source trip's current revision and group membership,
@@ -142,6 +233,7 @@ export function createPostFromPreview(db: Db, tokenHash: string, ownerId: string
           group_id: string | null;
           story: string;
           snapshot_json: string;
+          image_ids: string;
           expires_at: string;
           consumed_at: string | null;
         }
@@ -158,6 +250,8 @@ export function createPostFromPreview(db: Db, tokenHash: string, ownerId: string
       const m = db.prepare('SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?').get(pv.group_id, ownerId);
       if (!m) return { ok: false, code: 'NOT_FOUND' };
     }
+    const imageIds = JSON.parse(pv.image_ids) as string[];
+    if (!ownUnattachedImages(db, ownerId, imageIds)) return { ok: false, code: 'IMAGES_INVALID' };
     const snapshotId = randomUUID();
     const postId = randomUUID();
     db.prepare('INSERT INTO post_snapshots (id, document_json, redaction_version, created_at) VALUES (?, ?, ?, ?)').run(
@@ -170,6 +264,9 @@ export function createPostFromPreview(db: Db, tokenHash: string, ownerId: string
       `INSERT INTO posts (id, owner_id, source_trip_id, source_revision, snapshot_id, visibility, group_id, revision, story, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
     ).run(postId, ownerId, pv.trip_id, pv.source_revision, snapshotId, pv.visibility, pv.group_id, pv.story, now, now);
+    imageIds.forEach((id, i) => {
+      db.prepare('UPDATE post_images SET post_id = ?, position = ? WHERE id = ?').run(postId, i, id);
+    });
     db.prepare('UPDATE post_previews SET consumed_at = ? WHERE token_hash = ? AND consumed_at IS NULL').run(now, tokenHash);
     return { ok: 'created', id: postId };
   });
@@ -185,7 +282,7 @@ export function getPostForViewer(db: Db, postId: string, viewerId: string | null
        AND (p.visibility = 'public' OR p.owner_id = ? OR (p.visibility = 'group' AND ${MEMBER}))`,
     )
     .get(postId, viewerId, viewerId) as PostRow | undefined;
-  return row ? toRecord(row) : null;
+  return row ? toRecord(row, extrasFor(db, [row], viewerId).get(row.id)!) : null;
 }
 
 export const encodeCursor = (createdAt: string, id: string): string =>
@@ -220,6 +317,11 @@ export function listFeed(
     if (q.scope === 'mine') {
       acl = 'p.owner_id = ?';
       params.push(q.viewerId);
+    } else if (q.scope === 'following') {
+      // Following only narrows the list; readability is still public or a group the viewer belongs to.
+      acl = `p.owner_id IN (SELECT followee_id FROM follows WHERE follower_id = ?)
+        AND (p.visibility = 'public' OR (p.visibility = 'group' AND ${MEMBER}))`;
+      params.push(q.viewerId, q.viewerId);
     } else {
       acl = `p.visibility = 'group' AND ${MEMBER}`;
       params.push(q.viewerId);
@@ -236,8 +338,9 @@ export function listFeed(
     .all(...params) as unknown as SummaryRow[];
   const page = rows.slice(0, q.limit);
   const last = page[page.length - 1];
+  const ex = extrasFor(db, page, q.viewerId);
   return {
-    items: page.map(toSummary),
+    items: page.map((r) => toSummary(r, ex.get(r.id)!)),
     nextCursor: rows.length > q.limit && last ? encodeCursor(last.created_at, last.id) : null,
   };
 }

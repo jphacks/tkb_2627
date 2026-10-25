@@ -211,7 +211,7 @@ describe('backup and restore', () => {
     const bak = join(dir, 'b.sqlite');
     backupDatabase(old, bak);
     const r = restoreDatabase(bak, join(dir, 'new.sqlite'));
-    expect(r.applied).toEqual(['002_post_previews.sql']);
+    expect(r.applied).toEqual(['002_post_previews.sql', '003_social_follow_like_images.sql']);
     expect(r.counts.post_previews).toBe(0);
   });
 

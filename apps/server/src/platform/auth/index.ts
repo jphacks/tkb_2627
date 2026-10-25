@@ -78,7 +78,7 @@ export function registerAuth(app: FastifyInstance, db: Db, config: SharedConfig)
 
   // Default deny: every /api/v1 route except these must run `authenticate`.
   const PUBLIC_ROUTES = new Set(['GET /api/v1/health', 'GET /api/v1/capabilities', 'POST /api/v1/auth/login', 'GET /api/v1/amenities', 'GET /api/v1/guides']);
-  const OPTIONAL_AUTH_ROUTES = new Set(['/api/v1/posts', '/api/v1/posts/:id']);
+  const OPTIONAL_AUTH_ROUTES = new Set(['/api/v1/posts', '/api/v1/posts/:id', '/api/v1/post-images/:id']);
   app.addHook('onRoute', (route) => {
     if (!route.url.startsWith('/api/v1/')) return;
     const methods = Array.isArray(route.method) ? route.method : [route.method];

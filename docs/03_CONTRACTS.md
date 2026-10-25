@@ -1230,3 +1230,15 @@ job: queued→running→succeeded/failed/cancelled。succeededは候補の共通
   - 既知の差：本人用App Serverのcapabilitiesは`dataMode=fixture`を固定で返します（A05で修正予定）。
 - **A05の代替案（#114）**：型は`packages/contracts`の`AlternativesRequest`／`AlternativesResult`（K10の拡張、schemaVersion 1のまま）。既知の制約：`reorder`の案は、1日の終わりを23:59とみなして詰めて並べます（案の説明に「詰めた案」と明記）。宿の到着時刻などの実際の終了時刻は、まだ考慮していません。
 - **A06の再計画（#118）**：型は`packages/contracts`の`ReplanRequest`／`ReplanResult`（K10の拡張、schemaVersion 1のまま）。既知の制約：その日の23:59までしか組み直さず、入りきらない予定は時刻なしで残します（翌日へは移しません）。0:00〜4:00の「経路なし」は終電後と判定しません。AIで残りを作り直すK01 replan（A06b）は後回しです。
+- **S07のSNS拡張（#187）**：型は`packages/contracts/src/social.ts`。マイグレーションは`003_social_follow_like_images.sql`（`follows`、`post_likes`、`post_images`、`post_previews.image_ids`）です。
+  - 一覧と詳細：すべての投稿に`author`（`avatarInitial`は表示名の先頭1文字、`avatarColor`はuserIdのハッシュから固定パレットで決めた色）、`isMine`、`likeCount`、`likedByMe`、`images`、`updatedAt`を返します。`updatedAt`は編集（K15）された投稿だけで、未編集はnullです。
+  - いいね：`PUT`／`DELETE /api/v1/posts/{id}/like`は冪等で、`LikeState`を返します。読める投稿だけが対象で、それ以外（他人のprivate、非メンバーのgroup、削除済み）は404です。件数だけを返し、誰が押したかは返しません。
+  - フォロー：`PUT`／`DELETE /api/v1/users/{id}/follow`は冪等で、`UserProfile`を返します。自分自身は422、存在しない利用者は404です。`GET /api/v1/users/{id}/profile`と`GET /api/v1/me/profile`はログインが必要です。フォローしても、読めない投稿は読めるようになりません。
+  - `GET /api/v1/posts?scope=following`：フォロー中の利用者の投稿のうち、本人が読めるもの（public、所属中のgroup）だけを、他のscopeと同じcursorで返します。ログインが必要です。
+  - 編集と削除：K15のPATCH／DELETEは投稿者本人だけです。他人の操作は404です。
+  - 画像のアップロード：`POST /api/v1/post-images`は本文をそのまま送ります（`Content-Type`は`image/jpeg`、`image/png`、`image/webp`。5 MBまで。このルートだけ`bodyLimit`を広げています）。
+    - 先頭のバイト列（マジックバイト）を宣言と照合し、合わなければ422です。サイズ超過や壊れた画像も422です。
+    - 位置情報などを消してから保存します（JPEGはAPP1〜APP15とCOM、PNGはtEXt／iTXt／zTXt／eXIf、WebPはEXIF／XMPを削除）。幅と高さは分かる場合だけ返し、不明ならnullです。
+    - 保存先はDB（BLOB）です。投稿に付ける前の画像は、アップロードした本人だけが読めます。未使用の画像は1人20枚までで、超えると429です。CSRFトークンが必要です。
+  - 画像の添付：K12の`imageIds`（最大4枚）は、本人がアップロードして、まだ投稿に付いていない画像だけです。違反はK12で422です。K13の確定時にも再確認し、同じ画像を2回確定しようとすると2回目は422です。
+  - 画像の取得：`GET /api/v1/post-images/{id}`は、付いている投稿と同じ可視性で返します。それ以外は404です（投稿を削除すると、画像も404になります）。`Content-Type`は保存した型、`X-Content-Type-Options: nosniff`、`Cache-Control: private, no-store`を付けます。
