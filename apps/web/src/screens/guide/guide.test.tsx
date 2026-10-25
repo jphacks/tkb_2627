@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { domesticTrip } from '@tkb/fixtures';
 import type { GeoLike } from '../travel/geo.ts';
 import { mapPoints } from '../itinerary/model.ts';
-import { AmenitiesPanel, GuideView, SpotPanel } from './GuideScreen.tsx';
+import { AmenitiesPanel, GuideView, SpotPanel, amenityMarkers } from './GuideScreen.tsx';
 import {
   EMPTY_TEXT, SHELTER_WARNING, UNSUPPORTED_TEXT, amenitiesUrl, bboxAround, chooseArea, classifyAmenities, currentDayIndex,
   displayName, fallbackBbox, type AmenityKind, fetchAmenities, mockAmenities, spotDetail, type AmenitiesLoad, type AmenityResponse,
@@ -199,5 +199,58 @@ describe('K19 guides (description + licensed photo)', () => {
   });
   it('guidesUrl encodes the placeId', () => {
     expect(guidesUrl('a b&c')).toBe('/api/v1/guides?placeId=a%20b%26c&lang=ja');
+  });
+});
+
+describe('U07 review (M2): map markers, no explanatory texts, itinerary under the map', () => {
+  const m = mockAmenities(bboxAround({ lat: 36.56, lng: 136.65 }));
+  if (m.state !== 'ok') throw new Error();
+  const view = (over: Partial<Parameters<typeof GuideView>[0]> = {}) => render(<GuideView trip={trip} mock geo={null} today={day.date} initialAmenities={m} {...over} />);
+
+  it('passes one marker per enabled layer item, with a distinct shape per kind', () => {
+    const all = amenityMarkers(m.items, ALL);
+    expect(all).toHaveLength(m.items.length);
+    expect(new Set(all.map(x => x.shape)).size).toBe(3);
+    expect(new Set(all.map(x => x.glyph)).size).toBe(3);
+    expect(all.every(x => x.title.includes('【架空】'))).toBe(true);
+    for (const k of ['toilet', 'evacuation_site', 'evacuation_shelter'] as const) {
+      const only = amenityMarkers(m.items, new Set<AmenityKind>([k]));
+      expect(only).toHaveLength(m.items.filter(i => i.kind === k).length);
+      expect(only.length).toBeGreaterThan(0);
+    }
+    expect(amenityMarkers(m.items, new Set())).toEqual([]);
+  });
+  it('draws them on the sketch map with the shelter and 【架空】 warnings', () => {
+    const html = view();
+    expect((html.match(/data-testid="extra-marker"/g) ?? []).length).toBe(m.items.length);
+    expect(html).toContain(SHELTER_WARNING);
+    expect(html).toContain('【架空】');
+    expect(view({ initialAmenities: { ...m, items: m.items.filter(i => i.kind === 'toilet') } })).not.toContain('指定は「現在開設中」を意味しません');
+  });
+  it('does not show the two explanatory texts', () => {
+    const html = view();
+    expect(html).not.toContain('地点を選ぶと解説を表示します');
+    expect(html).not.toContain('ブラウザが位置情報の許可を求めます');
+    expect(html).toContain('aria-label="現在地を使う');
+  });
+  it('renders the numbered itinerary table right under the map, numbers matching the map', () => {
+    const html = view();
+    const mapAt = html.indexOf('data-testid="map-fallback"');
+    const tableAt = html.indexOf('<table');
+    expect(mapAt).toBeGreaterThan(-1);
+    expect(tableAt).toBeGreaterThan(mapAt);
+    expect(tableAt).toBeLessThan(html.indexOf('近くのトイレ・避難場所'));
+    expect(html).not.toContain('it-drag');
+    for (const p of mapPoints(day, trip.places)) {
+      expect(html).toContain(`aria-label="${p.number}. ${p.name}"`);
+      expect(html).toContain(`aria-label="地図の地点${p.number}"`);
+    }
+  });
+  it('selection sync: a selected place highlights its table row and shows its guide detail', () => {
+    const p = mapPoints(day, trip.places)[1]!;
+    const html = view({ initialSelected: p.placeId });
+    expect(html).toContain(`aria-label="${p.number}. ${p.name}（選択中）"`);
+    expect(html).toContain(`aria-label="地点${p.number}の解説"`);
+    expect(html).toMatch(/<tr[^>]*class="it-stay it-on/);
   });
 });
