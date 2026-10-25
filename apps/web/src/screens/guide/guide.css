@@ -4,7 +4,7 @@
 .gd-detail img { max-width: 100%; height: auto; }
 .gd-kind { font-size: 12px; border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; }
 .gd-mapwrap { position: relative; }
-.gd-pop { position: absolute; left: 8px; right: 8px; bottom: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; box-shadow: 0 2px 8px rgba(0,0,0,.2); font-size: 14px; }
+.gd-pop { margin: 4px 0 8px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; box-shadow: 0 2px 8px rgba(0,0,0,.2); font-size: 14px; }
 .gd-here { margin: 8px 0; }
 .gd-legend { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .gd-leg { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); padding: 0 10px; opacity: .55; cursor: pointer; }
