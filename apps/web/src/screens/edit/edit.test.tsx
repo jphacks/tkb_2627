@@ -223,7 +223,7 @@ describe('views', () => {
     expect(html).toContain('class="it-conn it-conn-start"');
     expect(html).toContain('を削除');
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>直前の編集を取り消す/);
-    expect(html).toContain(`#/mock/trips/${base.tripId}/map`);
+    expect(html).toContain(`#/mock/trips/${base.tripId}/travel`);
   });
   it('shows the 409 message with a reload button and no retry', () => {
     const err: ApiError = { code: 'REVISION_CONFLICT', message: 'x', retryable: false, requestId: 'r' };

@@ -116,7 +116,8 @@ describe('T05-1 shared entry never reaches the personal AI entry', () => {
 describe('T05-2 SSRF: no path lets a client choose an outbound URL', () => {
   it('server and ai-local sources never call fetch/http(s).request/net.connect except the single shared-client call', () => {
     // `npm run review` (dev tooling) probes ports and calls the loopback servers it starts itself; checked separately below.
-    const REVIEW_TOOLING = ['scripts/review.mjs', 'scripts/lib/review-core.mjs'];
+    // `scripts/cdp-drag-check.mjs` (U11 dev check) drives a local headless Chrome over its loopback DevTools port only.
+    const REVIEW_TOOLING = ['scripts/review.mjs', 'scripts/lib/review-core.mjs', 'scripts/cdp-drag-check.mjs'];
     const files = sourceFiles(['apps/server/src', 'apps/ai-local/src', 'packages/ai/src', 'packages/db/src', 'packages/contracts/src', 'packages/planner/src', 'packages/exports/src', 'packages/travel-data/src', 'packages/fixtures/src', 'scripts'], { skipTests: true }).filter(f => !REVIEW_TOOLING.includes(rel(f)));
     expect(files.length).toBeGreaterThan(10);
     const hits: string[] = [];
@@ -135,6 +136,14 @@ describe('T05-2 SSRF: no path lets a client choose an outbound URL', () => {
     expect(urls.length).toBeGreaterThan(0);
     for (const u of urls) expect(u, u).toMatch(/^http:\/\/(127\.0\.0\.1|\$\{)/);
     expect(t).not.toMatch(/googleapis|maps\.google/);
+  });
+
+  it('the drag check (U11) only talks to loopback: the local Chrome DevTools port and the local vite page', () => {
+    const t = read(sourceFiles(['scripts']).find(f => rel(f) === 'scripts/cdp-drag-check.mjs')!);
+    const urls = [...t.matchAll(/https?:\/\/[^\s'"`)]+/g)].map(m => m[0]);
+    expect(urls.length).toBeGreaterThan(0);
+    for (const u of urls) expect(u, u).toMatch(/^http:\/\/127\.0\.0\.1[:/]/);
+    expect(t).not.toMatch(/googleapis|maps\.google|\.\.\.process\.env/);
   });
 
   it('the only outbound call target is baseUrl + a constant path; client-controlled values never reach the URL', () => {

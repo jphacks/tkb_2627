@@ -5,6 +5,7 @@ import {
   bandTarget, keyboardTarget, legDetails, previewRows, reorderedOrder, stayDetails,
   type ChildRow, type DetailLine, type LegRow, type StayRow, type StopRow, type TableRow,
 } from './table.ts';
+import type { InsertPosition } from './InsertSlot.tsx';
 import './itinerary.css';
 
 type Drag = { key: string; before: string | null | undefined; mode: 'pointer' | 'keyboard'; order: string[] };
@@ -17,7 +18,9 @@ type Drag = { key: string; before: string | null | undefined; mode: 'pointer' | 
  * unless reduced motion is set) so it is clear where the stay will go. Rows keep only what tells stays apart; unknown
  * values stay in the details.
  */
-export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggleRow, onReorder, saving = false, setRowRef, stayExtra, stayBadge }: {
+export type { InsertPosition } from './InsertSlot.tsx';
+
+export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggleRow, onReorder, saving = false, setRowRef, stayExtra, stayBadge, insertSlot }: {
   rows: TableRow[];
   dayDate: string;
   expanded: ReadonlySet<string>;
@@ -29,6 +32,8 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
   setRowRef?: (key: string, el: HTMLTableRowElement | null) => void;
   /** Extra controls under a stay row (e.g. remove, completed). */
   stayExtra?: (row: StayRow) => React.ReactNode;
+  /** Edit mode (U11): M3's InsertSlot before the first stay, between stays and after the last. `beforeKey`: the stay it sits before (null: the end). */
+  insertSlot?: (position: InsertPosition, beforeKey: string | null) => React.ReactNode;
   /** Extra text before the stay title (e.g. 未保存, 完了). */
   stayBadge?: (row: StayRow) => React.ReactNode;
 }) {
@@ -169,6 +174,12 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
   const dragName = dragTitle ? (rows.find(r => r.key === dragTitle) as StayRow).item.title : '';
 
 
+  // U11: insert slots (M3 InsertSlot) in edit mode. They stay while dragging: removing them would shift the rows measured at the drag start.
+  const firstStay = rows.find(r => r.kind === 'stay')?.key;
+  const slot = (position: InsertPosition, beforeKey: string | null) => (insertSlot
+    ? <tr className="it-slot" data-insert-slot={position}><td colSpan={cols}>{insertSlot(position, beforeKey)}</td></tr>
+    : null);
+
   return (
     <>
       <p className={drag ? 'it-dragnote' : 'u1-sr'} role="status" aria-live="polite">
@@ -178,8 +189,10 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
         <thead><tr>{editable && <th scope="col" className="it-col-handle"><span className="u1-sr">並べ替え</span></th>}<th scope="col" className="it-col-time">時刻</th><th scope="col">内容</th></tr></thead>
         <tbody ref={bodyRef}>
           {rows.length === 0 && <tr><td colSpan={cols} className="u1-empty">この日の予定はありません。</td></tr>}
+          {firstStay !== undefined && slot('before-first', firstStay)}
           {shown.map((r, i) => (
             <Fragment key={r.key}>
+              {r.kind === 'stay' && r.key !== firstStay && slot('between', r.key)}
               {r.kind === 'stay' ? (
                 <StayTableRows row={r} open={expanded.has(r.key)} selected={selectedKeys?.has(r.key) ?? false} editable={editable}
                   dragging={drag?.key === r.key}
@@ -194,6 +207,7 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
               )}
             </Fragment>
           ))}
+          {firstStay !== undefined && slot('after-last', null)}
         </tbody>
       </table>
     </>

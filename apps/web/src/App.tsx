@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { FIXTURE_NOTICE, fixtureTrips } from '@tkb/fixtures';
 import { ConditionsApp } from './screens/conditions/ConditionsApp.tsx';
 import { GenerateApp } from './screens/generate/GenerateApp.tsx';
-import { ItineraryScreen } from './screens/itinerary/ItineraryScreen.tsx';
 import { parseItineraryHash } from './screens/itinerary/route.ts';
 import { PrintScreen } from './screens/print/PrintScreen.tsx';
 import { parsePrintHash } from './screens/print/route.ts';
@@ -53,7 +52,8 @@ export function App() {
 function Screen({ hash }: { hash: string }) {
   // U04: #/trips/<id>/map (server) or #/mock/trips/<id>/map (mock). Reload refetches the trip by id.
   const itinerary = parseItineraryHash(hash);
-  if (itinerary) return <ItineraryScreen key={`${itinerary.mode}:${itinerary.tripId}`} route={itinerary} onBack={() => { location.hash = ''; }} />;
+  // U11: the map and the edit tab are one screen (map + editable itinerary), so /map and /edit both open it.
+  if (itinerary) return <EditScreen key={`${itinerary.mode}:${itinerary.tripId}`} route={{ mode: itinerary.mode, tripId: itinerary.tripId }} />;
   // E01: #/trips/<id>/print (+ #/mock/... variant).
   const print = parsePrintHash(hash);
   if (print) return <PrintScreen key={`${print.mode}:${print.tripId}`} route={print} />;

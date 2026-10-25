@@ -9,8 +9,8 @@ export function screenFor(hash: string, pathname = '/'): ScreenInfo {
   const trip = /^#\/(?:mock\/)?trips\/[^/]+\/(map|edit|travel|guide|print)(?:[?/].*)?$/.exec(hash);
   if (trip) {
     switch (trip[1]) {
-      case 'map': return { code: 'U04', name: '地図と旅程', issue: 32 };
-      case 'edit': return { code: 'U06', name: '旅程の編集', issue: 34 };
+      case 'map':
+      case 'edit': return { code: 'U04/U06', name: '地図と旅程の編集', issue: 34 };
       case 'travel': return { code: 'U06', name: '旅行中（再計画）', issue: 34 };
       case 'guide': return { code: 'U07', name: '現在地とガイド', issue: 35 };
       default: return { code: 'E01', name: 'しおり印刷・PDF', issue: 37 };

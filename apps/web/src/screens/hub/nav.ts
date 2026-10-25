@@ -11,8 +11,8 @@ export interface NavModel {
 }
 
 const TABS: ReadonlyArray<{ key: TripTabKey; label: string }> = [
-  { key: 'map', label: '地図' },
-  { key: 'edit', label: '編集' },
+
+  { key: 'edit', label: '地図・編集' },
   { key: 'travel', label: '旅行中' },
   { key: 'guide', label: 'ガイド' },
 ];
@@ -25,7 +25,8 @@ export function tripTabs(hash: string): NavTab[] {
   if (!m) return [];
   const [, mock, id, cur] = m;
   const base = `#/${mock ? 'mock/' : ''}trips/${id}`;
-  return TABS.map((t) => ({ ...t, href: `${base}/${t.key}`, current: t.key === cur }));
+  // U11: 地図 and 編集 are one tab; /map opens the same screen, so it marks that tab too.
+  return TABS.map((t) => ({ ...t, href: `${base}/${t.key}`, current: t.key === cur || (t.key === 'edit' && cur === 'map') }));
 }
 
 export function navModel(hash: string, pathname = '/'): NavModel {

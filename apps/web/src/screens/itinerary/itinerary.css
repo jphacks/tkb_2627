@@ -108,3 +108,11 @@
 .it-extra path { stroke: #fff; stroke-width: 2; }
 .it-extra.it-on path { stroke: #111827; }
 .it-extra:focus-visible { outline: 3px solid #e0a100; outline-offset: 2px; }
+
+/* U11: the number badge sits in the vertical middle of its row; insert slots (M3 InsertSlot) take no extra padding. */
+.it-rowbtn > .it-num, .it-stopcell > .it-num { align-self: center; }
+.it-slot > td { padding: 0 0 0 4px; border: 0; }
+.it-slot > td:empty { display: none; }
+/* U11: `.it-table th { padding: 0 }` is more specific than `.it-time`, so the time ran into the dashed handle box. */
+.it-table .it-stay > .it-time, .it-table .it-stoprow > .it-time { padding: 8px 6px 8px 12px; }
+.it-table .it-stay > .it-time, .it-subtable .it-time { white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
