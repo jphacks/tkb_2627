@@ -2511,6 +2511,139 @@
       "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
       "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
       "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "S07",
+      "owner": "M1",
+      "title": "SNSの投稿者表示・フォロー・いいね・投稿の修正（契約・DB・API）",
+      "dependsOn": [
+        "S05"
+      ],
+      "uiDependency": "none",
+      "writePaths": [
+        "packages/contracts/src/social.ts",
+        "packages/db/src/",
+        "apps/server/src/social/"
+      ],
+      "requirements": [
+        "R20",
+        "R21"
+      ],
+      "estimateMinutes": {
+        "low": 60,
+        "high": 120
+      },
+      "acceptance": "投稿の一覧と詳細に投稿者（表示名・アイコン用の頭文字と色）と自分の投稿かどうかを返す。フォロー／解除、フォロー数・フォロワー数、フォロー中の投稿のフィード、いいね／解除といいね数、自分の投稿の本文の修正を、所有者と公開範囲の権限を守って提供する。",
+      "verification": "他人の投稿は修正・削除できない、非公開の投稿にはいいねもフォロー経由の表示もできない、いいねの二重登録なし、契約は互換の追加（schemaVersion 1）。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K12",
+        "K13",
+        "K14",
+        "K15"
+      ],
+      "components": [
+        "shared",
+        "auth",
+        "social",
+        "groups",
+        "repository",
+        "db"
+      ],
+      "branch": "feat/m1/s07",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "Issue #36 のUIレビュー（2026-10-25、KatTanaka）",
+        "docs/ui/reviews/ の R1〜R7"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "U09",
+      "owner": "M4",
+      "title": "SNSのTwitter風画面（アイコン・フォロー・いいね・…メニュー）",
+      "dependsOn": [
+        "S07",
+        "U08"
+      ],
+      "uiDependency": "approval",
+      "writePaths": [
+        "apps/web/src/screens/social/"
+      ],
+      "requirements": [
+        "R20",
+        "R21"
+      ],
+      "estimateMinutes": {
+        "low": 60,
+        "high": 120
+      },
+      "acceptance": "Twitter風の見た目で、各投稿に投稿者のアイコンと名前を出し、自分の投稿と他人の投稿を区別できる。フィードの上部にフォロー数・フォロワー数とフォロー操作を置く。各投稿の「…」メニューから、自分の投稿だけ修正・削除できる。各投稿にいいね（数と自分の状態）。返信とリポストは作らない。フィード以外の関連画面（投稿詳細、自分の投稿）も同じ形にする。",
+      "verification": "#36 のレビュー項目をすべて満たす。人の「UI承認：OK」。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K12",
+        "K13",
+        "K14",
+        "K15"
+      ],
+      "components": [
+        "web-shared"
+      ],
+      "branch": "feat/m4/u09",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "Issue #36 のUIレビュー（2026-10-25、KatTanaka）",
+        "docs/ui/reviews/ の R1〜R7"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
+    },
+    {
+      "id": "U10",
+      "owner": "M3",
+      "title": "投稿の旅程をU04と同じ行程表で表示",
+      "dependsOn": [
+        "U08",
+        "U04"
+      ],
+      "uiDependency": "approval",
+      "writePaths": [
+        "apps/web/src/screens/social/PostItinerary.tsx",
+        "apps/web/src/screens/social/PostItinerary.test.tsx"
+      ],
+      "requirements": [
+        "R20",
+        "R22"
+      ],
+      "estimateMinutes": {
+        "low": 30,
+        "high": 60
+      },
+      "acceptance": "投稿の詳細とコピー後の確認で、旅程を自然文ではなく U04 と同じ行程表（itinerary/ItineraryTable、読み取り専用。時刻｜内容、移動は2行、押すと1段下に詳細）で表示する。公開されていない項目は出さない。",
+      "verification": "#36 のレビュー項目2を満たす。人の「UI承認：OK」。",
+      "initialStatus": "todo",
+      "humanAction": false,
+      "contracts": [
+        "K14"
+      ],
+      "components": [
+        "web-shared"
+      ],
+      "branch": "feat/m3/u10",
+      "inputArtifacts": [
+        "ops/tasks.jsonの当該タスク",
+        "Issue #36 のUIレビュー（2026-10-25、KatTanaka）",
+        "docs/ui/reviews/ の R1〜R7"
+      ],
+      "handoff": "Issueにcommit、PR、変更path、実行テスト、fixture/live、残る疑問、次担当への依頼を1コメントで記録。",
+      "completionAuthority": "担当の検証＋別レビュー＋M1のmerge確認",
+      "statusAuthority": "GitHub Issue statusラベル。HTMLは読取りスナップショット。"
     }
   ],
   "version": "4.0"
