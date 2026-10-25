@@ -2,8 +2,8 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { UNKNOWN, formatMoney } from '../../lib/format.ts';
 import { KIND_LABEL } from './model.ts';
 import {
-  hoverTarget, keyboardTarget, legDetails, previewRows, reorderedOrder, stayDetails,
-  type ChildRow, type DetailLine, type LegRow, type StayRow, type StopRow, type TableRow,
+  dropTargetFromY, keyboardTarget, legDetails, previewRows, reorderedOrder, stayDetails,
+  type ChildRow, type DetailLine, type RowBox, type LegRow, type StayRow, type StopRow, type TableRow,
 } from './table.ts';
 import './itinerary.css';
 
@@ -44,14 +44,24 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
   const order = drag && drag.before !== undefined ? reorderedOrder(stayKeys, [drag.key], drag.before) : stayKeys;
   const shown = drag ? previewRows(rows, order) : rows;
 
-  // R1: pointer based drag (mouse and touch) from the handle. The hovered row is read in the order on screen.
-  const dropFromPoint = (e: { clientX: number; clientY: number }, d: Drag): Drag => {
-    const el = document.elementFromPoint?.(e.clientX, e.clientY)?.closest?.('[data-stay-key]') as HTMLElement | null;
-    const overKey = el?.dataset.stayKey;
-    if (!el || !overKey || overKey === d.key) return d;
-    const rect = el.getBoundingClientRect();
-    const after = el.dataset.detail === '1' || e.clientY > rect.top + rect.height / 2;
-    return { ...d, before: hoverTarget(stayKeys, order, d.key, overKey, after) };
+  // R1: pointer based drag (mouse and touch) from the handle. The target comes from the row positions measured when the
+  // drag started (not from the rows on screen, which already move while dragging: that made the target flip back, #213).
+  const boxes = useRef(new Map<string, RowBox>());
+  const measure = () => {
+    const m = new Map<string, RowBox>();
+    for (const el of bodyRef.current?.querySelectorAll<HTMLElement>('tr.it-stay[data-stay-key]') ?? []) {
+      const r = el.getBoundingClientRect();
+      m.set(el.dataset.stayKey!, { top: r.top + window.scrollY, bottom: r.bottom + window.scrollY });
+    }
+    boxes.current = m;
+  };
+  const dropFromPoint = (e: { clientY: number }, d: Drag): Drag => {
+    // Near the top or bottom edge of the window the page scrolls, so a far row can be reached (touch cannot scroll while dragging).
+    const edge = 56;
+    if (typeof window.scrollBy === 'function' && window.innerHeight > 0) {
+      if (e.clientY < edge) window.scrollBy(0, -24); else if (e.clientY > window.innerHeight - edge) window.scrollBy(0, 24);
+    }
+    return { ...d, before: dropTargetFromY(stayKeys, boxes.current, d.key, e.clientY + window.scrollY) };
   };
 
   // Rows slide from where they were to where they are now (FLIP), so a moving row can be followed by eye. Only a change
@@ -107,6 +117,7 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
     if (saving || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    measure();
     setDrag({ key, before: undefined, mode: 'pointer', order: stayKeys });
   };
   // Keyboard alternative: Enter/Space picks the row up, arrow keys move it, Enter/Space drops, Escape cancels.

@@ -285,6 +285,38 @@ export function hoverTarget(stayKeys: readonly string[], shown: readonly string[
   return result.every((k, j) => k === stayKeys[j]) ? undefined : before;
 }
 
+/** Vertical extent of a stay row (page coordinates) measured when a drag starts. */
+export interface RowBox { top: number; bottom: number }
+
+/**
+ * Where a pointer drop lands (R1, U11 #213), from the stay rows' boxes measured when the drag started (original order).
+ * Reported three times on #34: rows are tall (about 115px) with an arrow between them, and the old rule only swapped
+ * once the pointer passed the middle of the next row while hit-testing rows that were already moving, so a stay dropped
+ * onto the next row stayed where it was. Now the direction decides: moving down, the stay goes after every lower row the
+ * pointer has entered (passed its top); moving up, it goes before every upper row the pointer has entered (passed its
+ * bottom). Returns the stay to insert before (null: the end), or undefined when the order would not change.
+ */
+export function dropTargetFromY(stayKeys: readonly string[], boxes: ReadonlyMap<string, RowBox>, dragged: string, y: number): string | null | undefined {
+  const i = stayKeys.indexOf(dragged);
+  if (i < 0) return undefined;
+  let before: string | null | undefined;
+  // Down: the last row below whose top the pointer has passed.
+  for (let j = stayKeys.length - 1; j > i; j--) {
+    const box = boxes.get(stayKeys[j]!);
+    if (box && y > box.top) { before = stayKeys[j + 1] ?? null; break; }
+  }
+  // Up: the first row above whose bottom the pointer is above.
+  if (before === undefined) {
+    for (let j = 0; j < i; j++) {
+      const box = boxes.get(stayKeys[j]!);
+      if (box && y < box.bottom) { before = stayKeys[j]!; break; }
+    }
+  }
+  if (before === undefined) return undefined;
+  const result = reorderedOrder(stayKeys, [dragged], before);
+  return result.every((k, j) => k === stayKeys[j]) ? undefined : before;
+}
+
 /** Rows in a new stay order: each stay keeps the legs that follow it (legs before the first stay stay first). */
 export function previewRows(rows: readonly TableRow[], order: readonly string[]): TableRow[] {
   const lead: TableRow[] = [];
