@@ -12,6 +12,7 @@ import { GuideScreen } from './screens/guide/GuideScreen.tsx';
 import { parseGuideHash } from './screens/guide/route.ts';
 import { TravelScreen } from './screens/travel/TravelScreen.tsx';
 import { U01App } from './screens/U01App.tsx';
+import { NavBar } from './screens/hub/NavBar.tsx';
 import { ScreenBadge } from './screens/hub/ScreenBadge.tsx';
 import { HomeApp } from './screens/hub/HomeApp.tsx';
 import { parseHubHash } from './screens/hub/route.ts';
@@ -42,6 +43,7 @@ export function App() {
   }, []);
   return (
     <>
+      <NavBar hash={hash} pathname={typeof location !== 'undefined' ? location.pathname : '/'} />
       <Screen hash={hash} />
       <ScreenBadge hash={hash} pathname={typeof location !== 'undefined' ? location.pathname : '/'} />
     </>

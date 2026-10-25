@@ -1,0 +1,46 @@
+import { parseHubHash } from './route.ts';
+import { screenFor } from './screenBadge.ts';
+
+export type TripTabKey = 'map' | 'edit' | 'travel' | 'guide' | 'print';
+export interface NavTab { key: TripTabKey; label: string; href: string; current: boolean }
+export interface NavModel {
+  /** false on the home screen: no bar there. */
+  visible: boolean;
+  title: string | null;
+  tabs: NavTab[];
+}
+
+const TABS: ReadonlyArray<{ key: TripTabKey; label: string }> = [
+  { key: 'map', label: '地図' },
+  { key: 'edit', label: '編集' },
+  { key: 'travel', label: '旅行中' },
+  { key: 'guide', label: 'ガイド' },
+  { key: 'print', label: 'しおり' },
+];
+
+const TRIP_RE = /^#\/(mock\/)?trips\/([^/?]+)\/(map|edit|travel|guide|print)(?:[?/].*)?$/;
+
+/** Tab row for a trip hash, keeping mock/server mode and trip id. Empty for non-trip hashes. */
+export function tripTabs(hash: string): NavTab[] {
+  const m = TRIP_RE.exec(hash);
+  if (!m) return [];
+  const [, mock, id, cur] = m;
+  const base = `#/${mock ? 'mock/' : ''}trips/${id}`;
+  return TABS.map((t) => ({ ...t, href: `${base}/${t.key}`, current: t.key === cur }));
+}
+
+export function navModel(hash: string, pathname = '/'): NavModel {
+  if (pathname !== '/invite' && parseHubHash(hash) === 'home') return { visible: false, title: null, tabs: [] };
+  const tabs = tripTabs(hash);
+  return { visible: true, title: tabs.length === 0 ? screenFor(hash, pathname).name : null, tabs };
+}
+
+/** Back goes to the previous in-app page when there is one, otherwise to #home. */
+export function backTarget(appDepth: number): 'history' | '#home' {
+  return appDepth > 0 ? 'history' : '#home';
+}
+
+/** Depth bookkeeping from history.state: a state with a depth is a pop (restore), none is a new push (+1). */
+export function nextDepth(prev: number, stateDepth: unknown): number {
+  return typeof stateDepth === 'number' ? stateDepth : prev + 1;
+}
