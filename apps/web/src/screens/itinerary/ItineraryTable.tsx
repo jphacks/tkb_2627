@@ -1,8 +1,8 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useLayoutEffect, useRef, useState } from 'react';
 import { UNKNOWN, formatMoney } from '../../lib/format.ts';
 import { KIND_LABEL, VALUE_UNKNOWN, transitDetail } from './model.ts';
 import {
-  insertBeforeKey, keyboardTarget, childDetails, legDetails, stayDetails,
+  hoverTarget, keyboardTarget, childDetails, legDetails, previewRows, reorderedOrder, stayDetails,
   type ChildRow, type DetailLine, type LegRow, type StayRow, type TableRow,
 } from './table.ts';
 import './itinerary.css';
@@ -13,7 +13,9 @@ type Drag = { key: string; before: string | null | undefined; mode: 'pointer' | 
  * The n x 2 itinerary table shared by U04 (map + itinerary), U06 edit and travel screens: time column + content,
  * travel legs as departure/arrival rows, nested activities inside their parent, row click for details and
  * (when `onReorder` is given) pointer + keyboard drag and drop from a handle column at the far left (UI review on #33).
- * Dragging a stay moves its children with it. Rows keep only what tells stays apart; unknown values stay in the details.
+ * Dragging a stay moves its children with it, and while dragging the rows already move into the new order (animated,
+ * unless reduced motion is set) so it is clear where the stay will go. Rows keep only what tells stays apart; unknown
+ * values stay in the details.
  */
 export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggleRow, onReorder, saving = false, setRowRef, stayExtra, stayBadge }: {
   rows: TableRow[];
@@ -36,15 +38,36 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
   const stayKeys = rows.flatMap(r => (r.kind === 'stay' ? [r.key] : []));
   const commitMove = (key: string, before: string | null) => onReorder?.(key, before);
 
-  // R1: pointer based drag (mouse and touch) from the handle.
+  // While dragging, the table shows the order the drop would give (UI review on #33).
+  const order = drag && drag.before !== undefined ? reorderedOrder(stayKeys, [drag.key], drag.before) : stayKeys;
+  const shown = drag ? previewRows(rows, order) : rows;
+
+  // R1: pointer based drag (mouse and touch) from the handle. The hovered row is read in the order on screen.
   const dropFromPoint = (e: React.PointerEvent, d: Drag): Drag => {
     const el = document.elementFromPoint?.(e.clientX, e.clientY)?.closest?.('[data-stay-key]') as HTMLElement | null;
     const overKey = el?.dataset.stayKey;
-    if (!el || !overKey) return d;
+    if (!el || !overKey || overKey === d.key) return d;
     const rect = el.getBoundingClientRect();
     const after = el.dataset.detail === '1' || e.clientY > rect.top + rect.height / 2;
-    return { ...d, before: insertBeforeKey(stayKeys, d.key, overKey, after) };
+    return { ...d, before: hoverTarget(stayKeys, order, d.key, overKey, after) };
   };
+
+  // Rows slide from where they were to where they are now (FLIP), so a moving row can be followed by eye.
+  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const lastTops = useRef(new Map<string, number>());
+  useLayoutEffect(() => {
+    const els = [...(bodyRef.current?.querySelectorAll<HTMLElement>('[data-row-key]') ?? [])];
+    const reduce = typeof window !== 'undefined' && (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+    const tops = new Map(els.map(el => [el.dataset.rowKey!, el.getBoundingClientRect().top]));
+    if (!reduce) {
+      for (const el of els) {
+        const was = lastTops.current.get(el.dataset.rowKey!);
+        const dy = was === undefined ? 0 : was - tops.get(el.dataset.rowKey!)!;
+        if (Math.abs(dy) > 1) el.animate?.([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 180, easing: 'ease-out' });
+      }
+    }
+    lastTops.current = tops;
+  });
   const onHandlePointerDown = (e: React.PointerEvent, key: string) => {
     if (saving || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault();
@@ -92,18 +115,18 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
 
   return (
     <>
-      <p className="u1-sr" role="status" aria-live="polite">
+      <p className={drag ? 'it-dragnote' : 'u1-sr'} role="status" aria-live="polite">
         {drag ? `「${dragName}」を移動中。${drag.before === undefined ? '移動先を選んでください。' : drag.before === null ? '最後に置きます。' : `「${(rows.find(r => r.key === drag.before) as StayRow | undefined)?.item.title ?? ''}」の前に置きます。`}` : ''}
       </p>
       <table className="it-table" aria-label="行程表">
         <thead><tr>{editable && <th scope="col" className="it-col-handle"><span className="u1-sr">並べ替え</span></th>}<th scope="col" className="it-col-time">時刻</th><th scope="col">内容</th></tr></thead>
-        <tbody>
+        <tbody ref={bodyRef}>
           {rows.length === 0 && <tr><td colSpan={cols} className="u1-empty">この日の予定はありません。</td></tr>}
-          {rows.map(r => (
+          {shown.map(r => (
             <Fragment key={r.key}>
               {r.kind === 'stay' ? (
                 <StayTableRows row={r} open={expanded.has(r.key)} selected={selectedKeys?.has(r.key) ?? false} editable={editable}
-                  dragging={drag?.key === r.key} dropBefore={drag !== null && drag.before === r.key}
+                  dragging={drag?.key === r.key}
                   setRef={el => setRowRef?.(r.key, el)} extra={stayExtra?.(r)} badge={stayBadge?.(r)}
                   onToggle={() => onToggleRow(r.key)}
                   onHandlePointerDown={e => onHandlePointerDown(e, r.key)} onHandlePointerMove={onHandlePointerMove}
@@ -113,7 +136,6 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
               )}
             </Fragment>
           ))}
-          {drag !== null && drag.before === null && <tr className="it-drop-end" aria-hidden="true"><td colSpan={cols}>ここに置く</td></tr>}
         </tbody>
       </table>
     </>
@@ -138,13 +160,12 @@ function DetailList({ lines, label }: { lines: DetailLine[]; label: string }) {
   );
 }
 
-function StayTableRows({ row, open, selected, editable, dragging, dropBefore, extra, badge, setRef, onToggle, onHandlePointerDown, onHandlePointerMove, onHandlePointerUp, onHandleCancel, onHandleKeyDown }: {
+function StayTableRows({ row, open, selected, editable, dragging, extra, badge, setRef, onToggle, onHandlePointerDown, onHandlePointerMove, onHandlePointerUp, onHandleCancel, onHandleKeyDown }: {
   row: StayRow;
   open: boolean;
   selected: boolean;
   editable: boolean;
   dragging: boolean;
-  dropBefore: boolean;
   extra?: React.ReactNode;
   badge?: React.ReactNode;
   setRef: (el: HTMLTableRowElement | null) => void;
@@ -159,7 +180,7 @@ function StayTableRows({ row, open, selected, editable, dragging, dropBefore, ex
   const detailId = `it-d-${row.key}`;
   return (
     <>
-      <tr ref={setRef} data-stay-key={row.key} className={`it-stay${selected ? ' it-on' : ''}${dragging ? ' it-dragging' : ''}${dropBefore ? ' it-drop-before' : ''}`}>
+      <tr ref={setRef} data-stay-key={row.key} data-row-key={row.key} className={`it-stay${selected ? ' it-on' : ''}${dragging ? ' it-dragging' : ''}`}>
         {editable && (
           <td className="it-handlecell">
             <button type="button" className="it-handle" aria-label={`「${a.title}」を並べ替える`} aria-pressed={dragging}
@@ -189,7 +210,7 @@ function StayTableRows({ row, open, selected, editable, dragging, dropBefore, ex
         </td>
       </tr>
       {open && (
-        <tr id={detailId} className="it-detail" data-stay-key={row.key} data-detail="1">
+        <tr id={detailId} className="it-detail" data-stay-key={row.key} data-detail="1" data-row-key={`${row.key}:detail`}>
           <td colSpan={editable ? 3 : 2}>
             <DetailList lines={stayDetails(row)} label={`${a.title}の詳細`} />
             {row.children.length > 0 && (
@@ -220,7 +241,8 @@ function ChildTableRow({ child }: { child: ChildRow }) {
 
 /**
  * A travel leg is two thin rows: the start row (departure time + how) and the end row (arrival time). The place names are
- * the rows above and below, so they are only read out, not shown again; by transit the end row names the stop instead.
+ * the rows above and below, so they are only read out, not shown again. By transit the end row is a stay-sized row with
+ * the stop you get off at, so the stays after it read as that stop's area. The time column needs no 出発/到着 words.
  */
 function LegTableRows({ row, open, selected, dayDate, editable, onToggle }: { row: LegRow; open: boolean; selected: boolean; dayDate: string; editable: boolean; onToggle: () => void }) {
   const detailId = `it-d-${row.key}`;
@@ -228,27 +250,40 @@ function LegTableRows({ row, open, selected, dayDate, editable, onToggle }: { ro
   const stop = transitDetail(row.leg)?.alighting ?? null;
   return (
     <>
-      <tr className={`${cls} it-conn-start`} data-leg-key={row.key}>
+      <tr className={`${cls} it-conn-start`} data-leg-key={row.key} data-row-key={`${row.key}:start`}>
         {editable && <td />}
-        <th scope="row" className="it-time"><span className="it-tm">出発 </span><TimeText text={row.departure} /></th>
+        <th scope="row" className="it-time"><TimeText text={row.departure} /></th>
         <td>
           <button type="button" className="it-connbtn" aria-expanded={open} aria-controls={detailId} onClick={onToggle}
             aria-label={`${row.fromName}から${row.toName}への移動：${row.summary}${row.stale ? '（要再計算）' : ''}`}>
-            <span aria-hidden="true">↓</span> <span className="it-legmode">{row.summary}</span>
+            <span aria-hidden="true" className="it-arrowbig">↓</span><span className="it-legmode">{row.summary}</span>
             {row.stale && <span className="it-stale-tag">要再計算</span>}
           </button>
         </td>
       </tr>
-      <tr className={`${cls} it-conn-end${stop ? ' it-conn-area' : ''}`} data-leg-key={row.key}>
-        {editable && <td />}
-        <th scope="row" className="it-time"><span className="it-tm">到着 </span><TimeText text={row.arrival} /></th>
-        {/* By transit the stop you get off at heads the stays after it, like an area (UI review on #33). Never guessed. */}
-        <td>{stop && (stop === VALUE_UNKNOWN
-          ? <span className="meta">降車する駅・停留所：<span className="u1-unknown">{VALUE_UNKNOWN}</span></span>
-          : <span className="it-stop">{stop}<span className="meta">で降車</span></span>)}</td>
-      </tr>
+      {stop ? (
+        // The stop you get off at, as large as a stay (UI review on #33). Never guessed: 不明 when not obtained.
+        <tr className={`it-stoprow${selected ? ' it-on' : ''}`} data-leg-key={row.key} data-row-key={`${row.key}:stop`}>
+          {editable && <td />}
+          <th scope="row" className="it-time"><TimeText text={row.arrival} /></th>
+          <td>
+            <span className="it-rowtext it-stopcell">
+              {stop === VALUE_UNKNOWN
+                ? <span className="it-title">降車する駅・停留所：<span className="u1-unknown">{VALUE_UNKNOWN}</span></span>
+                : <span className="it-title">{stop}</span>}
+              <span className="meta">公共交通で到着</span>
+            </span>
+          </td>
+        </tr>
+      ) : (
+        <tr className={`${cls} it-conn-end`} data-leg-key={row.key} data-row-key={`${row.key}:end`}>
+          {editable && <td />}
+          <th scope="row" className="it-time"><TimeText text={row.arrival} /></th>
+          <td />
+        </tr>
+      )}
       {open && (
-        <tr id={detailId} className="it-detail" data-detail-leg="1">
+        <tr id={detailId} className="it-detail" data-detail-leg="1" data-row-key={`${row.key}:detail`}>
           <td colSpan={editable ? 3 : 2}><DetailList lines={legDetails(row, dayDate)} label={`${row.fromName}から${row.toName}への移動の詳細`} /></td>
         </tr>
       )}

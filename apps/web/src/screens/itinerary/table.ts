@@ -246,6 +246,30 @@ export function insertBeforeKey(stayKeys: readonly string[], dragged: string, ov
   return nextKey;
 }
 
+/**
+ * The stay to insert before when the pointer is over `overKey` in the order on screen (`shown`, which already has the
+ * dragged stay moved). undefined: the drop would give the original order.
+ */
+export function hoverTarget(stayKeys: readonly string[], shown: readonly string[], dragged: string, overKey: string, after: boolean): string | null | undefined {
+  const rest = shown.filter(k => k !== dragged);
+  const i = rest.indexOf(overKey);
+  if (i < 0 || !stayKeys.includes(dragged)) return undefined;
+  const before = after ? rest[i + 1] ?? null : overKey;
+  const result = reorderedOrder(stayKeys, [dragged], before);
+  return result.every((k, j) => k === stayKeys[j]) ? undefined : before;
+}
+
+/** Rows in a new stay order: each stay keeps the legs that follow it (legs before the first stay stay first). */
+export function previewRows(rows: readonly TableRow[], order: readonly string[]): TableRow[] {
+  const lead: TableRow[] = [];
+  const units = new Map<string, TableRow[]>();
+  let cur: TableRow[] | null = null;
+  for (const r of rows) {
+    if (r.kind === 'stay') { cur = [r]; units.set(r.key, cur); } else (cur ?? lead).push(r);
+  }
+  return [...lead, ...order.flatMap(k => units.get(k) ?? [])];
+}
+
 /** Keyboard alternative: the stay to insert before when moving `dragged` one stay up (-1) or down (+1); undefined at the edge. */
 export function keyboardTarget(stayKeys: readonly string[], dragged: string, dir: -1 | 1): string | null | undefined {
   const i = stayKeys.indexOf(dragged);
