@@ -20,15 +20,20 @@ import {
   GroupInviteCreated,
   Id,
   LoginRequest,
+  LikeState,
   LoginResponse,
   Membership,
+  POST_IMAGE_MAX_BYTES,
+  POST_IMAGE_TYPES,
   Post,
   PostCreateRequest,
+  PostImage,
   PostPatchRequest,
   PostPreview,
   PostPreviewRequest,
   Trip,
   TripList,
+  UserProfile,
   type ErrorCode,
   type Visibility,
 } from '@tkb/contracts';
@@ -71,6 +76,18 @@ export interface SocialApi {
   changeVisibility(postId: string, expectedPostRevision: number, visibility: Visibility, groupId: string | null): Promise<SocialResult<Post>>;
   /** K15 DELETE /api/v1/posts/{id} (204): 取り下げ. */
   deletePost(postId: string): Promise<SocialResult<null>>;
+  /** K15 PATCH /api/v1/posts/{id}: edit the story (own posts only). */
+  editStory(postId: string, expectedPostRevision: number, story: string): Promise<SocialResult<Post>>;
+  /** S07 PUT|DELETE /api/v1/posts/{id}/like (idempotent). */
+  setLike(postId: string, like: boolean): Promise<SocialResult<LikeState>>;
+  /** S07 GET /api/v1/me/profile: own counts. */
+  getMyProfile(): Promise<SocialResult<UserProfile>>;
+  /** S07 GET /api/v1/users/{id}/profile */
+  getUserProfile(userId: string): Promise<SocialResult<UserProfile>>;
+  /** S07 PUT|DELETE /api/v1/users/{id}/follow (idempotent); returns the followed user's profile. */
+  setFollow(userId: string, follow: boolean): Promise<SocialResult<UserProfile>>;
+  /** S07 POST /api/v1/post-images: raw body, Content-Type = the file type. Validate with validateImageFile first. */
+  uploadImage(file: Blob): Promise<SocialResult<PostImage>>;
   /** K16 POST /api/v1/posts/{id}/copy */
   copyPost(postId: string, req: z.input<typeof CopyRequest>): Promise<SocialResult<CopyResult>>;
   /** K17 GET /api/v1/groups */
@@ -86,6 +103,26 @@ export interface SocialApi {
 }
 
 export const GroupList = Group.array();
+
+export const MAX_POST_IMAGES = 4;
+
+/** Client-side image check (the server checks again). Returns a Japanese message, or null when the file is acceptable. */
+export function validateImageFile(file: { type: string; size: number; name?: string }, alreadyAttached: number): string | null {
+  const label = file.name ? `「${file.name}」` : 'この画像';
+  if (alreadyAttached >= MAX_POST_IMAGES) return `画像は${MAX_POST_IMAGES}枚までです。`;
+  if (!(POST_IMAGE_TYPES as readonly string[]).includes(file.type)) return `${label}は使えない形式です（JPEG・PNG・WebPのみ）。`;
+  if (file.size <= 0) return `${label}は空のファイルです。`;
+  if (file.size > POST_IMAGE_MAX_BYTES) return `${label}が大きすぎます（5MBまで）。`;
+  return null;
+}
+
+/**
+ * Mock mode serves images from memory, so an image `url` can be mapped to a displayable source (data URI / object URL).
+ * With the shared server the url is used as it is.
+ */
+const imageSources = new Map<string, string>();
+export const registerImageSource = (url: string, src: string): void => void imageSources.set(url, src);
+export const imageSrc = (url: string): string => imageSources.get(url) ?? url;
 
 /** Shown when a response does not match the shared contract. */
 export const CONTRACT_MISMATCH = '応答が共通の契約（schema）と一致しません。';
@@ -137,9 +174,10 @@ export function createHttpSocialApi(options: HttpSocialApiOptions = {}): SocialA
   const invalidInput = <T>(): SocialResult<T> =>
     fail(clientError('VALIDATION_FAILED', '入力内容が契約の形式に合いません。', 'client_validation'), 0);
 
-  async function request<T>(method: string, path: string, schema: z.ZodType<T> | null, body?: unknown): Promise<SocialResult<T>> {
+  async function request<T>(method: string, path: string, schema: z.ZodType<T> | null, body?: unknown, raw?: Blob): Promise<SocialResult<T>> {
     const headers: Record<string, string> = { accept: 'application/json' };
     if (body !== undefined) headers['content-type'] = 'application/json';
+    if (raw) headers['content-type'] = raw.type;
     if (method !== 'GET' && csrf) headers[CSRF_HEADER] = csrf;
     let res: Response;
     try {
@@ -148,7 +186,7 @@ export function createHttpSocialApi(options: HttpSocialApiOptions = {}): SocialA
         headers,
         credentials: 'same-origin',
         cache: 'no-store',
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        ...(raw ? { body: raw } : body === undefined ? {} : { body: JSON.stringify(body) }),
       });
     } catch {
       return fail(clientError('UNAVAILABLE', 'サーバーに接続できません。', 'client_network', true), 0);
@@ -233,6 +271,29 @@ export function createHttpSocialApi(options: HttpSocialApiOptions = {}): SocialA
     deletePost(postId) {
       const id = idPath(postId);
       return id ? request<null>('DELETE', `/api/v1/posts/${id}`, null) : Promise.resolve(invalidInput());
+    },
+    editStory(postId, expectedPostRevision, story) {
+      const id = idPath(postId);
+      const body = PostPatchRequest.safeParse({ expectedPostRevision, story });
+      if (!id || !body.success) return Promise.resolve(invalidInput());
+      return request('PATCH', `/api/v1/posts/${id}`, Post, body.data);
+    },
+    setLike(postId, like) {
+      const id = idPath(postId);
+      return id ? request(like ? 'PUT' : 'DELETE', `/api/v1/posts/${id}/like`, LikeState) : Promise.resolve(invalidInput());
+    },
+    getMyProfile: () => request('GET', '/api/v1/me/profile', UserProfile),
+    getUserProfile(userId) {
+      const id = idPath(userId);
+      return id ? request('GET', `/api/v1/users/${id}/profile`, UserProfile) : Promise.resolve(invalidInput());
+    },
+    setFollow(userId, follow) {
+      const id = idPath(userId);
+      return id ? request(follow ? 'PUT' : 'DELETE', `/api/v1/users/${id}/follow`, UserProfile) : Promise.resolve(invalidInput());
+    },
+    uploadImage(file) {
+      if (validateImageFile(file, 0) !== null) return Promise.resolve(invalidInput());
+      return request('POST', '/api/v1/post-images', PostImage, undefined, file);
     },
     copyPost(postId, req) {
       const id = idPath(postId);

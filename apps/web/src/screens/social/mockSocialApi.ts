@@ -17,8 +17,11 @@ import {
   FeedQuery,
   Group,
   GroupInviteCreated,
+  LikeState,
   Membership,
   Post,
+  PostAuthor,
+  PostImage,
   PostPreview,
   PostPreviewRequest,
   PostSnapshot,
@@ -26,6 +29,7 @@ import {
   PublicTripConstraints,
   Trip,
   TripList,
+  UserProfile,
   type ApiError,
   type ErrorCode,
   type PostSummary,
@@ -33,7 +37,7 @@ import {
 } from '@tkb/contracts';
 import { domesticTrip, fixtureTrips, overseasTrip } from '@tkb/fixtures';
 import type { z } from 'zod';
-import { GroupList, type SessionUser, type SocialApi, type SocialResult } from './api.ts';
+import { GroupList, registerImageSource, validateImageFile, type SessionUser, type SocialApi, type SocialResult } from './api.ts';
 
 export type MockSocialScenario = 'normal' | 'empty' | 'error' | 'slow';
 
@@ -57,7 +61,24 @@ interface PostRecord {
   post: Post;
   ownerId: string;
   deleted: boolean;
+  imageIds: string[];
+  updatedAt: string | null;
 }
+
+/** The mock's fake image store: bytes are never kept, only who uploaded the image and where it is attached. */
+interface ImageRecord {
+  ownerId: string;
+  attachedTo: string | null;
+}
+
+const AVATAR_COLORS = ['#1d6fb8', '#2f855a', '#b7791f', '#c05621', '#6b46c1', '#b83280'];
+const colorOf = (userId: string): string => {
+  let h = 0;
+  for (const ch of userId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length]!;
+};
+const placeholderSvg = (label: string, color: string): string =>
+  `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420"><rect width="640" height="420" fill="${color}"/><text x="320" y="225" font-size="40" fill="#fff" text-anchor="middle" font-family="sans-serif">${label}</text></svg>`)}`;
 
 interface PreviewRecord {
   ownerId: string;
@@ -66,6 +87,7 @@ interface PreviewRecord {
   visibility: Visibility;
   groupId: string | null;
   story: string;
+  imageIds: string[];
   snapshot: PostSnapshot;
   expiresAt: number;
   used: boolean;
@@ -134,6 +156,9 @@ export function createMockSocialApi(options: MockSocialOptions = {}): SocialApi 
     options.initialUser === null ? null : MOCK_USERS[options.initialUser ?? 'demo-a'] ?? null;
   const trips = new Map<string, Trip>();
   const posts = new Map<string, PostRecord>();
+  const follows = new Map<string, Set<string>>();
+  const likes = new Map<string, Set<string>>();
+  const images = new Map<string, ImageRecord>();
   const previews = new Map<string, PreviewRecord>();
   const groups = new Map<string, GroupRecord>();
   const invites = new Map<string, InviteRecord>();
@@ -142,6 +167,23 @@ export function createMockSocialApi(options: MockSocialOptions = {}): SocialApi 
   const token = (prefix: string) => `${prefix}_${(counter += 1)}_${Math.random().toString(36).slice(2, 12).padEnd(10, '0')}xxxxxxxx`;
 
   const nameOf = (userId: string) => Object.values(MOCK_USERS).find(u => u.userId === userId)?.displayName ?? userId;
+  const knownUser = (userId: string) => Object.values(MOCK_USERS).some(u => u.userId === userId);
+  const authorOf = (userId: string): PostAuthor => ({
+    userId,
+    displayName: nameOf(userId),
+    avatarInitial: [...nameOf(userId)][0] ?? '?',
+    avatarColor: colorOf(userId),
+  });
+  const imageUrl = (id: string) => `/api/v1/post-images/${id}`;
+  const followingOf = (userId: string) => follows.get(userId) ?? new Set<string>();
+  const followerCount = (userId: string) => [...follows.values()].filter(f => f.has(userId)).length;
+  const profileOf = (userId: string, viewerId: string): z.infer<typeof UserProfile> => ({
+    user: authorOf(userId),
+    followerCount: followerCount(userId),
+    followingCount: followingOf(userId).size,
+    followedByMe: followingOf(viewerId).has(userId),
+    isMe: userId === viewerId,
+  });
 
   function seed(): void {
     if (scenario === 'empty') return;
@@ -150,11 +192,20 @@ export function createMockSocialApi(options: MockSocialOptions = {}): SocialApi 
       group: { groupId: 'fx_group_1', name: '金沢旅行の仲間（モック）', createdAt: '2026-10-20T00:00:00Z' },
       members: new Map([['fx_user_a', 'owner']]),
     });
-    const add = (postId: string, ownerId: string, trip: Trip, visibility: Visibility, groupId: string | null, story: string, createdAt: string) => {
+    const add = (postId: string, ownerId: string, trip: Trip, visibility: Visibility, groupId: string | null, story: string, createdAt: string, imageCount = 0) => {
+      const imageIds: string[] = [];
+      for (let i = 0; i < imageCount; i += 1) {
+        const id = `${postId}_img${i + 1}`;
+        images.set(id, { ownerId, attachedTo: postId });
+        registerImageSource(imageUrl(id), placeholderSvg(`写真 ${i + 1}（モック）`, AVATAR_COLORS[(i + postId.length) % AVATAR_COLORS.length]!));
+        imageIds.push(id);
+      }
       const { snapshot } = mockSnapshot(trip);
       posts.set(postId, {
         ownerId,
         deleted: false,
+        imageIds,
+        updatedAt: null,
         post: Post.parse({
           postId,
           postRevision: 1,
@@ -170,9 +221,12 @@ export function createMockSocialApi(options: MockSocialOptions = {}): SocialApi 
         }),
       });
     };
-    add('fx_post_1', 'fx_user_a', domesticTrip, 'public', null, '金沢の旅行記録（モック）', '2026-10-24T00:00:00Z');
-    add('fx_post_2', 'fx_user_b', overseasTrip, 'public', null, 'パリの旅行記録（モック）', '2026-10-24T01:00:00Z');
+    add('fx_post_1', 'fx_user_a', domesticTrip, 'public', null, '金沢の旅行記録（モック）', '2026-10-24T00:00:00Z', 2);
+    add('fx_post_2', 'fx_user_b', overseasTrip, 'public', null, 'パリの旅行記録（モック）', '2026-10-24T01:00:00Z', 1);
     add('fx_post_private', 'fx_user_a', domesticTrip, 'private', null, 'Aだけが見られる下書きメモ（モック）', '2026-10-24T02:00:00Z');
+    follows.set('fx_user_a', new Set(['fx_user_b']));
+    follows.set('fx_user_b', new Set(['fx_user_a']));
+    likes.set('fx_post_1', new Set(['fx_user_b']));
     add('fx_post_group', 'fx_user_a', domesticTrip, 'group', 'fx_group_1', 'グループ内だけの記録（モック）', '2026-10-24T03:00:00Z');
   }
   seed();
@@ -209,6 +263,19 @@ export function createMockSocialApi(options: MockSocialOptions = {}): SocialApi 
     if (r.ownerId === viewerId) return true;
     return r.post.visibility === 'group' && r.post.groupId !== null && isMember(r.post.groupId, viewerId);
   }
+  /** The post as the viewer sees it: author, isMine, likes and images are filled in per viewer, like the server's SELECT. */
+  const present = (r: PostRecord, viewerId: string | null): Post => {
+    const liked = likes.get(r.post.postId) ?? new Set<string>();
+    return Post.parse({
+      ...r.post,
+      author: authorOf(r.ownerId),
+      isMine: viewerId !== null && r.ownerId === viewerId,
+      likeCount: liked.size,
+      likedByMe: viewerId !== null && liked.has(viewerId),
+      images: r.imageIds.map(id => PostImage.parse({ imageId: id, url: imageUrl(id), width: null, height: null })),
+      updatedAt: r.updatedAt,
+    });
+  };
   const summary = (p: Post): PostSummary => {
     const { snapshot: _snapshot, ...rest } = p;
     return rest;
@@ -264,6 +331,12 @@ export function createMockSocialApi(options: MockSocialOptions = {}): SocialApi 
         if (!trip || trip.ownerId !== viewer.userId) return notFound();
         if (b.visibility === 'group' && !isMember(b.groupId!, viewer.userId)) return invalid();
         if (trip.revision !== b.sourceRevision) return fail('REVISION_CONFLICT', 'Trip was updated.');
+        const imageIds = b.imageIds ?? [];
+        if (new Set(imageIds).size !== imageIds.length) return invalid();
+        for (const id of imageIds) {
+          const img = images.get(id);
+          if (!img || img.ownerId !== viewer.userId || img.attachedTo !== null) return invalid();
+        }
         const { snapshot, redactedFields } = mockSnapshot(trip);
         const previewToken = token('mock_preview');
         const expiresAt = now().getTime() + PREVIEW_TTL_MS;
@@ -274,6 +347,7 @@ export function createMockSocialApi(options: MockSocialOptions = {}): SocialApi 
           visibility: b.visibility,
           groupId: b.visibility === 'group' ? b.groupId! : null,
           story: b.story,
+          imageIds,
           snapshot,
           expiresAt,
           used: false,
@@ -290,6 +364,7 @@ export function createMockSocialApi(options: MockSocialOptions = {}): SocialApi 
         const trip = trips.get(p.tripId);
         if (!trip || trip.revision !== p.sourceRevision) return fail('REVISION_CONFLICT', 'Trip was updated.');
         if (p.groupId && !isMember(p.groupId, viewer.userId)) return notFound();
+        for (const id of p.imageIds) if (images.get(id)?.attachedTo) return invalid();
         p.used = true;
         const post = Post.parse({
           postId: nextId('mock_post'),
@@ -304,8 +379,10 @@ export function createMockSocialApi(options: MockSocialOptions = {}): SocialApi 
           createdAt: iso(now()),
           snapshot: p.snapshot,
         });
-        posts.set(post.postId, { post, ownerId: viewer.userId, deleted: false });
-        return ok(Post, post, 201);
+        for (const id of p.imageIds) images.get(id)!.attachedTo = post.postId;
+        const record: PostRecord = { post, ownerId: viewer.userId, deleted: false, imageIds: p.imageIds, updatedAt: null };
+        posts.set(post.postId, record);
+        return ok(Post, present(record, viewer.userId), 201);
       }),
     getFeed: (scope, cursor, limit = 20) =>
       call(() => {
@@ -325,9 +402,11 @@ export function createMockSocialApi(options: MockSocialOptions = {}): SocialApi 
               ? r.post.visibility === 'public'
               : q.data.scope === 'mine'
                 ? r.ownerId === me
-                : r.post.visibility === 'group',
+                : q.data.scope === 'following'
+                  ? r.ownerId !== me && followingOf(me!).has(r.ownerId) && r.post.visibility !== 'private'
+                  : r.post.visibility === 'group',
           )
-          .map(r => r.post)
+          .map(r => present(r, me))
           .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : a.postId < b.postId ? 1 : -1));
         const page = pool.slice(offset, offset + q.data.limit).map(summary);
         const nextCursor = offset + q.data.limit < pool.length ? String(offset + q.data.limit) : null;
@@ -336,7 +415,7 @@ export function createMockSocialApi(options: MockSocialOptions = {}): SocialApi 
     getPost: postId =>
       call(() => {
         const r = posts.get(postId);
-        return r && visible(r, viewer?.userId ?? null) ? ok(Post, r.post) : notFound();
+        return r && visible(r, viewer?.userId ?? null) ? ok(Post, present(r, viewer?.userId ?? null)) : notFound();
       }),
     changeVisibility: (postId, expectedPostRevision, visibility, groupId) =>
       call(() => {
@@ -352,7 +431,60 @@ export function createMockSocialApi(options: MockSocialOptions = {}): SocialApi 
           groupId: visibility === 'group' ? groupId : null,
           postRevision: r.post.postRevision + 1,
         });
-        return ok(Post, r.post);
+        r.updatedAt = iso(now());
+        return ok(Post, present(r, viewer.userId));
+      }),
+    editStory: (postId, expectedPostRevision, story) =>
+      call(() => {
+        if (!viewer) return unauth();
+        const r = posts.get(postId);
+        if (!r || r.deleted || r.ownerId !== viewer.userId) return notFound();
+        if (story.length > 5000) return invalid();
+        if (r.post.postRevision !== expectedPostRevision) return fail('REVISION_CONFLICT', 'Post was updated.');
+        r.post = Post.parse({ ...r.post, story, postRevision: r.post.postRevision + 1 });
+        r.updatedAt = iso(now());
+        return ok(Post, present(r, viewer.userId));
+      }),
+    setLike: (postId, like) =>
+      call(() => {
+        if (!viewer) return unauth();
+        const r = posts.get(postId);
+        if (!r || !visible(r, viewer.userId)) return notFound();
+        const set = likes.get(postId) ?? new Set<string>();
+        if (like) set.add(viewer.userId);
+        else set.delete(viewer.userId);
+        likes.set(postId, set);
+        return ok(LikeState, { postId, likeCount: set.size, likedByMe: set.has(viewer.userId) });
+      }),
+    getMyProfile: () => call(() => (viewer ? ok(UserProfile, profileOf(viewer.userId, viewer.userId)) : unauth())),
+    getUserProfile: userId =>
+      call(() => {
+        if (!viewer) return unauth();
+        return knownUser(userId) ? ok(UserProfile, profileOf(userId, viewer.userId)) : notFound();
+      }),
+    setFollow: (userId, follow) =>
+      call(() => {
+        if (!viewer) return unauth();
+        if (userId === viewer.userId) return invalid();
+        if (!knownUser(userId)) return notFound();
+        const set = follows.get(viewer.userId) ?? new Set<string>();
+        if (follow) set.add(userId);
+        else set.delete(userId);
+        follows.set(viewer.userId, set);
+        return ok(UserProfile, profileOf(userId, viewer.userId));
+      }),
+    uploadImage: file =>
+      call(() => {
+        if (!viewer) return unauth();
+        if (validateImageFile(file, 0) !== null) return invalid();
+        const mine = [...images.values()].filter(i => i.ownerId === viewer!.userId && i.attachedTo === null).length;
+        if (mine >= 20) return fail('RATE_LIMITED', 'Too many unused images.');
+        const id = nextId('mock_img');
+        images.set(id, { ownerId: viewer.userId, attachedTo: null });
+        const url = imageUrl(id);
+        const canObjectUrl = typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function';
+        registerImageSource(url, canObjectUrl ? URL.createObjectURL(file) : placeholderSvg('アップロード画像（モック）', '#4a5568'));
+        return ok(PostImage, { imageId: id, url, width: null, height: null }, 201);
       }),
     deletePost: postId =>
       call(() => {
