@@ -2,9 +2,10 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { UNKNOWN, formatMoney } from '../../lib/format.ts';
 import { KIND_LABEL } from './model.ts';
 import {
-  dropTargetFromY, keyboardTarget, legDetails, previewRows, reorderedOrder, stayDetails,
-  type ChildRow, type DetailLine, type RowBox, type LegRow, type StayRow, type StopRow, type TableRow,
+  bandTarget, keyboardTarget, legDetails, previewRows, reorderedOrder, stayDetails,
+  type ChildRow, type DetailLine, type LegRow, type StayRow, type StopRow, type TableRow,
 } from './table.ts';
+import type { InsertPosition } from './InsertSlot.tsx';
 import './itinerary.css';
 
 type Drag = { key: string; before: string | null | undefined; mode: 'pointer' | 'keyboard'; order: string[] };
@@ -17,7 +18,7 @@ type Drag = { key: string; before: string | null | undefined; mode: 'pointer' | 
  * unless reduced motion is set) so it is clear where the stay will go. Rows keep only what tells stays apart; unknown
  * values stay in the details.
  */
-export type InsertPosition = 'before-first' | 'between' | 'after-last';
+export type { InsertPosition } from './InsertSlot.tsx';
 
 export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggleRow, onReorder, saving = false, setRowRef, stayExtra, stayBadge, insertSlot }: {
   rows: TableRow[];
@@ -31,19 +32,15 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
   setRowRef?: (key: string, el: HTMLTableRowElement | null) => void;
   /** Extra controls under a stay row (e.g. remove, completed). */
   stayExtra?: (row: StayRow) => React.ReactNode;
+  /** Edit mode (U11): M3's InsertSlot before the first stay, between stays and after the last. `beforeKey`: the stay it sits before (null: the end). */
+  insertSlot?: (position: InsertPosition, beforeKey: string | null) => React.ReactNode;
   /** Extra text before the stay title (e.g. 未保存, 完了). */
   stayBadge?: (row: StayRow) => React.ReactNode;
-  /** Edit mode: a slot before the first stay, between stays and after the last one (M3's InsertSlot, U11). `beforeKey`: the stay it sits before (null: the end). */
-  insertSlot?: (position: InsertPosition, beforeKey: string | null) => React.ReactNode;
 }) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const editable = onReorder !== undefined;
   const cols = editable ? 3 : 2;
   const stayKeys = rows.flatMap(r => (r.kind === 'stay' ? [r.key] : []));
-  const firstStay = stayKeys[0];
-  const slot = (position: InsertPosition, beforeKey: string | null) => (insertSlot && !drag
-    ? <tr className="it-slot" data-insert-slot={position}><td colSpan={cols}>{insertSlot(position, beforeKey)}</td></tr>
-    : null);
   const commitMove = (key: string, before: string | null) => onReorder?.(key, before);
   const commitMoveRef = useRef(commitMove);
   commitMoveRef.current = commitMove;
@@ -52,25 +49,11 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
   const order = drag && drag.before !== undefined ? reorderedOrder(stayKeys, [drag.key], drag.before) : stayKeys;
   const shown = drag ? previewRows(rows, order) : rows;
 
-  // R1: pointer based drag (mouse and touch) from the handle. The target comes from the row positions measured when the
-  // drag started (not from the rows on screen, which already move while dragging: that made the target flip back, #213).
-  const boxes = useRef(new Map<string, RowBox>());
-  const measure = () => {
-    const m = new Map<string, RowBox>();
-    for (const el of bodyRef.current?.querySelectorAll<HTMLElement>('tr.it-stay[data-stay-key]') ?? []) {
-      const r = el.getBoundingClientRect();
-      m.set(el.dataset.stayKey!, { top: r.top + window.scrollY, bottom: r.bottom + window.scrollY });
-    }
-    boxes.current = m;
-  };
-  const dropFromPoint = (e: { clientY: number }, d: Drag): Drag => {
-    // Near the top or bottom edge of the window the page scrolls, so a far row can be reached (touch cannot scroll while dragging).
-    const edge = 56;
-    if (typeof window.scrollBy === 'function' && window.innerHeight > 0) {
-      if (e.clientY < edge) window.scrollBy(0, -24); else if (e.clientY > window.innerHeight - edge) window.scrollBy(0, 24);
-    }
-    return { ...d, before: dropTargetFromY(stayKeys, boxes.current, d.key, e.clientY + window.scrollY) };
-  };
+  // R1: pointer based drag (mouse and touch) from the handle. Where it goes is read from the rows as they were when the
+  // drag started and the direction of the move (bandTarget), so entering the next stay is enough (UI review on #34).
+  const bandTops = useRef<number[]>([]);
+  const dropFromPoint = (e: { clientX: number; clientY: number }, d: Drag): Drag =>
+    ({ ...d, before: bandTarget(stayKeys, bandTops.current, d.key, e.clientY + window.scrollY) });
 
   // Rows slide from where they were to where they are now (FLIP), so a moving row can be followed by eye. Only a change
   // of the row order animates (not scrolling or opening a row); positions are page-relative so scrolling is not a move.
@@ -105,27 +88,60 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
   const dropRef = useRef(dropFromPoint);
   dropRef.current = dropFromPoint;
   const pointerDragging = drag?.mode === 'pointer';
+  const pointerId = useRef<number | null>(null);
   useEffect(() => {
     if (!pointerDragging) return undefined;
-    const move = (e: PointerEvent) => { const d = dragRef.current; if (d?.mode === 'pointer') setDrag(dropRef.current(e, d)); };
+    // Only the pointer that picked the row up counts (a second finger is ignored).
+    const mine = (e: PointerEvent) => pointerId.current === null || e.pointerId === pointerId.current;
+    const end = () => { pointerId.current = null; setDrag(null); };
+    let last: { clientX: number; clientY: number } | null = null;
+    const move = (e: PointerEvent) => {
+      if (!mine(e)) return;
+      // Released outside the window (no pointerup reached us): end the drag instead of leaving it stuck (review on #34).
+      if (e.buttons === 0 && e.pointerType === 'mouse') { end(); return; }
+      last = { clientX: e.clientX, clientY: e.clientY };
+      const d = dragRef.current;
+      if (d?.mode === 'pointer') setDrag(dropRef.current(e, d));
+    };
     const up = (e: PointerEvent) => {
+      if (!mine(e)) return;
       const d = dragRef.current;
       if (d?.mode !== 'pointer') return;
       const final = dropRef.current(e, d);
-      setDrag(null);
+      end();
       if (final.before !== undefined) void commitMoveRef.current(final.key, final.before);
     };
-    const cancel = () => setDrag(null);
+    const cancel = (e: PointerEvent) => { if (mine(e)) end(); };
+    // Near the top or bottom of the screen the page scrolls by itself, so a stay can be taken off screen in one drag
+    // (touch-action: none on the handle stops the finger from scrolling).
+    const EDGE = 64;
+    const timer = window.setInterval(() => {
+      if (!last) return;
+      const dy = last.clientY < EDGE ? -12 : last.clientY > window.innerHeight - EDGE ? 12 : 0;
+      if (dy === 0) return;
+      window.scrollBy(0, dy);
+      const d = dragRef.current;
+      if (d?.mode === 'pointer') setDrag(dropRef.current(last, d));
+    }, 30);
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', cancel);
-    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel); };
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel);
+    };
   }, [pointerDragging]);
   const onHandlePointerDown = (e: React.PointerEvent, key: string) => {
     if (saving || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    measure();
+    pointerId.current = e.pointerId;
+    // A slide from the previous drop may still be running: finish it so the rows are measured where they really are.
+    bodyRef.current?.querySelectorAll<HTMLElement>('[data-row-key]').forEach(el => el.getAnimations?.().forEach(a => a.finish()));
+    bandTops.current = stayKeys.map(k => {
+      const tr = bodyRef.current?.querySelector<HTMLElement>(`tr[data-stay-key="${k}"]:not([data-detail])`);
+      return tr ? tr.getBoundingClientRect().top + window.scrollY : Number.NaN;
+    });
     setDrag({ key, before: undefined, mode: 'pointer', order: stayKeys });
   };
   // Keyboard alternative: Enter/Space picks the row up, arrow keys move it, Enter/Space drops, Escape cancels.
@@ -158,6 +174,12 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
   const dragName = dragTitle ? (rows.find(r => r.key === dragTitle) as StayRow).item.title : '';
 
 
+  // U11: insert slots (M3 InsertSlot) in edit mode. They stay while dragging: removing them would shift the rows measured at the drag start.
+  const firstStay = rows.find(r => r.kind === 'stay')?.key;
+  const slot = (position: InsertPosition, beforeKey: string | null) => (insertSlot
+    ? <tr className="it-slot" data-insert-slot={position}><td colSpan={cols}>{insertSlot(position, beforeKey)}</td></tr>
+    : null);
+
   return (
     <>
       <p className={drag ? 'it-dragnote' : 'u1-sr'} role="status" aria-live="polite">
@@ -167,7 +189,7 @@ export function ItineraryTable({ rows, dayDate, expanded, selectedKeys, onToggle
         <thead><tr>{editable && <th scope="col" className="it-col-handle"><span className="u1-sr">並べ替え</span></th>}<th scope="col" className="it-col-time">時刻</th><th scope="col">内容</th></tr></thead>
         <tbody ref={bodyRef}>
           {rows.length === 0 && <tr><td colSpan={cols} className="u1-empty">この日の予定はありません。</td></tr>}
-          {rows.length > 0 && slot(firstStay === undefined ? 'after-last' : 'before-first', firstStay ?? null)}
+          {firstStay !== undefined && slot('before-first', firstStay)}
           {shown.map((r, i) => (
             <Fragment key={r.key}>
               {r.kind === 'stay' && r.key !== firstStay && slot('between', r.key)}
@@ -252,8 +274,8 @@ function StayTableRows({ row, open, selected, editable, dragging, extra, badge, 
               </span>
               <span className="it-chev" aria-hidden="true">{open ? '▲' : '▼'}</span>
             </button>
-            {/* U11: compact controls (e.g. 削除) on the right of the row, not under the name. */}
-            {extra && <div className="it-extra">{extra}</div>}
+            {/* Beside the name, not under it, so a row stays one line tall (UI review on #34). */}
+            {extra && <div className="it-rowextra">{extra}</div>}
           </div>
         </td>
       </tr>

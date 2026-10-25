@@ -15,46 +15,38 @@ import { EditView, moveSaveOps } from '../edit/EditScreen.tsx';
 import { applyOperations, itemIdOf } from '../edit/ops.ts';
 import { InsertSlot } from './InsertSlot.tsx';
 import { ItineraryTable } from './ItineraryTable.tsx';
-import { dropTargetFromY, reorderedOrder, tableRows, type RowBox, type StayRow } from './table.ts';
+import { bandTarget, reorderedOrder, tableRows, type StayRow } from './table.ts';
 
 const render = (el: ReactElement): string => renderRaw(el).replace(/<!-- -->/g, '');
 const trip = (): Trip => structuredClone(domesticTrip);
 const day0 = domesticTrip.days[0]!;
 const staysOf = (t: Trip, d = 0) => tableRows(t.days[d]!, t.places).flatMap(r => (r.kind === 'stay' ? [r.key] : []));
 
-// Rows 115px tall with a 40px arrow between them, like the screen (#34 review).
+// Bands (stay row + details + the leg after it) 155px apart, like the screen (#34 review). M4's bandTarget (#220).
 const keys = ['a', 'b', 'c', 'd'];
-const boxes = new Map<string, RowBox>(keys.map((k, i) => [k, { top: i * 155, bottom: i * 155 + 115 }]));
+const tops = keys.map((_, i) => i * 155);
 
-describe('dropTargetFromY: where a pointer drop lands', () => {
+describe('bandTarget: where a pointer drop lands (both directions)', () => {
   it('row 1 dropped on the upper part of row 2 goes after row 2 (the case reported three times)', () => {
-    const y = boxes.get('b')!.top + 20;
-    const before = dropTargetFromY(keys, boxes, 'a', y);
+    const before = bandTarget(keys, tops, 'a', tops[1]! + 20);
     expect(before).toBe('c');
     expect(reorderedOrder(keys, ['a'], before!)).toEqual(['b', 'a', 'c', 'd']);
   });
   it('row 2 dropped on the lower part of row 1 goes before row 1', () => {
-    const y = boxes.get('a')!.bottom - 20;
-    expect(dropTargetFromY(keys, boxes, 'b', y)).toBe('a');
+    expect(bandTarget(keys, tops, 'b', tops[0]! + 100)).toBe('a');
   });
-  it('dropping on the arrow below its own row, or inside its own row, changes nothing', () => {
-    expect(dropTargetFromY(keys, boxes, 'a', 50)).toBeUndefined();
-    expect(dropTargetFromY(keys, boxes, 'a', 130)).toBeUndefined();
-    expect(dropTargetFromY(keys, boxes, 'b', 150)).toBeUndefined();
+  it('inside its own band: no move', () => {
+    expect(bandTarget(keys, tops, 'a', 50)).toBeUndefined();
+    expect(bandTarget(keys, tops, 'b', tops[1]! + 1)).toBeUndefined();
   });
-  it('long drags: down past several rows, to the end, and up to the top', () => {
-    expect(dropTargetFromY(keys, boxes, 'a', boxes.get('c')!.top + 1)).toBe('d');
-    expect(dropTargetFromY(keys, boxes, 'a', 10_000)).toBeNull();
-    expect(dropTargetFromY(keys, boxes, 'd', -50)).toBe('a');
-    expect(dropTargetFromY(keys, boxes, 'd', boxes.get('b')!.bottom - 1)).toBe('b');
+  it('long drags: down to the end, up to the top', () => {
+    expect(bandTarget(keys, tops, 'a', tops[2]! + 1)).toBe('d');
+    expect(bandTarget(keys, tops, 'a', 10_000)).toBeNull();
+    expect(bandTarget(keys, tops, 'd', -50)).toBe('a');
   });
-  it('is stable: the same pointer gives the same target (rows moving on screen do not feed back)', () => {
-    const y = boxes.get('c')!.top + 5;
-    expect(new Set([1, 2, 3].map(() => dropTargetFromY(keys, boxes, 'a', y)))).toEqual(new Set(['d']));
-  });
-  it('unknown dragged key or missing boxes: no move', () => {
-    expect(dropTargetFromY(keys, boxes, 'x', 300)).toBeUndefined();
-    expect(dropTargetFromY(keys, new Map(), 'a', 300)).toBeUndefined();
+  it('is stable for a still pointer, and unknown keys do nothing', () => {
+    expect(new Set([1, 2, 3].map(() => bandTarget(keys, tops, 'a', tops[2]! + 5)))).toEqual(new Set(['d']));
+    expect(bandTarget(keys, tops, 'x', 300)).toBeUndefined();
   });
 });
 
@@ -115,7 +107,7 @@ describe('unified 地図・編集 screen (EditView)', () => {
   });
   it('the delete button sits in the row (right of the name), not under it', () => {
     const html = render(<EditView {...props} />);
-    expect(html).toMatch(/<div class="it-cell"><button type="button" class="it-rowbtn"[\s\S]*?<\/button><div class="it-extra"><button[^>]*を削除/);
+    expect(html).toMatch(/<div class="it-cell"><button type="button" class="it-rowbtn"[\s\S]*?<\/button><div class="it-rowextra">[\s\S]*?を削除/);
   });
   it('shows the saved-drag line and a 409 message', () => {
     expect(render(<EditView {...props} moveNotice="並べ替えを保存しました（版 2）。" />)).toContain('並べ替えを保存しました（版 2）');
@@ -146,15 +138,15 @@ describe('table: children, insert slots, layout', () => {
     expect(html.match(/data-insert-slot=/g)).toHaveLength(stays.length + 1);
     expect(render(<ItineraryTable rows={rows} dayDate={day.date} expanded={new Set()} onToggleRow={() => {}} />)).not.toContain('data-insert-slot');
   });
-  it('InsertSlot placeholder renders nothing until M3 builds it', () => {
-    expect(render(<InsertSlot position="between" onAdd={() => {}} />)).toBe('');
+  it("M3's InsertSlot renders in the edit table slot (collapsed ＋)", () => {
+    expect(render(<InsertSlot position="between" onAdd={() => {}} />)).toContain('ここに予定を追加');
   });
-  it('CSS: time column clear of the handle, number centred, delete compact on the right', () => {
+  it('CSS: time column clear of the handle, number centred, controls beside the name', () => {
     const css = readFileSync(new URL('./itinerary.css', import.meta.url), 'utf8');
-    expect(css).toMatch(/\.it-handlecell \+ \.it-time \{ padding-left: 12px; \}/);
+    expect(css).toMatch(/\.it-table \.it-stay > \.it-time, \.it-table \.it-stoprow > \.it-time \{ padding: 8px 6px 8px 12px; \}/);
     expect(css).toMatch(/\.it-cell \{ display: flex; align-items: center;/);
     expect(css).toMatch(/\.it-rowbtn > \.it-num[^{]*\{ align-self: center; \}/);
-    expect(css).toMatch(/\.it-extra \{ flex: none;/);
+    expect(css).toMatch(/\.it-rowextra/);
   });
   it('itemIdOf keeps leg ids (moves never drop a leg)', () => {
     expect(day0.items.map(itemIdOf).length).toBe(day0.items.length);

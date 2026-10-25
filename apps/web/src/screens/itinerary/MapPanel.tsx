@@ -12,7 +12,7 @@ import type { MapPoint } from './model.ts';
 // Minimal typing of the parts of the Maps JavaScript API used here (no @types/google.maps dependency).
 interface LatLngLiteral { lat: number; lng: number }
 interface GMarker { setMap(m: unknown): void; addListener(ev: string, fn: () => void): void; setIcon(i: unknown): void; setZIndex(z: number): void }
-interface GMap { fitBounds(b: unknown, padding?: number): void; setCenter(c: LatLngLiteral): void; setZoom(z: number): void; panTo(c: LatLngLiteral): void }
+interface GMap { fitBounds(b: unknown, padding?: number): void; setCenter(c: LatLngLiteral): void; setZoom(z: number): void; panTo(c: LatLngLiteral): void; addListener(ev: string, fn: () => void): void }
 interface GPolyline { setMap(m: unknown): void }
 interface MapsLibs {
   Map: new (el: HTMLElement, opts: Record<string, unknown>) => GMap;
@@ -97,7 +97,7 @@ export function chooseMapMode(apiKey: string | null, origin: string | null, fail
   return { kind: 'google', apiKey };
 }
 
-export function MapPanel({ apiKey, points, highlighted, onSelectPlace, extraMarkers, onSelectExtra, selectedExtraId }: {
+export function MapPanel({ apiKey, points, highlighted, onSelectPlace, extraMarkers, onSelectExtra, selectedExtraId, onMapBackground }: {
   apiKey: string | null;
   points: MapPoint[];
   highlighted: ReadonlySet<string>;
@@ -105,15 +105,17 @@ export function MapPanel({ apiKey, points, highlighted, onSelectPlace, extraMark
   extraMarkers?: readonly ExtraMarker[];
   onSelectExtra?: (id: string) => void;
   selectedExtraId?: string | null;
+  /** Google map only: a tap on the map itself (not on a marker). The sketch map's background is a plain DOM click. */
+  onMapBackground?: () => void;
 }) {
   const extra = { ...(extraMarkers ? { extraMarkers } : {}), ...(onSelectExtra ? { onSelectExtra } : {}), selectedExtraId: selectedExtraId ?? null };
   const [failed, setFailed] = useState<string | null>(null);
   const mode = chooseMapMode(apiKey, typeof location !== 'undefined' ? location.origin : null, failed);
   if (mode.kind === 'sketch') return <StaticMap points={points} highlighted={highlighted} onSelectPlace={onSelectPlace} reason={mode.reason} {...extra} />;
-  return <LiveMap apiKey={mode.apiKey} points={points} highlighted={highlighted} onSelectPlace={onSelectPlace} onError={setFailed} {...extra} />;
+  return <LiveMap apiKey={mode.apiKey} points={points} highlighted={highlighted} onSelectPlace={onSelectPlace} onError={setFailed} {...extra} {...(onMapBackground ? { onMapBackground } : {})} />;
 }
 
-function LiveMap({ apiKey, points, highlighted, onSelectPlace, onError, extraMarkers, onSelectExtra, selectedExtraId }: {
+function LiveMap({ apiKey, points, highlighted, onSelectPlace, onError, extraMarkers, onSelectExtra, selectedExtraId, onMapBackground }: {
   apiKey: string;
   points: MapPoint[];
   highlighted: ReadonlySet<string>;
@@ -122,10 +124,13 @@ function LiveMap({ apiKey, points, highlighted, onSelectPlace, onError, extraMar
   extraMarkers?: readonly ExtraMarker[];
   onSelectExtra?: (id: string) => void;
   selectedExtraId: string | null;
+  onMapBackground?: () => void;
 }) {
   const extraRefs = useRef(new Map<string, GMarker>());
   const selectExtra = useRef(onSelectExtra);
   selectExtra.current = onSelectExtra;
+  const background = useRef(onMapBackground);
+  background.current = onMapBackground;
   const el = useRef<HTMLDivElement>(null);
   const [libs, setLibs] = useState<MapsLibs | null>(null);
   const map = useRef<GMap | null>(null);
@@ -148,6 +153,8 @@ function LiveMap({ apiKey, points, highlighted, onSelectPlace, onError, extraMar
     if (!libs || !el.current) return;
     if (!map.current) {
       map.current = new libs.Map(el.current, { center: points[0] ?? { lat: 35.68, lng: 139.76 }, zoom: 13, clickableIcons: false, gestureHandling: 'greedy', fullscreenControl: false, streetViewControl: false, mapTypeControl: false });
+      // Google fires the map's click only for taps that hit no marker.
+      map.current.addListener('click', () => background.current?.());
     }
     const m = map.current;
     const created = new Map<string, GMarker>();

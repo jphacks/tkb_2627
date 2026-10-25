@@ -264,7 +264,7 @@ describe('diff view (R11)', () => {
   });
 
   it('an empty known delta with unknown items says only known amounts were compared, and lists every unknown item by its name', () => {
-    const unknown = ids.filter(id => id.includes('museum') || id === 'fx_leg_k4');
+    const unknown = ids.filter(id => id === 'fx_act_museum' || id === 'fx_leg_k4');
     expect(unknown.length).toBe(2);
     const html = renderToString(<DiffView trip={trip} diff={{ durationDeltaSeconds: null, knownCostDelta: [], unknownCostItems: unknown }} />);
     expect(html).toContain('変化なし（金額が分かっている項目のみ）');

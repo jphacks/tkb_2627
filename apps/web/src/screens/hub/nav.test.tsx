@@ -37,7 +37,8 @@ describe('NavBar', () => {
     expect(html).toContain('href="#home"');
   });
   it('every review link gets a bar', () => {
-    for (const l of REVIEW_LINKS) expect(render(l.href), l.href).toContain('class="nav-bar"');
+    // Home itself has no bar (it is the hub); every other reviewed screen has one.
+    for (const l of REVIEW_LINKS.filter(x => x.href !== '#home')) expect(render(l.href), l.href).toContain('class="nav-bar"');
   });
 });
 
