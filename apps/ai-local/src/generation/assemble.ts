@@ -14,7 +14,7 @@ import {
   type TripDay,
   type ValidationState,
 } from '@tkb/contracts';
-import { groupNearby, sequenceDay, validateSchedule, type SequenceStop } from '@tkb/planner';
+import { groupNearby, NEARBY_WALK_METERS, sequenceDay, validateSchedule, type SequenceStop } from '@tkb/planner';
 import type { StageFail } from '../jobs/index.ts';
 import { VISITABLE_KINDS, tripDays, MAX_TRIP_DAYS } from './collect.ts';
 import { INSUFFICIENT_PLACE_WARNING, LEG_REFETCH_WARNING, PLACE_REFETCH_WARNING, projectDays, projectPlace } from './project.ts';
@@ -69,6 +69,45 @@ function activityFor(candidateId: string, place: PlaceInfo): Activity {
 }
 
 /** Consecutive pairs of a visiting order (from the start place first), de-duplicated, at most MAX_LEG_PAIRS. */
+/**
+ * #32 R4 / #28: groupNearby only joins stops that are next to each other, so a nearby pair that Claude put apart (a market
+ * walk and the sushi lunch beside it, with a museum in between) would stay split. Before the day is planned, later stops
+ * within NEARBY_WALK_METERS of a run are pulled up behind it, but only when the run then holds an area-level stop
+ * (kind 'area': it becomes the parent). Runs without one keep Claude's order. Deterministic; places without a location
+ * are never moved.
+ */
+export function keepNearbyTogether(order: readonly string[], placeById: ReadonlyMap<string, PlaceInfo>): string[] {
+  const loc = (id: string) => placeById.get(id)?.location ?? null;
+  const near = (a: string, b: string) => {
+    const pa = loc(a);
+    const pb = loc(b);
+    if (!pa || !pb) return false;
+    const rad = (d: number) => (d * Math.PI) / 180;
+    const h = Math.sin(rad(pb.lat - pa.lat) / 2) ** 2 + Math.cos(rad(pa.lat)) * Math.cos(rad(pb.lat)) * Math.sin(rad(pb.lng - pa.lng) / 2) ** 2;
+    return 2 * 6_371_008.8 * Math.asin(Math.min(1, Math.sqrt(h))) <= NEARBY_WALK_METERS;
+  };
+  const isArea = (id: string) => placeById.get(id)?.kind === 'area';
+  const rest = [...order];
+  const out: string[] = [];
+  while (rest.length > 0) {
+    const run = [rest.shift()!];
+    const left = [...rest];
+    for (let grew = true; grew; ) {
+      grew = false;
+      const i = left.findIndex(q => run.some(r => near(r, q)));
+      if (i >= 0) {
+        run.push(left.splice(i, 1)[0]!);
+        grew = true;
+      }
+    }
+    if (run.length > 1 && run.some(isArea)) {
+      out.push(...run);
+      rest.splice(0, rest.length, ...left);
+    } else out.push(run[0]!);
+  }
+  return out;
+}
+
 export function consecutivePairs(start: string | null, order: readonly string[], cap: number = MAX_LEG_PAIRS): LegPair[] {
   const seq = start === null ? [...order] : [start, ...order];
   const seen = new Set<string>();
@@ -190,7 +229,7 @@ export async function assembleBatch(
   const candidates: PlanCandidate[] = [];
   const used = new Set<string>();
   for (const c of blueprint.candidates as CandidateBlueprint[]) {
-    const order = c.activityOrder;
+    const order = keepNearbyTogether(c.activityOrder, placeById);
     if (!fetchLegs) remember(await legsFor(consecutivePairs(startPlaceId, order)));
     const travel = (f: string, t: string) => {
       const l = byPair.get(`${f}|${t}`);
