@@ -68,7 +68,6 @@ function activityFor(candidateId: string, place: PlaceInfo): Activity {
   };
 }
 
-/** Consecutive pairs of a visiting order (from the start place first), de-duplicated, at most MAX_LEG_PAIRS. */
 /**
  * #32 R4 / #28: groupNearby only joins stops that are next to each other, so a nearby pair that Claude put apart (a market
  * walk and the sushi lunch beside it, with a museum in between) would stay split. Before the day is planned, later stops
@@ -108,6 +107,7 @@ export function keepNearbyTogether(order: readonly string[], placeById: Readonly
   return out;
 }
 
+/** Consecutive pairs of a visiting order (from the start place first), de-duplicated, at most MAX_LEG_PAIRS. */
 export function consecutivePairs(start: string | null, order: readonly string[], cap: number = MAX_LEG_PAIRS): LegPair[] {
   const seq = start === null ? [...order] : [start, ...order];
   const seen = new Set<string>();
@@ -204,6 +204,8 @@ export async function assembleBatch(
   for (const c of blueprint.candidates as CandidateBlueprint[]) {
     if (c.activityOrder.some(id => !placeById.has(id) || !VISITABLE_KINDS.has(placeById.get(id)!.kind))) return fail('INVALID_OUTPUT', true);
   }
+  // #28: the order that is planned (nearby stops pulled together) is also the order whose legs are looked up.
+  const orders = (blueprint.candidates as CandidateBlueprint[]).map(c => keepNearbyTogether(c.activityOrder, placeById));
   const byPair = new Map<string, TravelLeg>();
   const remember = (ls: readonly TravelLeg[]) => {
     for (const l of ls) if (!byPair.has(`${l.fromPlaceId}|${l.toPlaceId}`)) byPair.set(`${l.fromPlaceId}|${l.toPlaceId}`, l);
@@ -212,7 +214,7 @@ export async function assembleBatch(
     // Live lookups cost quota (M1: at most 6 Routes calls per JOB). Take the pairs of ALL candidates, round-robin so no
     // candidate starves, drop duplicates, cap, and ask once. Pairs beyond the cap stay unknown (stops without times).
     const cap = Math.min(opts.maxLivePairs ?? MAX_LIVE_LEG_PAIRS, MAX_LIVE_LEG_PAIRS);
-    const lists = (blueprint.candidates as CandidateBlueprint[]).map(c => consecutivePairs(startPlaceId, c.activityOrder, MAX_LEG_PAIRS));
+    const lists = orders.map(o => consecutivePairs(startPlaceId, o, MAX_LEG_PAIRS));
     const picked: LegPair[] = [];
     const seen = new Set<string>();
     for (let i = 0; picked.length < cap && lists.some(l => i < l.length); i++) {
@@ -228,8 +230,8 @@ export async function assembleBatch(
   }
   const candidates: PlanCandidate[] = [];
   const used = new Set<string>();
-  for (const c of blueprint.candidates as CandidateBlueprint[]) {
-    const order = keepNearbyTogether(c.activityOrder, placeById);
+  for (const [ci, c] of (blueprint.candidates as CandidateBlueprint[]).entries()) {
+    const order = orders[ci]!;
     if (!fetchLegs) remember(await legsFor(consecutivePairs(startPlaceId, order)));
     const travel = (f: string, t: string) => {
       const l = byPair.get(`${f}|${t}`);

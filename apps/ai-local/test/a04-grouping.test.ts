@@ -67,4 +67,24 @@ describe('assembleBatch grouping (#32 R4)', () => {
     expect(keepNearbyTogether(['k', 'far', 'm'], byId)).toEqual(['k', 'far', 'm']); // two spots: no area, not moved
     expect(keepNearbyTogether(['s', 'far', 'x', 'o'], byId)).toEqual(['s', 'o', 'far', 'x']);
   });
+
+  it('#28 live: the legs that are looked up follow the pulled-together order, so the plan keeps its travel times', async () => {
+    const ctx: PlanningContext = {
+      places: [placeAt('fx_omicho', 36.571, 136.656), placeAt('fx_21c_museum', 36.561, 136.658), placeAt('fx_sushi', 36.5705, 136.6565)],
+      legs: [],
+      unknown: [],
+      dataMode: 'mixed',
+    };
+    const asked: string[] = [];
+    const fetchLegs = async (pairs: readonly { from: string; to: string }[]) => {
+      for (const p of pairs) asked.push(`${p.from}>${p.to}`);
+      return pairs.map((p, i) => walk(`lv${i}`, p.from, p.to));
+    };
+    const r = await assembleBatch(bp(['fx_omicho', 'fx_21c_museum', 'fx_sushi']), ctx, cons, KEY, fetchLegs);
+    if (!r.ok) throw new Error(r.code);
+    expect(asked).toContain('fx_sushi>fx_21c_museum');
+    expect(asked).not.toContain('fx_omicho>fx_21c_museum');
+    const acts = items(r.batch).filter((i): i is Activity => i.type === 'activity');
+    expect(acts.every(a => a.start !== null)).toBe(true);
+  });
 });
