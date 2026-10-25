@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ApiError, Trip } from '@tkb/contracts';
+import type { ApiError, Trip, TripOperation } from '@tkb/contracts';
 import { FIXTURE_NOTICE } from '@tkb/fixtures';
 import { ErrorBox } from '../../components/ErrorBox.tsx';
 import { MockBanner } from '../../components/MockBanner.tsx';
@@ -17,6 +17,7 @@ import {
   DAY_MODE_LABEL, attributionFor, dayTransportMode, mapPoints, syncSelection, toggleSelection, unlocatedPlaces,
 } from './model.ts';
 import { itineraryHash, type ItineraryRoute } from './route.ts';
+import { opsToDay, recalcDay } from './recalc.ts';
 import { blockOf, planMoves, tableRows } from './table.ts';
 import '../../components/u01.css';
 import './itinerary.css';
@@ -120,7 +121,9 @@ export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, m
   previewNote?: string;
 }) {
   const [trip, setTrip] = useState(tripProp);
-  useEffect(() => setTrip(tripProp), [tripProp]);
+  // Trips before each reorder / re-timing, newest last, for 「元に戻す」 (UI review on #33).
+  const [history, setHistory] = useState<{ trip: Trip; dayIndex: number }[]>([]);
+  useEffect(() => { setTrip(tripProp); setHistory([]); }, [tripProp]);
   const idx = Math.min(Math.max(dayIndex, 0), Math.max(trip.days.length - 1, 0));
   const day = trip.days[idx];
   const [selection, setSelection] = useState<Selection>(initialSelection);
@@ -154,28 +157,74 @@ export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, m
     setExpanded(s => new Set([...s, ...keys]));
   }, [rows]);
 
+  // After a reorder the times are re-computed at once, so no stay keeps a time from its old place (UI review on #32).
   const commitMove = async (key: string, before: string | null) => {
     if (!day || !editor) return;
     const order = day.items.map(i => (i.type === 'activity' ? i.activityId : i.legId));
     const ops = planMoves(order, blockOf(day, key), before, idx);
     if (ops.length === 0) return;
     setNotice(null);
+    const moved = applyOperations(trip, ops);
+    if (!moved.ok) { setNotice({ kind: 'error', text: `並べ替えできませんでした（${moved.reason}）。` }); return; }
+    const r = recalcDay(moved.trip, idx);
+    const unknownNote = r.unknown > 0 ? `新しい組み合わせの移動 ${r.unknown}件は所要時間が不明のため、それ以降の時刻は未取得です。` : '';
     if (editor.kind === 'local') {
-      const r = applyOperations(trip, ops);
-      if (!r.ok) { setNotice({ kind: 'error', text: `並べ替えできませんでした（${r.reason}）。` }); return; }
-      setTrip({ ...r.trip, validationState: 'needs_revalidation' });
-      setNotice({ kind: 'info', text: '並べ替えました（候補の表示のみ・まだ保存していません）。移動の時刻は再計算されていません。' });
+      setHistory(h => [...h, { trip, dayIndex: idx }]);
+      setTrip(r.trip);
+      setNotice({ kind: 'info', text: `並べ替えて時刻を計算し直しました（候補の表示のみ・まだ保存していません）。${unknownNote}` });
       return;
     }
+    const saved = await save(opsToDay(day, r.trip.days[idx]!, idx));
+    if (!saved) return;
+    setHistory(h => [...h, { trip, dayIndex: idx }]);
+    setNotice({ kind: 'info', text: `並べ替えて時刻を計算し直し、保存しました（版 ${saved.revision}）。${unknownNote}` });
+  };
+
+  /** Saves K10 operations (server editor). Returns the saved trip, or null after showing the error. */
+  const save = async (ops: TripOperation[]): Promise<Trip | null> => {
+    if (editor?.kind !== 'api') return null;
+    setNotice(null);
     setSaving(true);
     const r = await editor.api.patch(trip.tripId, { expectedRevision: trip.revision, operations: ops });
     setSaving(false);
     if (!r.ok) {
       setNotice({ kind: 'error', text: apiMessage(r.error) });
-      return; // nothing is overwritten: the table keeps what is saved
+      return null; // nothing is overwritten: the table keeps what is saved
     }
     setTrip(r.data.trip);
-    setNotice({ kind: 'info', text: `並べ替えを保存しました（版 ${r.data.revision}）。移動の時刻と所要時間は再計算が必要です。` });
+    return r.data.trip;
+  };
+
+  const undo = async () => {
+    const last = history[history.length - 1];
+    if (!last || !editor) return;
+    if (editor.kind === 'local') {
+      setTrip(last.trip);
+    } else {
+      const from = trip.days[last.dayIndex], to = last.trip.days[last.dayIndex];
+      if (!from || !to || !(await save(opsToDay(from, to, last.dayIndex)))) return;
+    }
+    setHistory(h => h.slice(0, -1));
+    if (last.dayIndex !== idx) onSelectDay(last.dayIndex);
+    setNotice({ kind: 'info', text: editor.kind === 'local' ? '1つ前の状態に戻しました。' : '1つ前の状態に戻して保存しました。' });
+  };
+
+  const recalc = async () => {
+    if (!day || !editor) return;
+    const r = recalcDay(trip, idx);
+    const next = r.trip.days[idx]!;
+    if (JSON.stringify(next) === JSON.stringify(day)) { setNotice({ kind: 'info', text: '時刻は今のままで合っています（変更なし）。' }); return; }
+    const text = `既知の移動時間で時刻を計算し直しました（流用 ${r.reused}件）。`
+      + (r.unknown > 0 ? `新しい組み合わせの移動 ${r.unknown}件は所要時間が不明のため、それ以降の時刻は未取得です（経路の検索はしていません）。` : '');
+    if (editor.kind === 'local') {
+      setHistory(h => [...h, { trip, dayIndex: idx }]);
+      setTrip(r.trip);
+      setNotice({ kind: 'info', text });
+      return;
+    }
+    if (!(await save(opsToDay(day, next, idx)))) return;
+    setHistory(h => [...h, { trip, dayIndex: idx }]);
+    setNotice({ kind: 'info', text: `${text}保存しました。` });
   };
 
   return (
@@ -212,12 +261,20 @@ export function ItineraryView({ trip: tripProp, source, dayIndex, onSelectDay, m
               <AttributionBlock attribution={attribution} mapShown={mapsKey !== null} />
             </div>
             <div className="it-tablecol">
-              {editable && <p className="meta it-hint">左端の「⠿」をドラッグで並べ替え（キーボードは Enter→↑↓→Enter）。行を押すと詳細。</p>}
+              {/* The how-to is read out only (UI review on #32: no hint text on screen). */}
+              {editable && <p className="u1-sr" id="it-reorder-help">左端の「⠿」をドラッグで並べ替え。キーボードは Enter で持ち上げ、上下の矢印キーで動かし、Enter で置きます。行を押すと詳細が開きます。</p>}
               {saving && <p role="status" className="u1-loading">並べ替えを保存中…</p>}
               {notice && <p role={notice.kind === 'error' ? 'alert' : 'status'} className={notice.kind === 'error' ? 'it-notice it-error' : 'it-notice'}>{notice.text}</p>}
               <ItineraryTable key={idx} rows={rows} dayDate={day.date} expanded={expanded} selectedKeys={sync?.itemKeys}
                 onToggleRow={selectRow} saving={saving} {...(editable ? { onReorder: (k: string, b: string | null) => void commitMove(k, b) } : {})}
                 setRowRef={(k, el) => { if (el) rowRefs.current.set(k, el); else rowRefs.current.delete(k); }} />
+              {/* Under the table (UI review on #32). */}
+              {editable && (
+                <div className="it-editbar">
+                  <button type="button" className="btn" disabled={saving || history.length === 0} onClick={() => void undo()}>元に戻す</button>
+                  <button type="button" className="btn" disabled={saving} onClick={() => void recalc()}>時刻を再計算</button>
+                </div>
+              )}
             </div>
           </section>
         </>

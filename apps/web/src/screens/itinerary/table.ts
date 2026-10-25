@@ -100,9 +100,11 @@ export function tableRows(day: TripDay, places: readonly PlaceInfo[]): TableRow[
     }
     if (it.parentActivityId && activityIds.has(it.parentActivityId)) continue;
     const n = it.placeId ? numbered.get(it.placeId) : undefined;
+    const place = it.placeId ? byPlace.get(it.placeId) ?? null : null;
     rows.push({
-      kind: 'stay', key: it.activityId, item: it, number: n ?? null, place: it.placeId ? byPlace.get(it.placeId) ?? null : null,
-      range: stayRange(it.start, it.end, day.date), children: children.get(it.activityId) ?? [],
+      kind: 'stay', key: it.activityId, item: it, number: n ?? null, place,
+      // At a station you only leave or arrive: one time, not a range (UI review on #32).
+      range: place?.kind === 'station' ? formatHm(it.start, day.date) : stayRange(it.start, it.end, day.date), children: children.get(it.activityId) ?? [],
     });
   }
   rows.forEach((row, i) => {
@@ -125,20 +127,17 @@ export interface DetailLine {
 const line = (label: string, value: string | null, extra = ''): DetailLine =>
   value === null || value === '' || value === UNKNOWN ? { label, value: UNKNOWN, unknown: true } : { label, value: value + extra, unknown: false };
 
-/** What the user sees when a place row is opened: time, cost, description and where each value came from. */
+/**
+ * Details of a stay: only what the row does not already show (UI review on #32: no time/kind again, no description
+ * or source lines; the sources are in the attribution block under the map).
+ */
 export function stayDetails(row: StayRow): DetailLine[] {
   const a = row.item;
   const p = row.place;
-  const src = p ? `${p.provenance.source}${p.provenance.attribution ? `（${p.provenance.attribution}）` : ''}` : null;
   return [
-    line('時間', row.range),
-    line('種類', `${KIND_LABEL[a.kind]}${a.fixed ? '・固定予定' : ''}`),
     line('場所', p?.name ?? a.areaName ?? null),
-    line('説明', p?.description ?? null),
     line('営業時間', p?.openingHours ?? null),
     line('費用', a.cost === null ? null : formatMoney(a.cost)),
-    line('費用の出典', a.cost === null ? null : DATA_STATUS_LABEL[a.costStatus] ?? a.costStatus),
-    line('地点の出典', src, p ? `・${DATA_STATUS_LABEL[p.dataStatus] ?? p.dataStatus}` : ''),
   ];
 }
 
@@ -149,7 +148,6 @@ export function childDetails(child: ChildRow): DetailLine[] {
     line('時間', child.range),
     line('種類', KIND_LABEL[a.kind]),
     line('費用', a.cost === null ? null : formatMoney(a.cost)),
-    line('費用の出典', a.cost === null ? null : DATA_STATUS_LABEL[a.costStatus] ?? a.costStatus),
   ];
 }
 
@@ -171,7 +169,6 @@ export function legDetails(row: LegRow, dayDate: string): DetailLine[] {
       line('乗換', unk(t.transferCount), t.transfers.length > 0 ? `（${t.transfers.join('、')}）` : ''), line('ホーム', unk(t.platform)),
     );
   }
-  lines.push(line('出典', l.provenance ? `${l.provenance.source}${l.provenance.attribution ? `（${l.provenance.attribution}）` : ''}` : null, `・${DATA_STATUS_LABEL[l.dataStatus] ?? l.dataStatus}`));
   if (row.stale) lines.push({ label: '注意', value: '並べ替えのため前後の地点と合いません。移動の再計算が必要です。', unknown: false });
   return lines;
 }
@@ -244,6 +241,30 @@ export function insertBeforeKey(stayKeys: readonly string[], dragged: string, ov
   const di = stayKeys.indexOf(dragged);
   if (nextKey === (stayKeys[di + 1] ?? null)) return undefined;
   return nextKey;
+}
+
+/**
+ * The stay to insert before when the pointer is over `overKey` in the order on screen (`shown`, which already has the
+ * dragged stay moved). undefined: the drop would give the original order.
+ */
+export function hoverTarget(stayKeys: readonly string[], shown: readonly string[], dragged: string, overKey: string, after: boolean): string | null | undefined {
+  const rest = shown.filter(k => k !== dragged);
+  const i = rest.indexOf(overKey);
+  if (i < 0 || !stayKeys.includes(dragged)) return undefined;
+  const before = after ? rest[i + 1] ?? null : overKey;
+  const result = reorderedOrder(stayKeys, [dragged], before);
+  return result.every((k, j) => k === stayKeys[j]) ? undefined : before;
+}
+
+/** Rows in a new stay order: each stay keeps the legs that follow it (legs before the first stay stay first). */
+export function previewRows(rows: readonly TableRow[], order: readonly string[]): TableRow[] {
+  const lead: TableRow[] = [];
+  const units = new Map<string, TableRow[]>();
+  let cur: TableRow[] | null = null;
+  for (const r of rows) {
+    if (r.kind === 'stay') { cur = [r]; units.set(r.key, cur); } else (cur ?? lead).push(r);
+  }
+  return [...lead, ...order.flatMap(k => units.get(k) ?? [])];
 }
 
 /** Keyboard alternative: the stay to insert before when moving `dragged` one stay up (-1) or down (+1); undefined at the edge. */

@@ -220,7 +220,7 @@ describe('views', () => {
     expect(html).not.toContain('Alt+');
     expect(html).toContain('aria-label="行程表"');
     expect(html).toContain('class="it-handle"');
-    expect(html).toContain('出発 ');
+    expect(html).toContain('class="it-conn it-conn-start"');
     expect(html).toContain('を削除');
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>直前の編集を取り消す/);
     expect(html).toContain(`#/mock/trips/${base.tripId}/map`);

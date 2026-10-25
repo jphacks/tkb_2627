@@ -84,20 +84,19 @@ describe('B: table with one place per row and legs as two rows (R3)', () => {
     expect(rows.some(r => r.key === 'fx_act_lunch')).toBe(false);
   });
 
-  it('a leg is rendered as a start row (departure only) and an end row (arrival only), not as one "A → B" card', () => {
+  it('a leg is a start row and an end row with one arrow through both and no times (UI review on #32), not one "A → B" card', () => {
     const html = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
     expect(html).toContain('<table class="it-table"');
     expect(html).toContain('<th scope="col" class="it-col-time">時刻</th><th scope="col">内容</th>');
-    const start = /<tr class="it-conn it-conn-start" data-leg-key="fx_leg_k2">(.*?)<\/tr>/.exec(html)?.[1] ?? '';
-    const end = /<tr class="it-conn it-conn-end" data-leg-key="fx_leg_k2">(.*?)<\/tr>/.exec(html)?.[1] ?? '';
-    expect(text(start)).toContain('出発 12:30');
+    const start = /<tr class="it-conn it-conn-start" data-leg-key="fx_leg_k2"[^>]*>(.*?)<\/tr>/.exec(html)?.[1] ?? '';
+    const end = /<tr class="it-conn it-conn-end" data-leg-key="fx_leg_k2"[^>]*>(.*?)<\/tr>/.exec(html)?.[1] ?? '';
+    expect(start).toContain('<td class="it-conncell" rowSpan="2"><span aria-hidden="true" class="it-arrowline"></span>');
     expect(text(start)).toContain('徒歩・15分');
     // The names are the rows above and below: read out, not repeated on screen (UI review on #33).
     expect(text(start)).not.toContain('近江町市場から');
     expect(start).toContain('aria-label="近江町市場から金沢城公園への移動：徒歩・15分"');
     expect(text(start)).not.toContain('→');
-    expect(text(end)).toContain('到着 12:45');
-    expect(text(end)).not.toContain('金沢城公園へ');
+    expect(text(end)).toBe('');
     expect(text(start)).not.toContain('12:45');
     expect(text(end)).not.toContain('12:30');
     expect(html).not.toContain('近江町市場 → 金沢城公園');
@@ -105,11 +104,29 @@ describe('B: table with one place per row and legs as two rows (R3)', () => {
 
   it('an unknown time is 未取得 (never 0 or a guess), including a leg without arrival', () => {
     const html = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
-    const end = /<tr class="it-conn it-conn-end[^"]*" data-leg-key="fx_leg_k1">(.*?)<\/tr>/.exec(html)?.[1] ?? '';
+    const end = /<tr class="(?:it-conn it-conn-end|it-stoprow)[^"]*" data-leg-key="fx_leg_k1"[^>]*>(.*?)<\/tr>/.exec(html)?.[1] ?? '';
     expect(end).toContain('<span class="u1-unknown">未取得</span>');
     expect(html).not.toMatch(SHOWN_AS_ZERO);
     expect(stayRange(null, null, '2026-11-01')).toBe('未取得〜未取得');
     expect(formatHm({ utc: '2026-11-01T16:00:00Z', timeZone: 'Asia/Tokyo' }, '2026-11-01')).toBe('11/2 1:00');
+  });
+});
+
+describe('UI review on #32 (second round)', () => {
+  it('a station shows one time (leave / arrive), other stays a range', () => {
+    const rows = tableRows(day1, domesticTrip.places);
+    const range = (k: string) => (rows.find(r => r.kind === 'stay' && r.key === k) as StayRow).range;
+    expect(range('fx_act_station')).toBe('9:00');
+    expect(range('fx_act_castle')).toBe('12:45〜14:00');
+  });
+  it('nested activities show only their time and name; undo / re-timing sit under the table; no hint text on screen', () => {
+    const html = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} editor={{ kind: 'local' }} initialExpanded={['fx_act_omicho']} />);
+    const child = /<tr class="it-child">(.*?)<\/tr>/.exec(html)?.[1] ?? '';
+    expect(child).toContain('市場を散策');
+    expect(child).not.toContain('<dl');
+    expect(html.indexOf('>元に戻す</button>')).toBeGreaterThan(html.indexOf('aria-label="行程表"'));
+    expect(html).toContain('<p class="u1-sr" id="it-reorder-help">');
+    expect(html).not.toContain('it-hint');
   });
 });
 
@@ -145,21 +162,18 @@ describe('C: a stay opens one level with its nested activities by time (R2)', ()
 });
 
 describe('D: clicking shows details (description, time, cost, source)', () => {
-  it('stay details list time, kind, place, description, hours, cost and where each came from', () => {
+  it('stay details are compact: place, hours and cost only (UI review on #32: no time/kind again, no description or sources)', () => {
     const row = tableRows(day1, domesticTrip.places).find(r => r.kind === 'stay' && r.key === 'fx_act_kenrokuen') as StayRow;
     const d = Object.fromEntries(stayDetails(row).map(l => [l.label, l.value]));
-    expect(d['時間']).toBe('14:10〜15:30');
-    expect(d['説明']).toContain('日本三名園');
+    expect(Object.keys(d)).toEqual(['場所', '営業時間', '費用']);
     expect(d['営業時間']).toContain('7:00-18:00');
     expect(d['費用']).toContain('320');
-    expect(d['費用の出典']).toBe('サンプル（fixture）');
-    expect(d['地点の出典']).toContain('fixture');
   });
 
-  it('unknown description / cost are 未取得, not blank and not 0', () => {
+  it('unknown hours / cost are 未取得, not blank and not 0', () => {
     const row = tableRows(day1, domesticTrip.places).find(r => r.kind === 'stay' && r.key === 'fx_act_museum') as StayRow;
     const lines = stayDetails(row);
-    for (const label of ['説明', '営業時間', '費用']) {
+    for (const label of ['営業時間', '費用']) {
       const l = lines.find(x => x.label === label)!;
       expect(l.value).toBe('未取得');
       expect(l.unknown).toBe(true);
@@ -311,6 +325,15 @@ describe('G: drag-and-drop reordering as K10 move operations (R1)', () => {
     expect(stay.indexOf('it-handle')).toBeLessThan(stay.indexOf('it-time'));
     const ro = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
     expect(ro).not.toContain('it-col-handle');
+  });
+
+  it('editable tables offer undo (disabled until something changed) and re-timing; read-only tables do not', () => {
+    const rw = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} editor={{ kind: 'local' }} />);
+    expect(rw).toMatch(/<button[^>]*disabled=""[^>]*>元に戻す<\/button>/);
+    expect(rw).toContain('>時刻を再計算</button>');
+    const ro = render(<ItineraryView trip={domesticTrip} source="mock" dayIndex={0} onSelectDay={noop} mapsKey={null} />);
+    expect(ro).not.toContain('元に戻す');
+    expect(ro).not.toContain('時刻を再計算');
   });
 
   it('a stay row does not repeat an unknown cost (it stays in the details)', () => {
