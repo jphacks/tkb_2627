@@ -15,7 +15,7 @@ import { mapPoints, unlocatedPlaces } from '../itinerary/model.ts';
 import type { GeoLike } from '../travel/geo.ts';
 import {
   AMENITY_KIND_LABEL, EMPTY_TEXT, SHELTER_WARNING, UNSUPPORTED_TEXT,
-  chooseArea, currentDayIndex, displayName, fetchAmenities, fetchGuide, filterKinds, hazardText, isFictional, mergeGuide, mockAmenities,
+  chooseArea, currentDayIndex, displayName, fetchAmenities, fetchGuide, filterKinds, isFictional, mergeGuide, mockAmenities,
   spotDetail, warningFor, type AmenitiesLoad, type AmenityItem, type AmenityKind, type GuideLoad, type SpotDetail,
 } from './model.ts';
 import type { GuideRoute } from './route.ts';
@@ -69,13 +69,13 @@ export function GuideScreen({ route, geo, today, onBack }: { route: GuideRoute; 
   );
 }
 
-export function GuideView({ trip, mock, geo, today, initialAmenities = null, initialSelected = null }: { trip: Trip; mock: boolean; geo: GeoLike | null; today: string; initialAmenities?: AmenitiesLoad | null; initialSelected?: string | null }) {
+export function GuideView({ trip, mock, geo, today, initialAmenities = null, initialSelected = null, initialPickedAmenity = null, initialEnabled }: { trip: Trip; mock: boolean; geo: GeoLike | null; today: string; initialAmenities?: AmenitiesLoad | null; initialSelected?: string | null; initialPickedAmenity?: string | null; initialEnabled?: ReadonlySet<AmenityKind> }) {
   const [dayIndex, setDayIndex] = useState(() => currentDayIndex(trip, today));
   const day = trip.days[Math.min(dayIndex, Math.max(trip.days.length - 1, 0))];
   const points = useMemo(() => (day ? mapPoints(day, trip.places) : []), [day, trip.places]);
   const [selected, setSelected] = useState<string | null>(initialSelected);
-  const [pickedAmenity, setPickedAmenity] = useState<string | null>(null);
-  const [enabled, setEnabled] = useState<ReadonlySet<AmenityKind>>(new Set(ALL_KINDS));
+  const [pickedAmenity, setPickedAmenity] = useState<string | null>(initialPickedAmenity);
+  const [enabled, setEnabled] = useState<ReadonlySet<AmenityKind>>(initialEnabled ?? new Set(ALL_KINDS));
   const [amen, setAmen] = useState<AmenitiesLoad | null>(initialAmenities);
   const [note, setNote] = useState<string | null>(null);
   const seq = useRef(0);
@@ -137,12 +137,22 @@ export function GuideView({ trip, mock, geo, today, initialAmenities = null, ini
         <h2>今日の地点</h2>
         {!day || points.length === 0 ? <p className="u1-empty">この日に位置のある地点はありません。</p> : (
           <>
-            <MapPanel apiKey={readBrowserMapsKey()} points={points} highlighted={new Set(selected ? [selected] : [])} onSelectPlace={pick}
-              extraMarkers={markers} onSelectExtra={id => setPickedAmenity(p => (p === id ? null : id))} selectedExtraId={pickedAmenity} />
-            {markers.length > 0 && <AmenityLegend kinds={ALL_KINDS.filter(k => markers.some(m => m.glyph === MARKER_STYLE[k].glyph))} />}
-            {amenityPicked && <ul className="gd-list" aria-label="選んだ施設"><AmenityRow item={amenityPicked} /></ul>}
-            {markers.length > 0 && amen?.state === 'ok' && amen.items.some(isFictional) && <p className="it-fixture" role="note"><strong>【架空】</strong> 地図上の施設は架空のfixtureデータです。</p>}
-            {markers.some(m => m.glyph !== MARKER_STYLE.toilet.glyph) && <p className="gd-warn" role="note">{SHELTER_NOTE}</p>}
+            <div className="gd-mapwrap">
+              <MapPanel apiKey={readBrowserMapsKey()} points={points} highlighted={new Set(selected ? [selected] : [])} onSelectPlace={pick}
+                extraMarkers={markers} onSelectExtra={id => setPickedAmenity(p => (p === id ? null : id))} selectedExtraId={pickedAmenity} />
+              {amenityPicked && (
+                <div className="gd-pop" role="status" aria-label="選んだ施設">
+                  <strong>{displayName(amenityPicked)}</strong> <span className="gd-kind">{AMENITY_KIND_LABEL[amenityPicked.kind]}</span>
+                  {warningFor(amenityPicked) && <p className="gd-warn">{warningFor(amenityPicked)}</p>}
+                </div>
+              )}
+            </div>
+            <button type="button" className="btn gd-here" aria-label="現在地を使う（ブラウザの位置情報の許可を確認します）" title="ブラウザの位置情報の許可を確認します" onClick={() => { void run(true); }}>現在地を使う</button>
+            {note && <p className="meta" role="status">{note}</p>}
+            <AmenityLegend enabled={enabled} onToggle={toggle} />
+            {amen?.state === 'ok' && amen.items.some(isFictional) && <p className="it-fixture" role="note"><strong>【架空】</strong> 地図上の施設は架空のfixtureデータです。実在の施設・公式データではありません。</p>}
+            {amen?.state === 'ok' && amen.items.some(i => i.kind !== 'toilet') && <p className="gd-warn" role="note">{SHELTER_NOTE}</p>}
+            <AmenitiesPanel load={amen} onRetry={() => { void run(false); }} />
             {day && unlocatedPlaces(day, trip.places).length > 0 && <p className="meta">位置不明: {unlocatedPlaces(day, trip.places).map(u => u.name).join('、')}</p>}
             <ItineraryTable rows={rows} dayDate={day.date} expanded={selectedKeys.size > 0 ? selectedKeys : NO_EXPANDED} selectedKeys={selectedKeys} onToggleRow={selectRow} />
           </>
@@ -150,18 +160,6 @@ export function GuideView({ trip, mock, geo, today, initialAmenities = null, ini
         <SpotPanel detail={detail} guide={guide && guide.placeId === selected ? guide.load : null} />
       </section>
 
-      <section aria-label="近くのトイレ・避難場所" className="gd-sec">
-        <h2>近くのトイレ・避難場所</h2>
-        <button type="button" className="btn" aria-label="現在地を使う（ブラウザの位置情報の許可を確認します）" title="ブラウザの位置情報の許可を確認します" onClick={() => { void run(true); }}>現在地を使う</button>
-        <fieldset className="gd-layers">
-          <legend>表示する種類</legend>
-          {ALL_KINDS.map(k => (
-            <label key={k}><input type="checkbox" checked={enabled.has(k)} onChange={() => toggle(k)} /> {AMENITY_KIND_LABEL[k]}</label>
-          ))}
-        </fieldset>
-        {note && <p className="meta" role="status">{note}</p>}
-        <AmenitiesPanel load={amen} enabled={enabled} onRetry={() => { void run(false); }} />
-      </section>
     </>
   );
 }
@@ -193,7 +191,7 @@ export function SpotPanel({ detail, guide = null }: { detail: SpotDetail | null;
 
 
 /** Four distinct outcomes: error (retry), unsupported region, empty (covered, nothing found), and the list. */
-export function AmenitiesPanel({ load, enabled, onRetry }: { load: AmenitiesLoad | null; enabled: ReadonlySet<AmenityKind>; onRetry: () => void }) {
+export function AmenitiesPanel({ load, onRetry }: { load: AmenitiesLoad | null; onRetry: () => void }) {
   if (load === null) return <p className="u1-loading" role="status">近くのトイレ・避難場所を探しています…</p>;
   if (load.state === 'error') {
     return <ErrorBox title="トイレ・避難場所を取得できませんでした" error={{ message: load.message, ...(load.code ? { code: load.code } : {}), ...(load.requestId ? { requestId: load.requestId } : {}) }} onRetry={onRetry} />;
@@ -202,39 +200,19 @@ export function AmenitiesPanel({ load, enabled, onRetry }: { load: AmenitiesLoad
     return <div className="u1-empty" role="status"><p><strong>{UNSUPPORTED_TEXT}</strong></p>{load.reason && <p className="meta">{load.reason}</p>}<p className="meta">対応範囲: {load.supportedRegion}</p></div>;
   }
   if (load.state === 'empty') return <div className="u1-empty" role="status"><p>{EMPTY_TEXT}</p>{load.reason && <p className="meta">{load.reason}</p>}</div>;
-  const shown = filterKinds(load.items, enabled);
-  const hasShelter = load.items.some(i => i.kind !== 'toilet');
-  return (
-    <>
-      {hasShelter && <p className="gd-warn" role="note">{SHELTER_NOTE}</p>}
-      {load.items.some(isFictional) && <p className="it-fixture" role="note"><strong>【架空】</strong> 架空のfixtureデータです。実在の施設・公式データではありません。</p>}
-      {shown.length === 0 ? <p className="u1-empty">選んだ種類に該当なし</p> : (
-        <ul className="gd-list" aria-label="トイレ・避難場所">
-          {shown.map(i => <AmenityRow key={i.id} item={i} />)}
-        </ul>
-      )}
-      {load.fetchedAt && <p className="meta">取得日: {load.fetchedAt}</p>}
-    </>
-  );
+  // The list is not shown (M2 review 3): amenities are read from the map markers.
+  return load.fetchedAt ? <p className="meta">施設データ取得日: {load.fetchedAt}</p> : null;
 }
 
-function AmenityLegend({ kinds }: { kinds: readonly AmenityKind[] }) {
+/** Legend merged with the layer toggles: each entry is the symbol and a toggle button. */
+export function AmenityLegend({ enabled, onToggle }: { enabled: ReadonlySet<AmenityKind>; onToggle: (k: AmenityKind) => void }) {
   return (
-    <p className="meta gd-legend" aria-label="地図の記号">
-      {kinds.map(k => <span key={k} style={{ marginRight: 12 }}><strong style={{ color: MARKER_STYLE[k].color }}>{MARKER_STYLE[k].glyph}</strong> {AMENITY_KIND_LABEL[k]}</span>)}
-    </p>
-  );
-}
-
-function AmenityRow({ item }: { item: AmenityItem }) {
-  const warn = warningFor(item);
-  return (
-    <li className={`gd-am gd-${item.kind}`}>
-      <strong>{displayName(item)}</strong> <span className="gd-kind">{AMENITY_KIND_LABEL[item.kind]}</span>
-      {item.kind === 'toilet' && <span className="meta"> 車いす: {item.accessible === true ? '可' : item.accessible === false ? '不可' : '不明'} / 営業時間: {item.openingHours ?? '不明'}</span>}
-      {item.kind !== 'toilet' && <span className="meta"> {hazardText(item)}</span>}
-      {warn && <p className="gd-warn">{warn}</p>}
-      <span className="meta">出典: {item.provenance.attribution}</span>
-    </li>
+    <div className="gd-legend" role="group" aria-label="地図の記号（押すと表示を切り替え）">
+      {ALL_KINDS.map(k => (
+        <button key={k} type="button" className={`gd-leg${enabled.has(k) ? ' gd-on' : ''}`} aria-pressed={enabled.has(k)} onClick={() => onToggle(k)}>
+          <strong style={{ color: MARKER_STYLE[k].color }}>{MARKER_STYLE[k].glyph}</strong> {AMENITY_KIND_LABEL[k]}
+        </button>
+      ))}
+    </div>
   );
 }

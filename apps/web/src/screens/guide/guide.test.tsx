@@ -7,7 +7,7 @@ import { mapPoints } from '../itinerary/model.ts';
 import { AmenitiesPanel, GuideView, SpotPanel, amenityMarkers } from './GuideScreen.tsx';
 import {
   EMPTY_TEXT, SHELTER_WARNING, UNSUPPORTED_TEXT, amenitiesUrl, bboxAround, chooseArea, classifyAmenities, currentDayIndex,
-  displayName, fallbackBbox, type AmenityKind, fetchAmenities, mockAmenities, spotDetail, type AmenitiesLoad, type AmenityResponse,
+  displayName, fallbackBbox, type AmenityKind, fetchAmenities, mockAmenities, spotDetail, type AmenityResponse,
   fetchGuide, guidesUrl, mergeGuide, type GuideLoad,
 } from './model.ts';
 import type { GuideItem } from '@tkb/contracts';
@@ -90,9 +90,9 @@ describe('empty vs unsupported vs failure are distinct', () => {
   });
   it('renders three different screens', () => {
     const noop = () => {};
-    const empty = render(<AmenitiesPanel load={{ state: 'empty', reason: null, dataStatus: 'fixture' }} enabled={ALL} onRetry={noop} />);
-    const unsup = render(<AmenitiesPanel load={{ state: 'unsupported', reason: null, supportedRegion: '金沢' }} enabled={ALL} onRetry={noop} />);
-    const fail = render(<AmenitiesPanel load={{ state: 'error', message: '503' }} enabled={ALL} onRetry={noop} />);
+    const empty = render(<AmenitiesPanel load={{ state: 'empty', reason: null, dataStatus: 'fixture' }} onRetry={noop} />);
+    const unsup = render(<AmenitiesPanel load={{ state: 'unsupported', reason: null, supportedRegion: '金沢' }} onRetry={noop} />);
+    const fail = render(<AmenitiesPanel load={{ state: 'error', message: '503' }} onRetry={noop} />);
     expect(empty).toContain(EMPTY_TEXT);
     expect(unsup).toContain(UNSUPPORTED_TEXT);
     expect(unsup).not.toContain(EMPTY_TEXT);
@@ -103,23 +103,14 @@ describe('empty vs unsupported vs failure are distinct', () => {
 });
 
 describe('shelter warning and fixture labelling', () => {
-  it('shelter warning is always shown even if the provider sent an empty warning', () => {
-    const load: AmenitiesLoad = { state: 'ok', items: [shelter], dataStatus: 'fixture', fetchedAt: null };
-    const html = render(<AmenitiesPanel load={load} enabled={ALL} onRetry={() => {}} />);
+  const m = mockAmenities(bboxAround({ lat: 36.56, lng: 136.65 }));
+  if (m.state !== 'ok') throw new Error();
+  const html = render(<GuideView trip={trip} mock geo={null} today={day.date} initialAmenities={m} />);
+  it('shelter caution and 【架空】 stay with the legend', () => {
     expect(html).toContain(SHELTER_WARNING);
-    expect(html).toContain('指定避難所');
-    // hiding the layer does not drop the list-level notice
-    expect(render(<AmenitiesPanel load={load} enabled={new Set<AmenityKind>(['toilet'])} onRetry={() => {}} />)).toContain(SHELTER_WARNING);
-  });
-  it('fixture amenities carry 【架空】 and sites/shelters are separate kinds', () => {
-    const m = mockAmenities(bboxAround({ lat: 36.56, lng: 136.65 }));
-    if (m.state !== 'ok') throw new Error();
+    expect(html).toContain('【架空】');
     expect(m.items.every(i => displayName(i).startsWith('【架空】'))).toBe(true);
     expect(new Set(m.items.map(i => i.kind)).size).toBe(3);
-    const html = render(<AmenitiesPanel load={m} enabled={ALL} onRetry={() => {}} />);
-    expect(html).toContain('指定緊急避難場所');
-    expect(html).toContain('指定避難所');
-    expect(html).toContain(SHELTER_WARNING);
     expect(m.items.every(i => i.openNow === null)).toBe(true);
   });
 });
@@ -227,6 +218,37 @@ describe('U07 review (M2): map markers, no explanatory texts, itinerary under th
     expect(html).toContain('【架空】');
     expect(view({ initialAmenities: { ...m, items: m.items.filter(i => i.kind === 'toilet') } })).not.toContain('指定は「現在開設中」を意味しません');
   });
+  it('R3-1/2/3: order is map, 現在地 button, legend toggles, table; no amenity list or checkboxes', () => {
+    const html = view();
+    const at = (x: string) => html.indexOf(x);
+    expect(at('data-testid="map-fallback"')).toBeGreaterThan(-1);
+    expect(at('aria-label="現在地を使う')).toBeGreaterThan(at('data-testid="map-fallback"'));
+    expect(at('class="gd-legend"')).toBeGreaterThan(at('aria-label="現在地を使う'));
+    expect(at('<table')).toBeGreaterThan(at('class="gd-legend"'));
+    expect(html).not.toContain('近くのトイレ・避難場所');
+    expect(html).not.toContain('gd-list');
+    expect(html).not.toContain('type="checkbox"');
+    expect(html).not.toContain('車いす');
+  });
+  it('legend entries are the toggles: off kinds lose their markers', () => {
+    const html = view({ initialEnabled: new Set<AmenityKind>(['toilet']) });
+    expect(html).toContain('aria-pressed="true"');
+    expect((html.match(/class="gd-leg"/g) ?? []).length).toBe(2);
+    expect((html.match(/data-testid="extra-marker"/g) ?? []).length).toBe(m.items.filter(i => i.kind === 'toilet').length);
+    for (const k of ['トイレ', '指定緊急避難場所', '指定避難所']) expect(html).toContain(k);
+  });
+  it('tapping a marker shows its name (and the shelter warning for a shelter) near the map', () => {
+    expect(view()).not.toContain('aria-label="選んだ施設"');
+    const sh = m.items.find(i => i.kind === 'evacuation_shelter')!;
+    const html = view({ initialPickedAmenity: sh.id });
+    expect(html).toContain('aria-label="選んだ施設"');
+    expect(html).toContain(displayName(sh));
+    expect(html.slice(html.indexOf('gd-pop'))).toContain(SHELTER_WARNING);
+    const t = m.items.find(i => i.kind === 'toilet')!;
+    const th = view({ initialPickedAmenity: t.id });
+    expect(th).toContain(displayName(t));
+    expect(th.slice(th.indexOf('gd-pop'), th.indexOf('gd-here'))).not.toContain(SHELTER_WARNING);
+  });
   it('does not show the two explanatory texts', () => {
     const html = view();
     expect(html).not.toContain('地点を選ぶと解説を表示します');
@@ -239,8 +261,7 @@ describe('U07 review (M2): map markers, no explanatory texts, itinerary under th
     const tableAt = html.indexOf('<table');
     expect(mapAt).toBeGreaterThan(-1);
     expect(tableAt).toBeGreaterThan(mapAt);
-    expect(tableAt).toBeLessThan(html.indexOf('近くのトイレ・避難場所'));
-    expect(html).not.toContain('it-drag');
+        expect(html).not.toContain('it-drag');
     for (const p of mapPoints(day, trip.places)) {
       expect(html).toContain(`aria-label="${p.number}. ${p.name}"`);
       expect(html).toContain(`aria-label="地図の地点${p.number}"`);
