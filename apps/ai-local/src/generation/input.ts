@@ -6,6 +6,8 @@ export const INSTRUCTIONS =
   'include every must-visit place, and never invent places, opening hours, fares or travel times. ' +
   'Keep stops in the same area or within a short walk next to each other so they can be grouped as one area, and never ' +
   'place two food or meal stops (a meal followed by a food walk) one right after the other. ' +
+  'Fill each day from 09:00 to 19:00 as fully as the allowed places permit: use as many of them as fit, so that no day ' +
+  'ends early or is left nearly empty. ' +
   'Write reasons and warnings briefly in Japanese.';
 
 /** Same rule as factsForModel in @tkb/travel-data: provider data goes to the model only when its provenance allows it; our own legs (no provenance) may. */

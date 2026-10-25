@@ -27,6 +27,9 @@ describe('validateSchedule on B04 fixtures', () => {
       ['opening_hours_unknown', 'fx_act_dinner'],
       ['time_unknown', 'fx_act_hotel'],
       ['opening_hours_unknown', 'fx_act_oyama'],
+      ['opening_hours_unknown', 'fx_act_lunch2'],
+      ['opening_hours_unknown', 'fx_act_nishi'],
+      ['opening_hours_unknown', 'fx_act_myoryuji'],
       ['opening_hours_unknown', 'fx_act_nagamachi'],
       ['time_unknown', 'fx_act_station_end'],
       // Walk legs without a fare and activities without a cost are unknown costs too (D05 summarizeTripCosts), never 0.

@@ -17,14 +17,14 @@ const collect = (out: ContextOutcome, c = constraints(), seen: unknown[] = []) =
 const withProv = (p: PlaceInfo, over: Partial<PlaceInfo['provenance']>): PlaceInfo => ({ ...p, provenance: { ...p.provenance, ...over } });
 
 describe('collectContext (K05, before any model run)', () => {
-  it('asks K05 for the area, mode, 8 places and the must-visit ids only', async () => {
+  it('asks K05 for the area, mode, 7 places per day (14 for 2 days) and the must-visit ids only', async () => {
     const seen: unknown[] = [];
     const r = await collect({ ok: true, context: fixtureCtx() }, constraints({ mustVisit: ['fx_kenrokuen'] }), seen);
     expect(r.ok).toBe(true);
-    expect(seen).toEqual([{ area: '金沢', transportMode: 'transit', maxPlaces: 8, timeZone: 'Asia/Tokyo', placeIds: ['fx_kenrokuen'] }]);
+    expect(seen).toEqual([{ area: '金沢', transportMode: 'transit', maxPlaces: 14, timeZone: 'Asia/Tokyo', placeIds: ['fx_kenrokuen'] }]);
     const none: unknown[] = [];
     await collect({ ok: true, context: fixtureCtx() }, constraints(), none);
-    expect(none).toEqual([{ area: '金沢', transportMode: 'transit', maxPlaces: 8, timeZone: 'Asia/Tokyo' }]);
+    expect(none).toEqual([{ area: '金沢', transportMode: 'transit', maxPlaces: 14, timeZone: 'Asia/Tokyo' }]);
   });
 
   it('drops fixture leg times (samples, not a timetable) but keeps durations', async () => {

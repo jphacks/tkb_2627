@@ -116,7 +116,7 @@ describe('tripMapsLinks', () => {
       ['transit', ['fx_dinner', 'fx_hotel']],
     ]);
     expect(day2).toMatchObject({ date: '2026-11-02', tooLong: [] });
-    expect(day2!.places.map(l => l.placeIds[0])).toEqual(['fx_higashi', 'fx_kazue', 'fx_oyama', 'fx_nagamachi', 'fx_kanazawa_station']);
+    expect(day2!.places.map(l => l.placeIds[0])).toEqual(['fx_higashi', 'fx_kazue', 'fx_oyama', 'fx_lunch2', 'fx_nishi', 'fx_myoryuji', 'fx_nagamachi', 'fx_kanazawa_station']);
     expect(r.withheldPlaceIds).toEqual([]);
     expect(r.unknownPlaceIds).toEqual([]);
   });

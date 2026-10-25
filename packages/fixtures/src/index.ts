@@ -115,6 +115,10 @@ const kanazawaExtraPlaces: PlaceInfo[] = [
   place('fx_kazue', '主計町茶屋街', 'area', 36.5739, 136.6639, JST),
   place('fx_oyama', '尾山神社', 'spot', 36.5667, 136.6588, JST),
   place('fx_nagamachi', '長町武家屋敷跡', 'spot', 36.5638, 136.6516, JST),
+  // Day 2 packed until the evening (UI review on #33: the sample fitted in about one day).
+  place('fx_lunch2', '（fixture）香林坊のランチ店', 'restaurant', 36.5612, 136.6558, JST),
+  place('fx_nishi', 'にし茶屋街', 'area', 36.5577, 136.6493, JST),
+  place('fx_myoryuji', '妙立寺', 'spot', 36.5562, 136.6507, JST),
 ];
 export const kanazawaTripPlaces: PlaceInfo[] = [...kanazawaPlaces, ...kanazawaExtraPlaces];
 
@@ -192,12 +196,19 @@ export const domesticTrip: Trip = {
         }),
         leg('fx_leg_k8', 'fx_kazue', 'fx_oyama', 'walk', JST, t(D2, '12:15'), t(D2, '12:35')),
         activity('fx_act_oyama', '尾山神社', 'visit', JST, t(D2, '12:35'), t(D2, '13:15'), { placeId: 'fx_oyama' }),
-        leg('fx_leg_k9', 'fx_oyama', 'fx_nagamachi', 'walk', JST, t(D2, '13:15'), t(D2, '13:30')),
-        activity('fx_act_nagamachi', '長町武家屋敷跡', 'visit', JST, t(D2, '13:30'), t(D2, '14:30'), { placeId: 'fx_nagamachi' }),
-        leg('fx_leg_k10', 'fx_nagamachi', 'fx_kanazawa_station', 'transit', JST, t(D2, '14:30'), t(D2, '14:55'), {
+        leg('fx_leg_k9', 'fx_oyama', 'fx_lunch2', 'walk', JST, t(D2, '13:15'), t(D2, '13:25')),
+        activity('fx_act_lunch2', '香林坊で昼食', 'meal', JST, t(D2, '13:25'), t(D2, '14:10'), { placeId: 'fx_lunch2' }),
+        leg('fx_leg_k11', 'fx_lunch2', 'fx_nishi', 'walk', JST, t(D2, '14:10'), t(D2, '14:30')),
+        // A visit, not a food walk, right after lunch (D06 meal_after_meal).
+        activity('fx_act_nishi', 'にし茶屋街を見学', 'visit', JST, t(D2, '14:30'), t(D2, '15:15'), { areaName: 'にし茶屋街', placeId: 'fx_nishi' }),
+        leg('fx_leg_k12', 'fx_nishi', 'fx_myoryuji', 'walk', JST, t(D2, '15:15'), t(D2, '15:20')),
+        activity('fx_act_myoryuji', '妙立寺', 'visit', JST, t(D2, '15:20'), t(D2, '16:05'), { placeId: 'fx_myoryuji' }),
+        leg('fx_leg_k13', 'fx_myoryuji', 'fx_nagamachi', 'walk', JST, t(D2, '16:05'), t(D2, '16:25')),
+        activity('fx_act_nagamachi', '長町武家屋敷跡', 'visit', JST, t(D2, '16:25'), t(D2, '17:25'), { placeId: 'fx_nagamachi' }),
+        leg('fx_leg_k10', 'fx_nagamachi', 'fx_kanazawa_station', 'transit', JST, t(D2, '17:25'), t(D2, '17:50'), {
           lineName: '（fixture）路線バス', fare: yen(210),
         }),
-        activity('fx_act_station_end', '金沢駅（到着）', 'custom', JST, t(D2, '14:55'), null, { placeId: 'fx_kanazawa_station' }),
+        activity('fx_act_station_end', '金沢駅（到着）', 'custom', JST, t(D2, '17:50'), null, { placeId: 'fx_kanazawa_station' }),
       ],
     },
   ],

@@ -36,7 +36,7 @@ describe('the sample trip (H)', () => {
     const titles1 = tableRows(day1, domesticTrip.places).flatMap(r => (r.kind === 'stay' ? [r.item.title] : []));
     expect(titles1).toEqual(['金沢駅（出発）', '近江町市場エリア', '金沢城公園', '兼六園を散策', '金沢21世紀美術館', '香林坊で夕食', 'ホテルにチェックイン']);
     const titles2 = tableRows(day2, domesticTrip.places).flatMap(r => (r.kind === 'stay' ? [r.item.title] : []));
-    expect(titles2).toEqual(['ひがし茶屋街', '主計町茶屋街を歩く', '尾山神社', '長町武家屋敷跡', '金沢駅（到着）']);
+    expect(titles2).toEqual(['ひがし茶屋街', '主計町茶屋街を歩く', '尾山神社', '香林坊で昼食', 'にし茶屋街を見学', '妙立寺', '長町武家屋敷跡', '金沢駅（到着）']);
   });
 
   it('has a leg between every pair of consecutive top-level stays, and no meal right after a meal at the same place', () => {
