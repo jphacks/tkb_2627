@@ -27,6 +27,23 @@ describe('PostItinerary (U10, #36 review item 2)', () => {
     }
   });
 
+  it('does not reveal a hidden place: its name is not in the snapshot places, so it never appears', () => {
+    const { snapshot } = mockSnapshot(domesticTrip);
+    // A place whose name is not part of any (user-written) title, so only a place lookup could show it.
+    const titles = JSON.stringify(snapshot.days.flatMap(d => d.items.map(i => (i.type === 'activity' ? `${i.title} ${i.areaName ?? ''}` : ''))));
+    const hidden = snapshot.places.find(p => !titles.includes(p.name) && snapshot.days.some(d => d.items.some(i => i.type === 'activity' && i.placeId === p.placeId)))!;
+    expect(hidden).toBeDefined();
+    const redacted = {
+      ...snapshot,
+      places: snapshot.places.filter(p => p.placeId !== hidden.placeId),
+      days: snapshot.days.map(d => ({
+        ...d,
+        items: d.items.map(i => (i.type === 'activity' && i.placeId === hidden.placeId ? { ...i, placeId: 'hidden_1' } : i)),
+      })),
+    };
+    expect(render(<PostItinerary days={redacted.days} places={redacted.places} />)).not.toContain(hidden.name);
+  });
+
   it('says when there are no days or no items', () => {
     expect(render(<PostItinerary days={[]} places={[]} />)).toContain('日程の内容はありません。');
     expect(render(<PostItinerary days={[{ date: '2026-11-01', timeZone: 'Asia/Tokyo', items: [] }]} places={[]} />)).toContain('予定はありません。');
