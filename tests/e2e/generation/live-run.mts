@@ -15,6 +15,7 @@ import { buildApp as buildLocal } from '../../../apps/ai-local/src/app.ts';
 import { PairingStore } from '../../../apps/ai-local/src/auth/pairing.ts';
 import { loadConfig as loadLocal, loadEnvFile } from '../../../apps/ai-local/src/config.ts';
 import { createRunner } from '../../../apps/ai-local/src/runner-factory.ts';
+import { MEAL_AFTER_MEAL_WARNING } from '../../../apps/ai-local/src/generation/assemble.ts';
 import type { FetchLike } from '../../../apps/ai-local/src/shared-client/index.ts';
 
 const HOST = '127.0.0.1:4311';
@@ -123,6 +124,8 @@ for (const [n, area] of areas.entries()) {
     const byPlace = new Map(batch.places.map(p => [p.placeId, p.dataStatus]));
     console.log(`  activity place dataStatus ${JSON.stringify(count(acts, i => (i.type === 'activity' && i.placeId ? byPlace.get(i.placeId) ?? 'missing' : 'no-place')))}; activity cost known ${acts.filter(i => i.type === 'activity' && i.cost !== null).length}/${acts.length}; leg dataStatus ${JSON.stringify(count(legs, i => i.dataStatus))}`);
     console.log(`  legs: fare=null ${legs.filter(l => l.type === 'leg' && l.fare === null).length}/${legs.length}, platform=null ${legs.filter(l => l.type === 'leg' && l.platform === null).length}/${legs.length}`);
+    const children = acts.filter(i => i.type === 'activity' && i.parentActivityId);
+    console.log(`  grouping: children=${children.length} parents=${new Set(children.map(i => i.type === 'activity' ? i.parentActivityId : null)).size} mealAfterMeal=${c.warnings.includes(MEAL_AFTER_MEAL_WARNING)}`);
     for (const w of c.warnings) console.log(`  warning: ${mask(w).slice(0, 160)}`);
   }
 }
