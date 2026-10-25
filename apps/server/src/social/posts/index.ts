@@ -103,6 +103,8 @@ export function registerPosts(app: FastifyInstance, db: Db): void {
     const q = FeedQuery.safeParse(req.query);
     if (!q.success) return invalid(reply, req.id);
     if (q.data.scope !== 'public' && !actor) return fail(reply, req.id, 'UNAUTHENTICATED', 'Authentication required.');
+    // S07 (#187) implements the following feed; until then it is rejected rather than silently mis-served.
+    if (q.data.scope === 'following') return invalid(reply, req.id);
     let cursor;
     if (q.data.cursor !== undefined) {
       cursor = decodeCursor(q.data.cursor);

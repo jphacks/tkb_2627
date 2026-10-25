@@ -13,9 +13,11 @@ export const SCOPE_LABEL: Record<FeedScope, string> = {
   public: '公開',
   mine: '自分の投稿',
   groups: 'グループ',
+  following: 'フォロー中',
 };
 
 const EMPTY_FEED: Record<FeedScope, string> = {
+  following: 'フォローしている人の投稿はまだありません。',
   public: '公開された投稿はまだありません。',
   mine: 'まだ投稿していません。「投稿する」から旅程を公開できます。',
   groups: '所属グループの投稿はまだありません。',
